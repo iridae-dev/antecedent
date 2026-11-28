@@ -115,24 +115,29 @@ struct Reading {
 fn measure(
     test: &'static str,
     dgp: &'static str,
+    capability: Option<&str>,
     interval: &'static str,
     truth: f64,
     seed_base: u64,
     replicate: impl Fn(u64) -> Option<Reading> + Sync,
 ) {
-    tally_of(test, dgp, interval, truth, seed_base, replicate).assert();
+    tally_of(test, dgp, capability, interval, truth, seed_base, replicate).assert();
 }
 
 /// The tally of `replicate` over `n_sim()` datasets scored against `truth`; `None` is a skip.
 fn tally_of(
     test: &'static str,
     dgp: &'static str,
+    capability: Option<&str>,
     interval: &'static str,
     truth: f64,
     seed_base: u64,
     replicate: impl Fn(u64) -> Option<Reading> + Sync,
 ) -> CoverageTally {
     let mut tally = CoverageTally::for_record(RecordKey { test, dgp, interval }, REPORTED_LEVEL);
+    if let Some(capability) = capability {
+        tally = tally.measures("capability", capability);
+    }
     let readings = map_replicates(n_sim(), |rep| replicate(grid_seed(seed_base + rep)));
     for reading in readings {
         let Some(reading) = reading else {
@@ -490,6 +495,7 @@ fn measurement_binary_prevalence_wald_l95() {
     measure(
         "measurement_binary_prevalence_wald_l95",
         "latent_prevalence_0_3_sensitivity_0_9_specificity_0_8_estimated_validation_rates",
+        Some("measurement.binary_misclassification"),
         WALD,
         0.3,
         0x4D01_0000,
@@ -503,6 +509,7 @@ fn measurement_binary_risk_difference_wald_l95() {
     measure(
         "measurement_binary_risk_difference_wald_l95",
         "latent_risks_0_4_and_0_2_shared_estimated_validation_rates",
+        Some("measurement.binary_misclassification"),
         WALD,
         0.2,
         0x4D02_0000,
@@ -516,6 +523,7 @@ fn measurement_classical_error_declared_variance_wald_l95() {
     measure(
         "measurement_classical_error_declared_variance_wald_l95",
         "linear_outcome_classical_error_variance_0_6_declared_exactly_coefficient_2",
+        Some("measurement.classical_continuous_error"),
         WALD,
         2.0,
         0x4D03_0000,
@@ -529,6 +537,7 @@ fn measurement_classical_error_estimated_variance_wald_l95() {
     measure(
         "measurement_classical_error_estimated_variance_wald_l95",
         "linear_outcome_classical_error_variance_estimated_from_replicate_pairs_coefficient_2",
+        Some("measurement.classical_continuous_error"),
         WALD,
         2.0,
         0x4D04_0000,
@@ -542,6 +551,7 @@ fn measurement_repeated_measurements_wald_l95() {
     measure(
         "measurement_repeated_measurements_wald_l95",
         "linear_outcome_two_or_three_replicates_per_unit_coefficient_1_5",
+        Some("measurement.repeated_measurements"),
         WALD,
         1.5,
         0x4D05_0000,
@@ -685,6 +695,7 @@ fn measurement_latent_posterior_mean_substitution_wald_l95() {
     measure(
         "measurement_latent_posterior_mean_substitution_wald_l95",
         "gaussian_latent_exact_posterior_given_indicator_coefficient_2",
+        Some("measurement.external_latent_posterior"),
         WALD,
         2.0,
         0x4D06_0000,
@@ -698,6 +709,7 @@ fn measurement_latent_posterior_multiple_imputation_wald_l95() {
     measure(
         "measurement_latent_posterior_multiple_imputation_wald_l95",
         "gaussian_latent_proper_posterior_given_indicator_and_outcome_coefficient_2",
+        Some("measurement.external_latent_posterior"),
         WALD,
         2.0,
         0x4D07_0000,
@@ -799,6 +811,7 @@ fn measurement_pooled_differential_heterogeneous_l95() {
     measure(
         "measurement_pooled_differential_heterogeneous_l95",
         "six_sources_logit_error_rates_between_population_sd_0_3_target_unvalidated",
+        Some("measurement.model_contract"),
         SIMULATION,
         0.3,
         0x4D08_0000,
@@ -812,6 +825,7 @@ fn measurement_pooled_differential_target_validated_l95() {
     measure(
         "measurement_pooled_differential_target_validated_l95",
         "six_sources_logit_error_rates_between_population_sd_0_3_target_validated",
+        Some("measurement.model_contract"),
         SIMULATION,
         0.3,
         0x4D09_0000,
@@ -828,6 +842,7 @@ fn measurement_pooled_differential_homogeneous_l95() {
     tally_of(
         "measurement_pooled_differential_homogeneous_l95",
         "six_sources_identical_error_rates_target_unvalidated",
+        Some("measurement.model_contract"),
         SIMULATION,
         0.3,
         0x4D0A_0000,
@@ -963,6 +978,7 @@ fn temporal_misclassification_frequentist_contrast_l95() {
     measure(
         "temporal_misclassification_frequentist_contrast_l95",
         "randomized_panel_binary_outcome_recorded_with_sensitivity_0_9_specificity_0_85_contrast_0_25",
+        None,
         TEMPORAL_NORMAL,
         CONTRAST.truth,
         0x4D0B_0000,
@@ -976,6 +992,7 @@ fn temporal_misclassification_frequentist_control_mean_l95() {
     measure(
         "temporal_misclassification_frequentist_control_mean_l95",
         "randomized_panel_binary_outcome_recorded_with_sensitivity_0_9_specificity_0_85_control_mean_0_3",
+        None,
         TEMPORAL_NORMAL,
         CONTROL_MEAN.truth,
         0x4D0C_0000,
@@ -989,6 +1006,7 @@ fn temporal_misclassification_bayesian_contrast_l95() {
     measure(
         "temporal_misclassification_bayesian_contrast_l95",
         "randomized_panel_binary_outcome_recorded_with_sensitivity_0_9_specificity_0_85_contrast_0_25_bayesian_bootstrap",
+        None,
         TEMPORAL_CREDIBLE,
         CONTRAST.truth,
         0x4D0D_0000,
@@ -1002,6 +1020,7 @@ fn temporal_misclassification_bayesian_control_mean_l95() {
     measure(
         "temporal_misclassification_bayesian_control_mean_l95",
         "randomized_panel_binary_outcome_recorded_with_sensitivity_0_9_specificity_0_85_control_mean_0_3_bayesian_bootstrap",
+        None,
         TEMPORAL_CREDIBLE,
         CONTROL_MEAN.truth,
         0x4D0E_0000,
@@ -1106,7 +1125,8 @@ fn posterior_composition(test: &'static str, dgp: &'static str, law: Law) {
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp, interval: NORMAL_APPROXIMATION_CONSTRUCTION },
         COMPOSED_LEVEL,
-    );
+    )
+    .measures("capability", "joint_law.composed_interval_check");
     let results = map_replicates(n_sim(), |replicate| {
         let seed = grid_seed(0x4D10_0000 + replicate);
         let (x, y) = rows_of(law, n, seed);

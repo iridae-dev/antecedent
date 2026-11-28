@@ -18,7 +18,7 @@ use crate::{CausalQueryWire, IoError};
 /// Relative slack of the covariance's symmetry and Cauchy-Schwarz checks.
 const COVARIANCE_SLACK: f64 = 1e-9;
 
-/// A temporal-design result with its uncertainty (unsupported, calibration `not_measured`).
+/// A temporal-design result with its uncertainty (unsupported, calibrated as its stated row).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct TemporalDesignWire {
@@ -74,7 +74,8 @@ pub struct TemporalDesignWire {
     pub draws: Option<u64>,
     /// Uncertainty construction.
     pub uncertainty: String,
-    /// Always `not_measured`.
+    /// The calibration state of the graphless row the result states and meets, else
+    /// `not_measured`.
     pub calibration: String,
     /// Always `false`.
     pub supported: bool,
@@ -99,7 +100,7 @@ pub(in crate::analysis_result_artifact) fn validate_temporal_design(
         return fail("the design does not belong to the query");
     }
     if section.supported
-        || section.calibration != "not_measured"
+        || section.calibration != super::stated_section_rows::temporal_design_calibration(result)
         || result.standard_error.is_some()
         || result.interval_lower.is_some()
         || result.interval_upper.is_some()

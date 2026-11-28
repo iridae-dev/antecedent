@@ -122,7 +122,7 @@ use antecedent_graph::Dag;
 use common::calibration::{
     Construction, CoverageSide, CoverageTally, RecordKey, SampleGrid, ScopeFacts, Z95, gaussian,
     grid_n, grid_seed, map_replicates, map_replicates_from, n_sim, normal_interval,
-    quantile_interval, replicate_end, replicate_start, stream_seed, uniform,
+    quantile_interval, replicate_end, replicate_start, smoke, smoke_budget, stream_seed, uniform,
 };
 use warp_speed::{Pooling, QuantileRule, Replicate, next_u64, pooled_draw_sets};
 
@@ -137,12 +137,18 @@ const DOSE: f64 = 4.0;
 /// the count, and the repository's own workflow uses 100, which is used here. The Monte Carlo
 /// noise of a 100-draw interval is part of what is measured.
 const FREQUENTIST_DRAWS: usize = 100;
+fn frequentist_draws() -> usize {
+    smoke_budget(FREQUENTIST_DRAWS, 40)
+}
 /// Draw slots of the invariant frequentist contrast records. Their draws are Gaussian about the
 /// fitted parameters, so the interval is a Monte Carlo percentile of a known law: at 100 draws
 /// its finite-draw noise and the interpolated tail ranks alone cost about two points of
 /// coverage. The records are measured at this count, which their validation scope states
 /// (`replicates_ok`); a run with fewer draws is outside the measured scope.
 const INVARIANT_FREQUENTIST_DRAWS: usize = 1000;
+fn invariant_frequentist_draws() -> usize {
+    smoke_budget(INVARIANT_FREQUENTIST_DRAWS, 100)
+}
 /// Groups of the prior-drawn calibration panels at the base grid point: the fewest the model
 /// needs (the programs run for 24 periods, a class needs several groups). Calibration under
 /// prior-drawn truths is exact at any size; the posterior-calibration tests still measure it
@@ -539,12 +545,23 @@ fn family(cell: Cell, groups: usize) -> PanelFamily {
 /// at least 100). The fit keeps its own verdict: a posterior that does not meet them
 /// publishes no interval.
 fn default_sampling() -> PanelSamplingOptions {
-    PanelSamplingOptions::default()
+    let default = PanelSamplingOptions::default();
+    if smoke() {
+        PanelSamplingOptions {
+            warmup: smoke_budget(default.warmup, 100),
+            draws: smoke_budget(default.draws, 200),
+            max_rhat: 2.0,
+            min_ess: 10.0,
+            ..default
+        }
+    } else {
+        default
+    }
 }
 
 fn inference(mode: Mode, sampling: PanelSamplingOptions) -> PanelInference {
     match mode {
-        Mode::Frequentist => PanelInference::Frequentist { draws: FREQUENTIST_DRAWS },
+        Mode::Frequentist => PanelInference::Frequentist { draws: frequentist_draws() },
         Mode::Bayesian => {
             PanelInference::Bayesian { prior: PanelPrior::default(), sampler: sampling }
         }
@@ -687,7 +704,7 @@ enum Reading {
 
 fn contrast_reading(cell: Cell, path: Path, mode: Mode, groups: usize, seed: u64) -> Reading {
     let fitted = if mode == Mode::Frequentist && !path.varying() {
-        fit_panel_draws(cell, path, groups, seed, INVARIANT_FREQUENTIST_DRAWS)
+        fit_panel_draws(cell, path, groups, seed, invariant_frequentist_draws())
     } else {
         fit_panel(cell, path, mode, groups, seed)
     };
@@ -833,6 +850,10 @@ const WARP_DRAWS: usize = 5;
 const WARP_DGP: &str = "generate_panel_warp_speed";
 /// Replicates of a warp-speed validation run, nested and warp-speed on the same seeds.
 const VALIDATION_REPLICATES: u32 = 100;
+fn validation_replicates() -> u32 {
+    let full = usize::try_from(VALIDATION_REPLICATES).unwrap();
+    u32::try_from(smoke_budget(full, 4)).unwrap()
+}
 
 /// Whether the full nested measurement is requested for a test that is warp-speed by default.
 fn nested_requested() -> bool {
@@ -913,8 +934,8 @@ fn warp_intervals(readings: &[WarpReading], seed: u64) -> Vec<Option<(f64, f64)>
         }
     }
     let failure_rate = failed as f64 / slots.max(1) as f64;
-    let withheld = 1.0 - (1.0 - failure_rate).powi(i32::try_from(FREQUENTIST_DRAWS).unwrap());
-    let pooling = Pooling { level: LEVEL, min_pool: 2, inner: Some(FREQUENTIST_DRAWS), seed };
+    let withheld = 1.0 - (1.0 - failure_rate).powi(i32::try_from(frequentist_draws()).unwrap());
+    let pooling = Pooling { level: LEVEL, min_pool: 2, inner: Some(frequentist_draws()), seed };
     let sets = pooled_draw_sets(&replicates, QuantileRule::Interpolated, pooling);
     sets.into_iter()
         .enumerate()
@@ -973,7 +994,7 @@ fn score_warp_contrast(
         LEVEL,
     );
     let (mut refused, mut withheld) = (0_usize, 0_usize);
-    let draws = u32::try_from(FREQUENTIST_DRAWS).unwrap();
+    let draws = u32::try_from(frequentist_draws()).unwrap();
     for (reading, interval) in readings.iter().zip(&intervals) {
         match reading {
             WarpReading::Refused => {
@@ -1012,10 +1033,10 @@ fn score_warp_contrast(
 fn validate_warp_contrast(cell: Cell, seed_base: u64) {
     let (path, mode) = (Path::Changed, Mode::Frequentist);
     let groups = path.groups();
-    let nested = map_replicates_from(0, VALIDATION_REPLICATES, |rep| {
+    let nested = map_replicates_from(0, validation_replicates(), |rep| {
         contrast_reading(cell, path, mode, groups, seed_base + rep)
     });
-    let warp = map_replicates_from(0, VALIDATION_REPLICATES, |rep| {
+    let warp = map_replicates_from(0, validation_replicates(), |rep| {
         warp_reading(cell, path, groups, seed_base + rep, WARP_DRAWS)
     });
     let composed = warp_intervals(&warp, seed_base);
@@ -1466,7 +1487,7 @@ fn screened_masses_reading(cell: Cell, mode: Mode, groups: usize, seed: u64) -> 
         {
             Masses::Screened { point_change }
         }
-        _ => masses_reading(cell, mode, groups, seed, FREQUENTIST_DRAWS),
+        _ => masses_reading(cell, mode, groups, seed, frequentist_draws()),
     }
 }
 
@@ -1507,7 +1528,7 @@ fn measure_false_change(
         if screened {
             screened_masses_reading(cell, mode, groups, seed_base + rep)
         } else {
-            masses_reading(cell, mode, groups, seed_base + rep, FREQUENTIST_DRAWS)
+            masses_reading(cell, mode, groups, seed_base + rep, frequentist_draws())
         }
     });
     let mut tally = CoverageTally::new(test, LEVEL);
@@ -1572,10 +1593,10 @@ fn joint_panel_selection_false_change_frequentist() {
 fn joint_panel_warp_speed_validation_false_change() {
     let (cell, mode, seed_base) = (LAGGED, Mode::Frequentist, 33_000_000);
     let groups = Path::Unchanged.groups();
-    let nested = map_replicates_from(0, VALIDATION_REPLICATES, |rep| {
-        masses_reading(cell, mode, groups, seed_base + rep, FREQUENTIST_DRAWS)
+    let nested = map_replicates_from(0, validation_replicates(), |rep| {
+        masses_reading(cell, mode, groups, seed_base + rep, frequentist_draws())
     });
-    let screened = map_replicates_from(0, VALIDATION_REPLICATES, |rep| {
+    let screened = map_replicates_from(0, validation_replicates(), |rep| {
         screened_masses_reading(cell, mode, groups, seed_base + rep)
     });
     let (mut errors_nested, mut errors_screened, mut disagree, mut skipped_out) =
@@ -1590,7 +1611,8 @@ fn joint_panel_warp_speed_validation_false_change() {
     eprintln!(
         "false-change screen validation: {errors_nested} false confident change(s) nested, \
          {errors_screened} screened, {disagree} replicate(s) differ, {skipped_out} of \
-         {VALIDATION_REPLICATES} screened out"
+         {} screened out",
+        validation_replicates()
     );
     assert_eq!(disagree, 0, "the screen must reproduce the nested error indicator");
 }
@@ -2010,8 +2032,8 @@ fn exact_study_value(states: &[f64], weights: &[f64], threshold: f64, sigma: f64
 /// `gross_evsi +- 1.96 standard_error` against that exact value, so the published standard
 /// error is measured as the precision of the published estimate.
 fn measure_future_sample_standard_error(test: &'static str, cell: Cell, path: Path, seed: u64) {
-    const REPLICATES: usize = 200;
     const NEXT_SAMPLE: u64 = 4;
+    let replicates = smoke_budget(200, 40);
     let source = experiment_source(cell, path, seed);
     let n = source.states.len();
     let mean = source.states.iter().sum::<f64>() / n as f64;
@@ -2060,7 +2082,7 @@ fn measure_future_sample_standard_error(test: &'static str, cell: Cell, path: Pa
             .rank_next_samples(
                 &problem,
                 std::slice::from_ref(&candidate),
-                REPLICATES,
+                replicates,
                 &source.ledger,
                 &ctx,
             )
@@ -2076,7 +2098,7 @@ fn measure_future_sample_standard_error(test: &'static str, cell: Cell, path: Pa
             &experiment_construction(cell, path, "monte_carlo_standard_error"),
             ScopeFacts {
                 row_count: path.groups() as u64,
-                replicates_ok: Some(u32::try_from(REPLICATES).unwrap()),
+                replicates_ok: Some(u32::try_from(replicates).unwrap()),
                 posterior_draws: Some(u32::try_from(n).unwrap()),
                 unidentified_mass: 0.0,
             },

@@ -253,7 +253,8 @@ fn weighted_split_effect_interval_calibrated() {
             interval: INTERVAL,
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "discovery.sample_split_parent_set_effect");
     if protocol_version() == 2 {
         tally = tally.labelled(ALLOCATION_PROTOCOL);
     } else if protocol_version() == 3 {

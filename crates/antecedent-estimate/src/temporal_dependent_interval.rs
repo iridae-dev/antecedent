@@ -47,8 +47,11 @@ pub(crate) const DEFAULT_MIN_UNITS: usize = 20;
 pub(crate) const STUDENTIZED_MAX_UNITS: usize = 4096;
 /// Inference claim of this engine: dependence is preserved, coverage is not measured.
 pub const INTERVAL_CLAIM: &str = "dependence_preserving_calibration_not_measured";
-/// Calibration status of this engine.
-pub const INTERVAL_CALIBRATION_STATUS: &str = "not_measured";
+/// The calibration state of the dependent-interval unit.
+#[must_use]
+pub fn interval_calibration_status() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("temporal.dependent_interval")
+}
 
 /// Detail: unit ownership, time order or dependence is absent or incompatible.
 pub(crate) const TEMPORAL_INTERVAL_UNKNOWN_UNITS: &str =
@@ -714,7 +717,7 @@ pub struct DependentInterval {
     pub seed: u64,
     /// Always [`INTERVAL_CLAIM`].
     pub claim: &'static str,
-    /// Always [`INTERVAL_CALIBRATION_STATUS`].
+    /// Always [`interval_calibration_status`].
     pub calibration: &'static str,
 }
 
@@ -1085,7 +1088,7 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
         panel_digest: panel.digest,
         seed: config.seed,
         claim: INTERVAL_CLAIM,
-        calibration: INTERVAL_CALIBRATION_STATUS,
+        calibration: interval_calibration_status(),
     })
 }
 
@@ -1160,7 +1163,7 @@ pub fn checked_paired_effect_interval<E: TemporalEstimator + ?Sized>(
         panel_digest: panel.digest,
         seed: config.seed,
         claim: INTERVAL_CLAIM,
-        calibration: INTERVAL_CALIBRATION_STATUS,
+        calibration: interval_calibration_status(),
     })
 }
 
@@ -1276,7 +1279,7 @@ mod digest_tests {
             panel_digest: 4,
             seed: 5,
             claim: INTERVAL_CLAIM,
-            calibration: INTERVAL_CALIBRATION_STATUS,
+            calibration: interval_calibration_status(),
         };
         let basis = interval.calibration_basis();
         assert_eq!(basis.row_count, 3);

@@ -678,7 +678,8 @@ fn measure_decision_margin(test: &'static str, centered: bool) {
             interval: "delta_method_normal_95",
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "decision.experimental_margin.interval_candidates");
     for (interval, basis) in map_replicates(n_sim(), |rep| {
         let assigned = assign(n, Assignment::Complete(n / 2), grid_seed(0x6150_0000 + rep));
         use antecedent_estimate::joint_design::{
@@ -838,7 +839,8 @@ fn decision_margin_matched_pair_delta_interval() {
             interval: "delta_method_student_95",
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "decision.experimental_margin.interval_candidates");
     for (interval, basis) in map_replicates(n_sim(), |rep| {
         let mut rng = ExecutionContext::for_tests(grid_seed(0x8810_0000 + rep))
             .rng
@@ -946,7 +948,8 @@ fn decision_margin_switchback_delta_interval() {
             interval: "delta_method_student_95",
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "decision.experimental_margin.interval_candidates");
     for (interval, basis) in map_replicates(n_sim(), |rep| {
         let mut rng = ExecutionContext::for_tests(grid_seed(0x8820_0000 + rep))
             .rng
@@ -1064,7 +1067,8 @@ fn decision_margin_lagged_excursion_delta_interval() {
             interval: "delta_method_normal_95",
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "decision.experimental_margin.interval_candidates");
     for (interval, basis) in map_replicates(n_sim(), |rep| {
         let mut rng = ExecutionContext::for_tests(grid_seed(0x8830_0000 + rep))
             .rng
@@ -1156,7 +1160,8 @@ fn decision_margin_static_regime_bootstrap_delta_interval() {
             interval: "delta_method_normal_95",
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "decision.experimental_margin.interval_candidates");
     for (interval, basis) in map_replicates(n_sim(), |rep| {
         let ctx = ExecutionContext::for_tests(grid_seed(0x8840_0000 + rep));
         let mut rng = ctx.rng.stream_for(StreamDomain::Test, 0x8840);
@@ -1260,7 +1265,8 @@ fn decision_margin_adaptive_regime_jackknife_delta_interval() {
             interval: "delta_method_normal_95",
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "decision.experimental_margin.interval_candidates");
     for (interval, basis) in map_replicates(n_sim(), |rep| {
         let ctx = ExecutionContext::for_tests(grid_seed(0x8860_0000 + rep));
         let mut rng = ctx.rng.stream_for(StreamDomain::Test, 0x8860);

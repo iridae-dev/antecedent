@@ -587,7 +587,11 @@ fn publish_schedule_family(
                 publish(&mut inspected.facts, "optimum_set.calibration_record", record_id.clone());
             }
         } else {
-            publish(&mut inspected.facts, "optimum_set.calibration", "not_measured");
+            publish(
+                &mut inspected.facts,
+                "optimum_set.calibration",
+                antecedent_io_core::unit_calibration::capability("composition.verifiers"),
+            );
         }
         push_value(
             &mut inspected.values,

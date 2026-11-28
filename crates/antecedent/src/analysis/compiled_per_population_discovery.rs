@@ -36,7 +36,7 @@ use antecedent_discovery::selective::populations::{
 };
 use antecedent_discovery::selective::{SelectiveDiscoveryError, StaticDiscoveryContract};
 
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::supplied_identity::{Canonical, Declaration};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -415,10 +415,8 @@ impl CompiledPerPopulationDiscovery {
         crate::analysis::lowering::refuse_reentry(ctx)
             .map_err(PerPopulationSearchError::Program)?;
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)
-                .map_err(|refusal| PerPopulationSearchError::Program(CausalError::from(refusal)))?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+            .map_err(|refusal| PerPopulationSearchError::Program(CausalError::from(refusal)))?;
         let rows: Vec<PopulationRows<'_>> = self
             .request
             .populations

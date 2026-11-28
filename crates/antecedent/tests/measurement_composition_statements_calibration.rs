@@ -69,24 +69,29 @@ struct Reading {
 fn measure(
     test: &'static str,
     dgp: &'static str,
+    capability: Option<&str>,
     interval: &'static str,
     truth: f64,
     seed_base: u64,
     replicate: impl Fn(u64) -> Option<Reading> + Sync,
 ) {
-    tally_of(test, dgp, interval, truth, seed_base, replicate).assert();
+    tally_of(test, dgp, capability, interval, truth, seed_base, replicate).assert();
 }
 
 /// The tally of `replicate` over `n_sim()` datasets scored against `truth`; `None` is a skip.
 fn tally_of(
     test: &'static str,
     dgp: &'static str,
+    capability: Option<&str>,
     interval: &'static str,
     truth: f64,
     seed_base: u64,
     replicate: impl Fn(u64) -> Option<Reading> + Sync,
 ) -> CoverageTally {
     let mut tally = CoverageTally::for_record(RecordKey { test, dgp, interval }, REPORTED_LEVEL);
+    if let Some(capability) = capability {
+        tally = tally.measures("capability", capability);
+    }
     let readings = map_replicates(n_sim(), |rep| replicate(grid_seed(seed_base + rep)));
     for reading in readings {
         let Some(reading) = reading else {
@@ -444,6 +449,7 @@ fn measurement_categorical_proportion_wald_l95() {
     measure(
         "measurement_categorical_proportion_wald_l95",
         "three_categories_proportions_0_5_0_3_0_2_confusion_estimated_from_validation_proportion_low",
+        Some("measurement.probabilistic_categorical"),
         WALD,
         CATEGORY_PROPORTIONS[0],
         0x4D20_0000,
@@ -464,6 +470,7 @@ fn measurement_categorical_outcome_mean_wald_l95() {
     measure(
         "measurement_categorical_outcome_mean_wald_l95",
         "three_categories_outcome_means_1_2_4_confusion_estimated_from_validation_mean_high",
+        Some("measurement.probabilistic_categorical"),
         WALD,
         CATEGORY_MEANS[2],
         0x4D21_0000,
@@ -484,6 +491,7 @@ fn measurement_categorical_outcome_contrast_wald_l95() {
     measure(
         "measurement_categorical_outcome_contrast_wald_l95",
         "three_categories_outcome_means_1_2_4_confusion_estimated_from_validation_high_minus_low",
+        Some("measurement.probabilistic_categorical"),
         WALD,
         CATEGORY_MEANS[2] - CATEGORY_MEANS[0],
         0x4D22_0000,
@@ -503,6 +511,7 @@ fn measurement_regression_calibration_linear_wald_l95() {
     measure(
         "measurement_regression_calibration_linear_wald_l95",
         "linear_outcome_classical_error_variance_0_25_declared_exactly_coefficient_2",
+        Some("measurement.classical_continuous_error"),
         WALD,
         ContinuousWorld::LinearTreatment.truth(),
         0x4D23_0000,
@@ -516,6 +525,7 @@ fn measurement_regression_calibration_covariate_error_wald_l95() {
     measure(
         "measurement_regression_calibration_covariate_error_wald_l95",
         "linear_outcome_error_prone_confounder_variance_0_25_declared_exactly_treatment_coefficient_1",
+        Some("measurement.classical_continuous_error"),
         WALD,
         ContinuousWorld::LinearCovariate.truth(),
         0x4D24_0000,
@@ -530,6 +540,7 @@ fn measurement_regression_calibration_logistic_wald_l95() {
     measure(
         "measurement_regression_calibration_logistic_wald_l95",
         "logistic_outcome_classical_error_variance_0_25_declared_exactly_logit_coefficient_1",
+        Some("measurement.classical_continuous_error"),
         WALD,
         ContinuousWorld::Logistic.truth(),
         0x4D25_0000,
@@ -544,6 +555,7 @@ fn measurement_simex_linear_wald_l95() {
     measure(
         "measurement_simex_linear_wald_l95",
         "linear_outcome_classical_error_variance_0_25_declared_exactly_default_simex_coefficient_2",
+        Some("measurement.classical_continuous_error"),
         WALD,
         ContinuousWorld::LinearTreatment.truth(),
         0x4D26_0000,
@@ -637,6 +649,7 @@ fn measurement_simex_linear_quadratic_extrapolation_limit_wald_l95() {
     measure(
         "measurement_simex_linear_quadratic_extrapolation_limit_wald_l95",
         "linear_outcome_classical_error_variance_0_25_declared_exactly_explicit_quadratic_simex_extrapolation_limit",
+        Some("measurement.classical_continuous_error"),
         WALD,
         polynomial_extrapolation_limit(SimexExtrapolant::Quadratic),
         0x4D28_0000,
@@ -657,6 +670,7 @@ fn measurement_simex_linear_linear_extrapolation_limit_wald_l95() {
     measure(
         "measurement_simex_linear_linear_extrapolation_limit_wald_l95",
         "linear_outcome_classical_error_variance_0_25_declared_exactly_explicit_linear_simex_extrapolation_limit",
+        Some("measurement.classical_continuous_error"),
         WALD,
         polynomial_extrapolation_limit(SimexExtrapolant::Linear),
         0x4D29_0000,
@@ -677,6 +691,7 @@ fn measurement_simex_logistic_wald_l95() {
     measure(
         "measurement_simex_logistic_wald_l95",
         "logistic_outcome_classical_error_variance_0_25_declared_exactly_default_simex_logit_coefficient_1",
+        Some("measurement.classical_continuous_error"),
         WALD,
         ContinuousWorld::Logistic.truth(),
         0x4D27_0000,
@@ -949,6 +964,7 @@ fn temporal_misclassification_three_arm_contrast_l95() {
     measure(
         "temporal_misclassification_three_arm_contrast_l95",
         "randomized_three_arm_panel_binary_outcome_recorded_with_sensitivity_0_9_specificity_0_85_mid_minus_low_0_15",
+        None,
         TEMPORAL_NORMAL,
         MID_CONTRAST.truth,
         0x4D30_0000,
@@ -962,6 +978,7 @@ fn temporal_misclassification_three_arm_reference_mean_l95() {
     measure(
         "temporal_misclassification_three_arm_reference_mean_l95",
         "randomized_three_arm_panel_binary_outcome_recorded_with_sensitivity_0_9_specificity_0_85_reference_mean_0_2",
+        None,
         TEMPORAL_NORMAL,
         REFERENCE_MEAN.truth,
         0x4D31_0000,
@@ -975,6 +992,7 @@ fn temporal_misclassification_ordered_levels_step_l95() {
     measure(
         "temporal_misclassification_ordered_levels_step_l95",
         "randomized_ordered_levels_panel_binary_outcome_recorded_with_sensitivity_0_9_specificity_0_85_high_minus_mid_0_15",
+        None,
         TEMPORAL_NORMAL,
         TOP_STEP.truth,
         0x4D32_0000,
@@ -988,6 +1006,7 @@ fn temporal_misclassification_factorial_main_effect_l95() {
     measure(
         "temporal_misclassification_factorial_main_effect_l95",
         "randomized_factorial_panel_binary_outcome_recorded_with_sensitivity_0_9_specificity_0_85_first_main_effect_0_25",
+        None,
         TEMPORAL_NORMAL,
         FIRST_MAIN_EFFECT.truth,
         0x4D33_0000,
@@ -1001,6 +1020,7 @@ fn temporal_misclassification_factorial_interaction_l95() {
     measure(
         "temporal_misclassification_factorial_interaction_l95",
         "randomized_factorial_panel_binary_outcome_recorded_with_sensitivity_0_9_specificity_0_85_interaction_0_1",
+        None,
         TEMPORAL_NORMAL,
         INTERACTION.truth,
         0x4D34_0000,
@@ -1014,6 +1034,7 @@ fn temporal_misclassification_interference_direct_effect_l95() {
     measure(
         "temporal_misclassification_interference_direct_effect_l95",
         "randomized_paired_interference_panel_binary_outcome_recorded_with_sensitivity_0_9_specificity_0_85_direct_effect_0_25",
+        None,
         TEMPORAL_NORMAL,
         DIRECT_EFFECT.truth,
         0x4D35_0000,
@@ -1027,6 +1048,7 @@ fn temporal_misclassification_interference_spillover_effect_l95() {
     measure(
         "temporal_misclassification_interference_spillover_effect_l95",
         "randomized_paired_interference_panel_binary_outcome_recorded_with_sensitivity_0_9_specificity_0_85_spillover_effect_0_15",
+        None,
         TEMPORAL_NORMAL,
         SPILLOVER_EFFECT.truth,
         0x4D36_0000,
@@ -1181,6 +1203,7 @@ impl Composition {
 fn score_composition(
     test: &'static str,
     dgp: &'static str,
+    capability: Option<&str>,
     truth: f64,
     results: Vec<(Option<(f64, f64)>, CalibrationBasis)>,
 ) {
@@ -1188,6 +1211,9 @@ fn score_composition(
         RecordKey { test, dgp, interval: NORMAL_APPROXIMATION_CONSTRUCTION },
         COMPOSED_LEVEL,
     );
+    if let Some(capability) = capability {
+        tally = tally.measures("capability", capability);
+    }
     for (interval, basis) in results {
         bind_basis(&mut tally, &basis);
         tally.record(interval, truth);
@@ -1230,7 +1256,8 @@ fn aligned_composition(
         .expect("claim");
         reading_of(&claim, n)
     });
-    score_composition(test, dgp, composition.truth(law), results);
+    let capability = composition.linear().map(|_| "joint_law.composed_interval");
+    score_composition(test, dgp, capability, composition.truth(law), results);
 }
 
 /// A linear `composition` of the two sample means on the linear-moments route, the covariance
@@ -1274,7 +1301,8 @@ fn shared_rows_composition(
         .expect("claim");
         reading_of(&claim, n)
     });
-    score_composition(test, dgp, composition.truth(law), results);
+    let capability = Some("joint_law.composed_interval");
+    score_composition(test, dgp, capability, composition.truth(law), results);
 }
 
 #[test]

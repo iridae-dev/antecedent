@@ -59,9 +59,6 @@ use crate::analysis::missing_data::{self, MissingRoute};
 
 mod observational;
 
-/// Calibration status of every interval this route reports.
-const CALIBRATION: &str = "not_measured";
-
 /// What a prepared temporal design keeps beside its query: the Bayesian configuration of a
 /// posterior study and the whole-procedure bootstrap replicates of a frequentist one.
 #[derive(Clone, Debug)]
@@ -250,12 +247,15 @@ impl CheckedTemporalDesignOperation {
         let started = std::time::Instant::now();
         let (output, extras) = self.fit_with_extras(data, ctx)?;
         let estimator_id = estimator_for(&self.query, self.extra.bayesian.is_some());
-        let (payload, posterior) = self.assemble(output)?;
+        let (mut payload, posterior) = self.assemble(output)?;
         // A fit that meets its support row names it; every other is flagged unsupported.
         let row = crate::analysis::design_section_rows::excursion_row_met(
             &self.query,
             arm_mean_design(&self.query),
             &payload,
+        );
+        payload.calibration = Arc::from(
+            row.as_ref().map_or(crate::support::NOT_MEASURED, crate::support::unit_calibration),
         );
         let unsupported = if row.is_some() {
             vec![crate::analysis::design_section_rows::section_row_note(
@@ -841,7 +841,7 @@ impl CheckedTemporalDesignOperation {
             replicates: output.replicates,
             draws: None,
             uncertainty: Arc::from(output.uncertainty),
-            calibration: Arc::from(CALIBRATION),
+            calibration: Arc::from(crate::support::NOT_MEASURED),
             supported: false,
         };
         let posterior = match output.summary {

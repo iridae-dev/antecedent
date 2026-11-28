@@ -59,7 +59,8 @@ fn measure(
             interval: "posterior_quantile",
         },
         0.95,
-    );
+    )
+    .measures("capability", "transport.joint_bayesian");
     let results = map_replicates(n_sim(), |rep| {
         let seed = grid_seed(0x44cb_7000 + rep);
         let sources: Vec<_> = (0..count)

@@ -134,10 +134,11 @@ fn unsupported(error: &antecedent_core::NotSupported) -> ChainRefusal {
 /// nested in another program's dispatch (a union's rerun, a decision over a chain) is that
 /// program's business and is not gated again.
 fn gate_chain(ctx: &ExecutionContext, handle: &PropagationChainPlan) -> Result<(), ChainRefusal> {
-    if !RELEASE_SUPPORT_GATE_LIVE
-        || ctx.lowered_dispatch().is_some()
-        || handle.lowered().route() != CHAIN_ROUTE
-    {
+    if ctx.lowered_dispatch().is_some() || handle.lowered().route() != CHAIN_ROUTE {
+        return Ok(());
+    }
+    if !RELEASE_SUPPORT_GATE_LIVE {
+        let _ = handle.support();
         return Ok(());
     }
     gate_program(ctx, handle).map_err(|error| unsupported(&error))
@@ -145,7 +146,11 @@ fn gate_chain(ctx: &ExecutionContext, handle: &PropagationChainPlan) -> Result<(
 
 /// The support gate of consuming an exported chain record, which retains no handle.
 fn gate_chain_consume(ctx: &ExecutionContext) -> Result<(), ChainRefusal> {
-    if !RELEASE_SUPPORT_GATE_LIVE || ctx.lowered_dispatch().is_some() {
+    if ctx.lowered_dispatch().is_some() {
+        return Ok(());
+    }
+    if !RELEASE_SUPPORT_GATE_LIVE {
+        let _ = crate::support::unit::route_decision(CHAIN_ROUTE);
         return Ok(());
     }
     match unit_of(CHAIN_ROUTE) {

@@ -1122,7 +1122,11 @@ fn gam_frequentist_coverage(
 ) -> Vec<CoverageTally> {
     let key = RecordKey { test, dgp: "gam_data", interval: response_interval(false) };
     let mut tallies: Vec<_> = (0..truth.len())
-        .map(|j| CoverageTally::for_record(key, LEVEL).labelled(format!("j={j}")))
+        .map(|j| {
+            CoverageTally::for_record(key, LEVEL)
+                .labelled(format!("j={j}"))
+                .measures("capability", "estimate.response_gam_derivative")
+        })
         .collect();
     let construction = gam_frequentist_construction(query);
     let runs = map_replicates(n_sim(), |rep| {

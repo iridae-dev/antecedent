@@ -12,9 +12,9 @@
 
 use antecedent_io::IoError;
 use antecedent_io::bayesian_posterior_row_artifact::{
-    DOSE_GRID_POSTERIOR_ESTIMATOR, DoseGridPosteriorWire, POSTERIOR_ROW_CALIBRATION,
-    POSTERIOR_ROW_UNCERTAINTY, PosteriorRowArtifactError, PosteriorRowArtifactWire,
-    PosteriorRowConsumeLimits, PosteriorRowRequestWire, ResidualPriorWire,
+    DOSE_GRID_POSTERIOR_ESTIMATOR, DoseGridPosteriorWire, POSTERIOR_ROW_UNCERTAINTY,
+    PosteriorRowArtifactError, PosteriorRowArtifactWire, PosteriorRowConsumeLimits,
+    PosteriorRowRequestWire, ResidualPriorWire, posterior_row_calibration,
 };
 use antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire;
 
@@ -73,7 +73,7 @@ fn refusal_of(request: PosteriorRowRequestWire) -> (&'static str, String, String
 fn assert_unsupported(wire: &PosteriorRowArtifactWire, estimator: &str) {
     assert_eq!(wire.result.estimator, estimator);
     assert_eq!(wire.result.uncertainty, POSTERIOR_ROW_UNCERTAINTY);
-    assert_eq!(wire.result.calibration, POSTERIOR_ROW_CALIBRATION);
+    assert_eq!(wire.result.calibration, posterior_row_calibration(estimator));
     assert!(!wire.result.supported);
     let width = wire.result.coordinates.len();
     assert_eq!(

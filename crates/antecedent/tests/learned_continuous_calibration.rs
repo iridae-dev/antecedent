@@ -91,7 +91,8 @@ fn analytic_record(design: Design, test: &'static str, dgp_name: &'static str) {
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp: dgp_name, interval: "analytic_se" },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "transport.learned_continuous_trial");
     let mut analytic_options = options();
     analytic_options.bootstrap = 0;
     let (diagram, query, _) = graph();

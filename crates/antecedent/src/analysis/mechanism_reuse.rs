@@ -188,7 +188,6 @@ fn install_prefit(
 
 #[cfg(test)]
 mod tests {
-    use std::thread::Builder;
 
     use antecedent_core::{ExecutionContext, SimulateQuery, SimulationTarget, VariableId};
     use antecedent_data::TabularData;
@@ -199,8 +198,7 @@ mod tests {
     use crate::{CausalError, CausalQuery, RefuteSuite, Study};
 
     fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-        Builder::new()
-            .name("mechanism-reuse".into())
+        crate::support::caller_thread()
             .stack_size(32 * 1024 * 1024)
             .spawn(body)
             .unwrap()

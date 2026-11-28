@@ -23,6 +23,7 @@ use crate::graphless_support::{
 };
 use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use crate::temporal_design_query_wire::{TemporalAssignmentWire, TemporalDesignQueryWire};
+use crate::unit_calibration::NOT_MEASURED;
 use crate::{CausalQueryWire, IoError};
 
 /// Whether `result` carries a diagnostic with `code`.
@@ -46,7 +47,7 @@ pub(super) fn validate_stated_section_rows(result: &AnalysisResultWire) -> Resul
         && !matches!(
             (&result.query, &result.association),
             (CausalQueryWire::Association(query), Some(section))
-                if association_slope_row_admits(query, section)
+                if association_slope_row(query, section).is_some()
         )
     {
         return refuse("an association");
@@ -55,7 +56,7 @@ pub(super) fn validate_stated_section_rows(result: &AnalysisResultWire) -> Resul
         && !matches!(
             (&result.query, &result.iv_bounds),
             (CausalQueryWire::IvBounds(query), Some(section))
-                if bounds_endpoint_row_admits(query, section)
+                if bounds_endpoint_row(query, section).is_some()
         )
     {
         return refuse("a bounds result");
@@ -64,7 +65,7 @@ pub(super) fn validate_stated_section_rows(result: &AnalysisResultWire) -> Resul
         (&result.query, &result.sequential_contrast)
     {
         if section_row_stated(result, CROSSFIT_CONTRAST_ROW_CODE)
-            && !sequential_contrast_wald_row_admits(result, query, fit)
+            && sequential_contrast_wald_row(result, query, fit).is_none()
         {
             return refuse("a sequential contrast");
         }
@@ -78,7 +79,7 @@ pub(super) fn validate_stated_section_rows(result: &AnalysisResultWire) -> Resul
         && !matches!(
             (&result.query, &result.history_match),
             (CausalQueryWire::HistoryMatch(query), Some(fit))
-                if history_match_row_admits(query, fit)
+                if history_match_row(query, fit).is_some()
         )
     {
         return refuse("a history match");
@@ -87,7 +88,7 @@ pub(super) fn validate_stated_section_rows(result: &AnalysisResultWire) -> Resul
         && !matches!(
             (&result.query, &result.temporal_design),
             (CausalQueryWire::TemporalDesign(query), Some(section))
-                if design_row_admits(query, section)
+                if design_row(query, section).is_some()
         )
     {
         return refuse("a temporal design");
@@ -104,16 +105,114 @@ pub(super) fn validate_stated_section_rows(result: &AnalysisResultWire) -> Resul
     Ok(())
 }
 
+/// The calibration state of the graphless row `key` (`family:design:method:inference_claim`).
+fn row_calibration(key: GraphlessSupportKey<'_>) -> &'static str {
+    crate::unit_calibration::unit(
+        "graphless",
+        &format!("{}:{}:{}:{}", key.family, key.design, key.method, key.inference_claim),
+    )
+}
+
+/// The calibration state of the row `result` states under `code` and its section meets (`row`),
+/// or [`NOT_MEASURED`] when it states none: the unit of a design section that keeps its own
+/// `supported` field `false`.
+fn stated_row_calibration<'a>(
+    result: &AnalysisResultWire,
+    code: &str,
+    row: impl FnOnce() -> Option<GraphlessSupportKey<'a>>,
+) -> &'static str {
+    section_row_stated(result, code).then(row).flatten().map_or(NOT_MEASURED, row_calibration)
+}
+
+/// The calibration state an association section carries.
+pub(super) fn association_calibration(result: &AnalysisResultWire) -> &'static str {
+    match (&result.query, &result.association) {
+        (CausalQueryWire::Association(query), Some(section)) => {
+            stated_row_calibration(result, ASSOCIATION_SLOPE_ROW_CODE, || {
+                association_slope_row(query, section)
+            })
+        }
+        _ => NOT_MEASURED,
+    }
+}
+
+/// The calibration state a sharp-bounds section carries.
+pub(super) fn iv_bounds_calibration(result: &AnalysisResultWire) -> &'static str {
+    match (&result.query, &result.iv_bounds) {
+        (CausalQueryWire::IvBounds(query), Some(section)) => {
+            stated_row_calibration(result, IV_BOUNDS_ROW_CODE, || {
+                bounds_endpoint_row(query, section)
+            })
+        }
+        _ => NOT_MEASURED,
+    }
+}
+
+/// The calibration state a sequential-contrast section carries: its stated posterior row's, else
+/// its Wald row's.
+pub(super) fn sequential_contrast_calibration(result: &AnalysisResultWire) -> &'static str {
+    let (CausalQueryWire::SequentialContrast(query), Some(fit)) =
+        (&result.query, &result.sequential_contrast)
+    else {
+        return NOT_MEASURED;
+    };
+    if let Some(key) = stated_design_posterior_row(result) {
+        return row_calibration(key);
+    }
+    stated_row_calibration(result, CROSSFIT_CONTRAST_ROW_CODE, || {
+        sequential_contrast_wald_row(result, query, fit)
+    })
+}
+
+/// The calibration state a history-match section carries.
+pub(super) fn history_match_calibration(result: &AnalysisResultWire) -> &'static str {
+    match (&result.query, &result.history_match) {
+        (CausalQueryWire::HistoryMatch(query), Some(fit)) => {
+            stated_row_calibration(result, PERIOD_HISTORY_ROW_CODE, || {
+                history_match_row(query, fit)
+            })
+        }
+        _ => NOT_MEASURED,
+    }
+}
+
+/// The calibration state a temporal-design section carries.
+pub(super) fn temporal_design_calibration(result: &AnalysisResultWire) -> &'static str {
+    match (&result.query, &result.temporal_design) {
+        (CausalQueryWire::TemporalDesign(query), Some(section)) => {
+            stated_row_calibration(result, TEMPORAL_DESIGN_ROW_CODE, || design_row(query, section))
+        }
+        _ => NOT_MEASURED,
+    }
+}
+
+/// The row the first design-posterior diagnostic of `result` states, read from its fields.
+fn stated_design_posterior_row(result: &AnalysisResultWire) -> Option<GraphlessSupportKey<'_>> {
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == DESIGN_POSTERIOR_ROW_CODE)?;
+    let stated = |name: &str| {
+        diagnostic.fields.iter().find(|(field, _)| field == name).map(|(_, value)| value.as_str())
+    };
+    Some(GraphlessSupportKey {
+        family: stated("family")?,
+        design: stated("design")?,
+        method: stated("method")?,
+        inference_claim: stated("inference_claim")?,
+    })
+}
+
 /// Whether the section's slope interval, rows and resamples match a supported row of the
 /// graphless table. Recomputed from the stored query and section, never taken from the
 /// producer. Rows and resamples are thresholds of the row; a linear regression of a real
 /// outcome on one numeric predictor, nothing held fixed, unweighted, no dropped row, the 95%
 /// level, every requested replicate fitted and a conjugate prior that moves the slope by at
 /// most a hundredth of its posterior standard deviation are checked here.
-fn association_slope_row_admits(
+fn association_slope_row<'a>(
     query: &crate::AssociationQueryWire,
-    section: &AssociationWire,
-) -> bool {
+    section: &'a AssociationWire,
+) -> Option<GraphlessSupportKey<'a>> {
     if section.analysis != "linear_regression"
         || section.outcome_kind != "continuous"
         || query.predictors.len() != 1
@@ -125,26 +224,26 @@ fn association_slope_row_admits(
         || section.terms[1].label.contains('=')
         || section.terms[1].scale != "outcome_units"
     {
-        return false;
+        return None;
     }
     let slope = &section.terms[1];
     // One series is one dependent sequence; table rows are independent units.
     let (design, assignment_unit, blocks) = match section.modality.as_str() {
         "cross_section" => ("cross_section_linear_slope", "unit", 0),
         "series" => ("series_linear_slope", "sequence", 1),
-        _ => return false,
+        _ => return None,
     };
     let at_95 = |level: f64| (level - 0.95).abs() <= 1e-12;
     let (method, inference_claim, band, resamples) = if let Some(record) = &section.posterior {
         let (Some(lower), Some(upper)) = (slope.posterior_lower, slope.posterior_upper) else {
-            return false;
+            return None;
         };
         let moved = slope
             .posterior_mean
             .zip(slope.posterior_sd)
             .is_none_or(|(mean, sd)| (mean - slope.estimate).abs() > 0.01 * sd);
         if !at_95(record.level) || (record.method == "conjugate_normal_inverse_gamma" && moved) {
-            return false;
+            return None;
         }
         (
             record.method.as_str(),
@@ -154,25 +253,25 @@ fn association_slope_row_admits(
         )
     } else if let Some(record) = &section.resampling {
         let (Some(lower), Some(upper)) = (slope.spread_lower, slope.spread_upper) else {
-            return false;
+            return None;
         };
         let (method, inference_claim) = match record.unit.as_str() {
             "row" => ("bootstrap_row", "slope_95_studentized_spread"),
             "calendar_block" => ("bootstrap_circular_block", "slope_95_fixed_b_percentile_spread"),
-            _ => return false,
+            _ => return None,
         };
         if !at_95(record.spread_level)
             || record.replicates_ok != record.replicates_requested
             || slope.standard_error_method.as_deref() != Some(method)
         {
-            return false;
+            return None;
         }
         (method, inference_claim, (lower, upper), record.replicates_ok)
     } else {
         let (Some(error), Some(method)) =
             (slope.standard_error, slope.standard_error_method.as_deref())
         else {
-            return false;
+            return None;
         };
         (
             method,
@@ -181,8 +280,9 @@ fn association_slope_row_admits(
             0,
         )
     };
+    let key = GraphlessSupportKey { family: "association", design, method, inference_claim };
     graphless_admits_resampled(
-        GraphlessSupportKey { family: "association", design, method, inference_claim },
+        key,
         GraphlessAssignmentSupport {
             assignment_unit,
             rows: usize::try_from(section.rows).unwrap_or(usize::MAX),
@@ -197,16 +297,18 @@ fn association_slope_row_admits(
             ..Default::default()
         },
     )
+    .then_some(key)
 }
 
 /// Whether the section's interval, rows and resamples match a supported row of the graphless
 /// table. Recomputed from the stored query and section, never taken from the producer. Rows
 /// and resamples are thresholds of the row; unweighted rows, no dropped row, the 95% level,
 /// no resample left out for an infeasible law and a retained width are checked here.
-fn bounds_endpoint_row_admits(query: &crate::IvBoundsQueryWire, section: &IvBoundsWire) -> bool {
-    let Some(interval) = &section.interval else {
-        return false;
-    };
+fn bounds_endpoint_row<'a>(
+    query: &crate::IvBoundsQueryWire,
+    section: &'a IvBoundsWire,
+) -> Option<GraphlessSupportKey<'a>> {
+    let interval = section.interval.as_ref()?;
     if query.weight.is_some()
         || section.rows_dropped != 0
         || interval.infeasible != 0
@@ -214,20 +316,21 @@ fn bounds_endpoint_row_admits(query: &crate::IvBoundsQueryWire, section: &IvBoun
         || (interval.level - 0.95).abs() > 1e-12
         || section.uncertainty != interval.method
     {
-        return false;
+        return None;
     }
     let inference_claim = match interval.method.as_str() {
         IV_BOUNDS_FREQUENTIST_METHOD => "identified_set_endpoints_95_imbens_manski_interval",
         IV_BOUNDS_BAYESIAN_METHOD => "identified_set_endpoints_95_posterior_quantiles",
-        _ => return false,
+        _ => return None,
+    };
+    let key = GraphlessSupportKey {
+        family: "iv_bounds",
+        design: "binary_instrument",
+        method: interval.method.as_str(),
+        inference_claim,
     };
     graphless_admits_resampled(
-        GraphlessSupportKey {
-            family: "iv_bounds",
-            design: "binary_instrument",
-            method: interval.method.as_str(),
-            inference_claim,
-        },
+        key,
         GraphlessAssignmentSupport {
             assignment_unit: "unit",
             rows: usize::try_from(section.rows).unwrap_or(usize::MAX),
@@ -243,6 +346,7 @@ fn bounds_endpoint_row_admits(query: &crate::IvBoundsQueryWire, section: &IvBoun
             ..Default::default()
         },
     )
+    .then_some(key)
 }
 
 /// Whether a sequential contrast query is the design its support rows were measured on: the
@@ -263,21 +367,22 @@ fn sequential_contrast_row_design(query: &crate::query_wire::SequentialContrastQ
 
 /// Whether a sequential contrast that states the Wald row meets it: the measured design, no
 /// posterior, a published interval and the row's thresholds.
-fn sequential_contrast_wald_row_admits(
+fn sequential_contrast_wald_row(
     result: &AnalysisResultWire,
     query: &crate::query_wire::SequentialContrastQueryWire,
     fit: &SequentialContrastWire,
-) -> bool {
-    sequential_contrast_row_design(query)
+) -> Option<GraphlessSupportKey<'static>> {
+    let key = GraphlessSupportKey {
+        family: "sequential_contrast",
+        design: "two_decision_always_versus_never",
+        method: "crossfit_augmented_scores_wald",
+        inference_claim: "pointwise_95_normal_interval",
+    };
+    (sequential_contrast_row_design(query)
         && result.posterior_artifact.is_none()
         && fit.interval.is_some()
         && graphless_admits(
-            GraphlessSupportKey {
-                family: "sequential_contrast",
-                design: "two_decision_always_versus_never",
-                method: "crossfit_augmented_scores_wald",
-                inference_claim: "pointwise_95_normal_interval",
-            },
+            key,
             GraphlessAssignmentSupport {
                 assignment_unit: "unit",
                 rows: fit.contrast_scores.len(),
@@ -287,7 +392,8 @@ fn sequential_contrast_wald_row_admits(
                 all_reported_intervals: true,
                 ..Default::default()
             },
-        )
+        ))
+    .then_some(key)
 }
 
 /// Whether every design-posterior row a sequential contrast states is its own: the measured
@@ -322,28 +428,29 @@ fn sequential_contrast_posterior_row_is_own(
 /// Whether a history match that claims its support row meets it: calendar periods declared, no
 /// caliper, no sampling weights, every treated unit matched, a published period interval, and
 /// the row's matched periods and pairs in each.
-fn history_match_row_admits(
+fn history_match_row(
     query: &crate::query_wire::HistoryMatchQueryWire,
     fit: &HistoryMatchWire,
-) -> bool {
+) -> Option<GraphlessSupportKey<'static>> {
+    let key = GraphlessSupportKey {
+        family: "history_match",
+        design: "within_period_nearest_history",
+        method: "period_newey_west_fixed_b",
+        inference_claim: "pointwise_95_fixed_b_interval",
+    };
     let mut pairs_in_period = std::collections::BTreeMap::<i64, usize>::new();
     for period in &fit.pair_periods {
         *pairs_in_period.entry(*period).or_default() += 1;
     }
     let published = fit.interval_lower.is_some() && fit.interval_upper.is_some();
-    fit.uncertainty == HISTORY_MATCH_FIXED_B_UNCERTAINTY
+    (fit.uncertainty == HISTORY_MATCH_FIXED_B_UNCERTAINTY
         && query.period.is_some()
         && query.caliper.is_none()
         && query.weight.is_none()
         && fit.caliper.is_none()
         && fit.unmatched_treated.is_empty()
         && graphless_admits(
-            GraphlessSupportKey {
-                family: "history_match",
-                design: "within_period_nearest_history",
-                method: "period_newey_west_fixed_b",
-                inference_claim: "pointwise_95_fixed_b_interval",
-            },
+            key,
             GraphlessAssignmentSupport {
                 assignment_unit: "cluster",
                 rows: fit.matched_queries.len(),
@@ -354,7 +461,8 @@ fn history_match_row_admits(
                 all_reported_intervals: published,
                 ..Default::default()
             },
-        )
+        ))
+    .then_some(key)
 }
 
 /// Fewest posterior draws a posterior row is stated for (`DESIGN_ROW_REFIT_DRAWS` for the dose
@@ -462,10 +570,11 @@ fn design_row_positivity(query: &TemporalDesignQueryWire, pairs: u64) -> (f64, u
 /// Whether the section's design, method and observed support match a supported row of the
 /// graphless table. Recomputed here from the stored query and section, never taken from the
 /// producer.
-fn design_row_admits(query: &TemporalDesignQueryWire, section: &TemporalDesignWire) -> bool {
-    let Some(design) = design_row_name(query) else {
-        return false;
-    };
+fn design_row<'a>(
+    query: &TemporalDesignQueryWire,
+    section: &'a TemporalDesignWire,
+) -> Option<GraphlessSupportKey<'a>> {
+    let design = design_row_name(query)?;
     // The claim names the kind of pointwise 95% interval the section publishes; a posterior
     // or a bootstrap smaller than the measured ones has no row.
     let inference_claim = if let Some(draws) = section.draws {
@@ -475,12 +584,12 @@ fn design_row_admits(query: &TemporalDesignQueryWire, section: &TemporalDesignWi
             DESIGN_ROW_DRAWS
         };
         if draws < floor {
-            return false;
+            return None;
         }
         "pointwise_95_posterior_quantiles"
     } else if let Some([completed, _]) = section.replicates {
         if completed < DESIGN_ROW_REPLICATES {
-            return false;
+            return None;
         }
         "pointwise_95_percentile_interval"
     } else {
@@ -501,7 +610,7 @@ fn design_row_admits(query: &TemporalDesignQueryWire, section: &TemporalDesignWi
         && !design_row_validated_correction(query, &section.functional))
         || section.pairs.checked_add(section.unpaired) != u64::try_from(query.units.len()).ok()
     {
-        return false;
+        return None;
     }
     let published = section
         .lower
@@ -511,13 +620,14 @@ fn design_row_admits(query: &TemporalDesignQueryWire, section: &TemporalDesignWi
         .count();
     let all_published = published > 0 && published == section.coordinates.len();
     let (declared_probability, local_rows) = design_row_positivity(query, section.pairs);
+    let key = GraphlessSupportKey {
+        family: "temporal_design",
+        design,
+        method: section.uncertainty.as_str(),
+        inference_claim,
+    };
     graphless_admits(
-        GraphlessSupportKey {
-            family: "temporal_design",
-            design,
-            method: section.uncertainty.as_str(),
-            inference_claim,
-        },
+        key,
         GraphlessAssignmentSupport {
             assignment_unit: "sequence",
             rows: usize::try_from(section.pairs).unwrap_or(usize::MAX),
@@ -530,6 +640,7 @@ fn design_row_admits(query: &TemporalDesignQueryWire, section: &TemporalDesignWi
             ..Default::default()
         },
     )
+    .then_some(key)
 }
 
 /// Uncertainty label of the augmented panel's whole-cluster resample interval.
@@ -627,11 +738,18 @@ pub(super) fn validate_history_match_section(
     if fit.uncertainty != HISTORY_MATCH_FIXED_B_UNCERTAINTY {
         return earlier_check(result);
     }
+    if fit.calibration != history_match_calibration(result) {
+        return Err(IoError::Convert(
+            "history match calibration is not the state of its stated row".into(),
+        ));
+    }
     let mut earlier = result.clone();
     let Some(restated) = earlier.history_match.as_mut() else {
         return earlier_check(result);
     };
     HISTORY_MATCH_NORMAL_UNCERTAINTY.clone_into(&mut restated.uncertainty);
+    // The normal-interval construction meets no row.
+    NOT_MEASURED.clone_into(&mut restated.calibration);
     let stated = (fit.serial_standard_error, fit.interval_lower, fit.interval_upper);
     if let (Some(standard_error), Some(_), Some(_)) = stated {
         let normal = antecedent_stats::NORMAL_Q975 * standard_error;

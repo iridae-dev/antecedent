@@ -70,7 +70,8 @@ pub struct CyclicExecutionReport {
     pub counterfactuals: Option<Vec<EquilibriumResult>>,
     /// Always `specified_or_fitted_model_conditional` in this execution family.
     pub claim: String,
-    /// Always `not_measured`; no nominal interval/coverage claim is produced.
+    /// The calibration state of the cyclic-systems unit; no nominal interval/coverage claim is
+    /// produced.
     pub calibration: String,
 }
 
@@ -281,7 +282,8 @@ impl CyclicExecutionRequest {
             worlds,
             counterfactuals,
             claim: "specified_or_fitted_model_conditional".into(),
-            calibration: "not_measured".into(),
+            calibration: antecedent_io_core::unit_calibration::capability("cyclic.general_systems")
+                .into(),
             lowered: crate::cyclic_family_artifact::LoweredStamp::default(),
         })
     }

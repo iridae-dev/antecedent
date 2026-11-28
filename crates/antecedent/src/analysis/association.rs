@@ -1,9 +1,10 @@
 //! The result of the associational route and the proper scores of its predictive model.
 //!
 //! An association describes the observed law of the columns. It is never the effect of an
-//! intervention and ranks no action. Its calibration label is `not_measured`; a fit that met
-//! a row of the graphless support table (family `association`, the slope of a linear
-//! regression of a real outcome on one numeric predictor) states it in the result's
+//! intervention and ranks no action. Its calibration label is the state of the result's
+//! evidence unit ([`crate::StudyResult::calibration_state`]); a fit that met a row of the
+//! graphless support table (family `association`, the slope of a linear regression of a real
+//! outcome on one numeric predictor) states it in the result's
 //! `estimate.association.graphless_support` diagnostic. A predictive model is scored on held-out
 //! cases with the proper scores of the predictive-assessment contract (the Gaussian logarithmic
 //! score and CRPS for a real outcome, the Brier score for a 0/1 outcome, the Poisson logarithmic
@@ -19,8 +20,6 @@ use antecedent_validate::predictive_assessment::{
     brier_binary, crps_gaussian, crps_weighted_atoms, log_score_gaussian,
 };
 
-/// Calibration label of every association result.
-pub const ASSOCIATION_CALIBRATION: &str = "not_measured";
 /// Most atoms a count forecast's finite law keeps; the window `rate +- (12 sd + 20)` fits this
 /// bound for every rate below about 2.7e10.
 const MAX_COUNT_ATOMS: usize = 4_000_000;

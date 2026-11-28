@@ -84,6 +84,22 @@ fn input(message: impl Into<String>) -> MeasuredExposureError {
     MeasuredExposureError::Input(message.into())
 }
 
+/// The support gate of the measured-exposure unit at the entry point `entry`, which pools
+/// results the caller's study decided under its own units.
+fn require_unit(
+    ctx: Option<&ExecutionContext>,
+    entry: &'static str,
+) -> Result<(), MeasuredExposureError> {
+    let key = crate::support::unit::SupportKey::Unit(
+        crate::support::units_generated::MEASUREMENT_MEASURED_EXPOSURE_EFFECT,
+    );
+    match ctx {
+        Some(ctx) => crate::support::unit::require_program(ctx, &key, entry),
+        None => crate::support::unit::require_program_unscoped(&key, entry),
+    }
+    .map_err(|refusal| MeasuredExposureError::Analysis(refusal.into()))
+}
+
 /// The named numeric columns of the analysis table.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MeasuredColumns {
@@ -354,6 +370,7 @@ impl PreparedMeasuredExposure {
         &self,
         analyse: impl FnMut(&TabularData) -> Result<StudyResult, CausalError>,
     ) -> Result<MeasuredExposureEstimate, MeasuredExposureError> {
+        require_unit(None, "antecedent.measured_exposure.PreparedMeasuredExposure.estimate")?;
         self.pool(analyse, true, None)
     }
 
@@ -398,6 +415,10 @@ impl PreparedMeasuredExposure {
         ctx: &ExecutionContext,
         mut analyse: impl FnMut(&TabularData, &AcceptedPosterior) -> Result<StudyResult, CausalError>,
     ) -> Result<MeasuredExposureEstimate, MeasuredExposureError> {
+        require_unit(
+            Some(ctx),
+            "antecedent.measured_exposure.PreparedMeasuredExposure.estimate_over_structures",
+        )?;
         let posterior = self.structure_posterior(spec, variables, ctx)?;
         self.pool(|table| analyse(table, &posterior), false, Some(&posterior))
     }

@@ -97,7 +97,8 @@ pub struct IvBoundsWire {
     pub posterior: Option<IvBoundsPosteriorWire>,
     /// Uncertainty construction.
     pub uncertainty: String,
-    /// Always `not_measured`.
+    /// The calibration state of the graphless row the result states and meets, else
+    /// `not_measured`.
     pub calibration: String,
     /// Always `false`.
     pub supported: bool,
@@ -116,7 +117,7 @@ pub(in crate::analysis_result_artifact) fn validate_iv_bounds(
         (true, Some(section)) => section,
     };
     if section.supported
-        || section.calibration != "not_measured"
+        || section.calibration != super::stated_section_rows::iv_bounds_calibration(result)
         || result.estimate.is_some()
         || result.standard_error.is_some()
         || result.interval_lower.is_some()

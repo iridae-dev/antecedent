@@ -186,7 +186,8 @@ fn run(design: Design, base: usize) {
     let mut tally = CoverageTally::for_record(
         RecordKey { test: design.test, dgp: design.dgp, interval: INTERVAL_METHOD },
         design.level,
-    );
+    )
+    .measures("capability", "observation_query.calibrated_probability");
     let results = map_replicates(n_sim(), |replicate_index| {
         replicate(design, n, calibration::grid_seed(0x5b_0000 + replicate_index))
     });

@@ -205,7 +205,7 @@ pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphles
         || !fit.minimum_action_probability.is_finite()
         || fit.minimum_action_probability < fit.min_probability
         || fit.supported
-        || fit.calibration != "not_measured"
+        || fit.calibration != super::stated_section_rows::sequential_contrast_calibration(result)
         || result.estimate.is_some()
         || result.standard_error.is_some()
         || result.interval_lower.is_some()
@@ -311,7 +311,7 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
         && near(fit.contrast, weighted / total);
     if !structure_ok
         || fit.supported
-        || fit.calibration != "not_measured"
+        || fit.calibration != super::stated_section_rows::history_match_calibration(result)
         || fit.uncertainty != HISTORY_MATCH_UNCERTAINTY
         || result.estimate.is_some()
         || result.standard_error.is_some()

@@ -22,7 +22,7 @@ use antecedent_io::IoError;
 use antecedent_kernels::norm_inv;
 use serde::{Deserialize, Serialize};
 
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 
 use crate::planner::PlanView;
 use crate::planner::lowered::{
@@ -500,11 +500,9 @@ impl CompiledBridgeTransportPremiseAssessment {
         ctx: &ExecutionContext,
     ) -> Result<BridgeTransportPremiseAssessmentResult, BridgeTransportPremiseAssessmentError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(|refusal| {
-                BridgeTransportPremiseAssessmentError::Invalid(refusal.to_string())
-            })?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+            BridgeTransportPremiseAssessmentError::Invalid(refusal.to_string())
+        })?;
         if scoped.cancellation.is_cancelled() {
             return Err(invalid("bridge premise assessment was cancelled"));
         }
@@ -544,7 +542,7 @@ impl CompiledBridgeTransportPremiseAssessment {
             target_fit,
             grid,
             equivalence_screen_passed,
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
             lowered_program_identity: self.lowered.identity(),
         })
     }

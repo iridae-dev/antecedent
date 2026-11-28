@@ -333,7 +333,7 @@ pub fn transport_pooled_differential_prevalence(
         discarded_draws: discarded,
         truncated_draws: truncated,
         draws,
-        calibration: "not_measured",
+        calibration: antecedent_io_core::unit_calibration::capability("measurement.model_contract"),
     })
 }
 

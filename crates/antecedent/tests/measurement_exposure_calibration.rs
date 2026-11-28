@@ -73,12 +73,14 @@ struct Reading {
 fn measure(
     test: &'static str,
     dgp: &'static str,
+    capability: &str,
     interval: &'static str,
     truth: f64,
     seed_base: u64,
     replicate: impl Fn(u64) -> Option<Reading> + Sync,
 ) {
-    let mut tally = CoverageTally::for_record(RecordKey { test, dgp, interval }, REPORTED_LEVEL);
+    let mut tally = CoverageTally::for_record(RecordKey { test, dgp, interval }, REPORTED_LEVEL)
+        .measures("capability", capability);
     let readings = map_replicates(n_sim(), |rep| replicate(grid_seed(seed_base + rep)));
     for reading in readings {
         let Some(reading) = reading else {
@@ -243,6 +245,7 @@ fn measurement_exposure_differential_by_outcome_wald_l95() {
     measure(
         "measurement_exposure_differential_by_outcome_wald_l95",
         "exposure_error_by_outcome_validated_log_odds_ratio",
+        "measurement.exposure_misclassification",
         WALD,
         (8.0_f64 / 3.0).ln(),
         0x4E01_0000,
@@ -257,6 +260,7 @@ fn measurement_exposure_shared_rates_wald_l95() {
     measure(
         "measurement_exposure_shared_rates_wald_l95",
         "exposure_error_shared_validated_log_odds_ratio",
+        "measurement.exposure_misclassification",
         WALD,
         truth,
         0x4E02_0000,
@@ -313,6 +317,7 @@ fn measurement_soft_exposure_posterior_mean_wald_l95() {
     measure(
         "measurement_soft_exposure_posterior_mean_wald_l95",
         "calibrated_exposure_probability_coefficient_2",
+        "measurement.soft_exposure",
         WALD,
         2.0,
         0x4E03_0000,
@@ -326,6 +331,7 @@ fn measurement_soft_exposure_multiple_imputation_wald_l95() {
     measure(
         "measurement_soft_exposure_multiple_imputation_wald_l95",
         "calibrated_exposure_probability_outcome_conditioned_draws_coefficient_2",
+        "measurement.soft_exposure",
         WALD,
         2.0,
         0x4E04_0000,
@@ -451,6 +457,7 @@ fn measurement_detection_declared_function_wald_l95() {
     measure(
         "measurement_detection_declared_function_wald_l95",
         "count_dependent_detection_declared_exactly_prevalence_0_3",
+        "measurement.detection_dependent_prevalence",
         WALD,
         0.3,
         0x4E05_0000,
@@ -464,6 +471,7 @@ fn measurement_detection_estimated_function_wald_l95() {
     measure(
         "measurement_detection_estimated_function_wald_l95",
         "count_dependent_detection_estimated_prevalence_0_3",
+        "measurement.detection_dependent_prevalence",
         WALD,
         0.3,
         0x4E06_0000,
@@ -551,6 +559,7 @@ fn measurement_repeat_codings_binary_latent_class_wald_l95() {
     measure(
         "measurement_repeat_codings_binary_latent_class_wald_l95",
         "three_conditionally_independent_binary_codings_prevalence_0_3",
+        "measurement.repeat_codings_latent_class",
         WALD,
         0.3,
         0x4E07_0000,
@@ -564,6 +573,7 @@ fn measurement_repeat_codings_ordinal_latent_class_wald_l95() {
     measure(
         "measurement_repeat_codings_ordinal_latent_class_wald_l95",
         "three_conditionally_independent_ordinal_codings_top_level_0_2",
+        "measurement.repeat_codings_latent_class",
         WALD,
         0.2,
         0x4E08_0000,

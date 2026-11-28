@@ -8,7 +8,7 @@
 //! design, with the scores and diagnostics computed from them.
 //!
 //! * `predictive_assessment_meta` (CBOR): version, feature marker, the
-//!   point-only claim, the **`not_measured`** calibration status, the closed interval
+//!   point-only claim, its unit's calibration state, the closed interval
 //!   status, the target, the validation design and dependence declarations, the
 //!   scoring and diagnostic configuration, each predictor's source and fit
 //!   declaration, the identity digests, the stored result labels and the standing
@@ -34,7 +34,7 @@
 //!
 //! What this does **not** say: no interval or significance level for a score or
 //! a score difference (not supported: `not_supported`), no calibration guarantee
-//! (diagnostics are labelled and `not_measured`), no causal validity (a score is
+//! (diagnostics are labelled with their unit's calibration state), no causal validity (a score is
 //! not a causal claim) and no probability that a claim holds.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -56,8 +56,11 @@ use serde::{Deserialize, Serialize};
 pub const PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION: u16 = 2;
 /// The feature marker of the accepted format.
 pub const PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE: &str = "predictive_assessment_v1";
-/// Calibration status: diagnostics of this route have no measured calibration.
-pub const PREDICTIVE_ASSESSMENT_CALIBRATION: &str = "not_measured";
+/// The calibration state of the predictive-assessment unit the artifact's routes belong to.
+#[must_use]
+pub fn predictive_assessment_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("predictive_assessment.proper_scores")
+}
 /// Interval status: a score or score-difference interval is not supported.
 pub const PREDICTIVE_ASSESSMENT_INTERVAL: &str = "not_reported";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
@@ -832,7 +835,7 @@ fn encode_parts(
         version: PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION,
         feature: PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE.to_owned(),
         inference_claim: report.inference_claim.to_owned(),
-        calibration: PREDICTIVE_ASSESSMENT_CALIBRATION.to_owned(),
+        calibration: predictive_assessment_calibration().to_owned(),
         causal_validity: report.causal_validity.to_owned(),
         interval: PREDICTIVE_ASSESSMENT_INTERVAL.to_owned(),
         cases: spec.observations.ids.len() as u64,
@@ -1018,7 +1021,7 @@ fn check_claims(meta: &PredictiveAssessmentMeta) -> Result<(), Error> {
     if meta.inference_claim != "point_only" {
         return Err(Error::UnsupportedSemantics("inference claim"));
     }
-    if meta.calibration != PREDICTIVE_ASSESSMENT_CALIBRATION {
+    if meta.calibration != predictive_assessment_calibration() {
         return Err(Error::UnsupportedSemantics("calibration"));
     }
     if meta.causal_validity != "not_established" {

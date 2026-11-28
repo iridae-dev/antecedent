@@ -46,6 +46,7 @@ use super::propagation_chain_decision::{
     consume_chain_decision,
 };
 use crate::analysis::cyclic::gate_decision;
+use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
@@ -183,7 +184,7 @@ pub struct CyclicPosteriorDecisionReliabilityCandidate {
     pub scope: SemanticDigest,
     /// Number of independent intervention-labelled training rows.
     pub training_rows: usize,
-    /// Always `not_measured`: no reliability record is earned by this method.
+    /// Calibration state of the route's evidence unit.
     pub calibration: &'static str,
 }
 
@@ -432,7 +433,7 @@ fn compile_cyclic_posterior_action_decision_checked(
     Ok(plan)
 }
 
-impl crate::analysis::program_handle::CompiledProgramHandle for CompiledCyclicPosteriorDecision {
+impl CompiledProgramHandle for CompiledCyclicPosteriorDecision {
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered
     }
@@ -448,7 +449,7 @@ impl CompiledCyclicPosteriorDecision {
     /// Inspect the retained six-layer program before sampling or solving.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
+        CompiledProgramHandle::plan_view(self)
     }
 
     pub(super) fn joint_chain(
@@ -640,7 +641,7 @@ impl CompiledCyclicPosteriorDecision {
             result,
             scope,
             training_rows: self.request.training.len(),
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
 
@@ -1019,6 +1020,7 @@ mod tests {
 
     #[test]
     fn joint_cyclic_parameter_and_disturbance_worlds_replay() {
+        crate::evidence_unit!("capability", "cyclic.action_world_decisions");
         let ctx = ExecutionContext::for_tests(47);
         let plan = compile_cyclic_posterior_action_decision(request(), outputs(), contract(), &ctx)
             .expect("posterior action compiler");

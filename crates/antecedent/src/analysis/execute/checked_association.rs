@@ -174,12 +174,18 @@ impl Study {
         let estimate = estimator.estimate(&prepared, ctx)?;
         let row = crate::analysis::design_section_rows::association_slope_row(query, &estimate);
         let supported = row.is_some();
+        let calibration = self
+            .support_unit
+            .as_ref()
+            .or(row.as_ref())
+            .map_or(crate::support::NOT_MEASURED, crate::support::unit_calibration);
         let scores = estimate
             .prediction
             .as_ref()
             .map(|fit| score_predictions(estimate.selection.outcome_kind, &fit.cases));
         let (identification, estimand) = association_identification(&self.query, query, &estimate);
-        let mut diagnostics = vec![disclosure(&estimate, refused_after.as_deref(), supported)];
+        let mut diagnostics =
+            vec![disclosure(&estimate, refused_after.as_deref(), supported, calibration)];
         if supported {
             diagnostics.push(crate::analysis::design_section_rows::section_row_note(
                 antecedent_io::graphless_support::ASSOCIATION_SLOPE_ROW_CODE,
@@ -328,6 +334,7 @@ fn disclosure(
     estimate: &AssociationEstimate,
     refused_after: Option<&str>,
     supported: bool,
+    calibration: &str,
 ) -> Diagnostic {
     let follows = refused_after.map_or_else(String::new, |reason| {
         format!("; it follows a causal query refused with `{reason}`, which it does not answer")
@@ -336,8 +343,8 @@ fn disclosure(
         "the uncertainty of the slope term is stated under a supported graphless row of family \
          `association`; no other quantity's uncertainty is supported"
     } else {
-        "its standard errors, spreads and posteriors are reported with calibration status \
-         `not_measured`, and no coverage record names them"
+        "its standard errors, spreads and posteriors are reported with the calibration status \
+         of the result's evidence unit"
     };
     Diagnostic::new(
         DESCRIPTIVE_DISCLOSURE,
@@ -358,6 +365,6 @@ fn disclosure(
         ("analysis", estimate.selection.analysis.as_str().to_owned()),
         ("rows", estimate.rows.to_string()),
         ("rows_dropped", estimate.rows_dropped.to_string()),
-        ("calibration", "not_measured".to_owned()),
+        ("calibration", calibration.to_owned()),
     ])
 }

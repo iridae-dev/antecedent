@@ -47,6 +47,7 @@ use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
     compile_chain_decision, consume_chain_decision,
 };
+use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
@@ -57,6 +58,8 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
+use crate::support::capability_calibration;
+use crate::support::units_generated::GRAPH_IMPUTATION_COMPILED_DECISION;
 
 const FEATURE: &str = "graph_imputation_effect_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
@@ -301,17 +304,13 @@ fn effect_chain(
     .with_output_quantity(ScientificQuantityWire::from(quantity))
 }
 
-impl crate::analysis::program_handle::CompiledProgramHandle
-    for CompiledGraphImputationEffectDecision
-{
+impl CompiledProgramHandle for CompiledGraphImputationEffectDecision {
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered
     }
 }
 
-impl crate::analysis::program_handle::CompiledProgramHandle
-    for CompiledGraphImputationWorldDecision
-{
+impl CompiledProgramHandle for CompiledGraphImputationWorldDecision {
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered
     }
@@ -327,7 +326,7 @@ impl CompiledGraphImputationEffectDecision {
     /// Inspect the retained program without fitting or scoring.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Rerun graph selection and missing-row imputation through the producer,
@@ -353,7 +352,7 @@ impl CompiledGraphImputationEffectDecision {
             producer: point,
             decision,
             lowered_program_identity: self.lowered.identity(),
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
 
@@ -371,7 +370,7 @@ impl CompiledGraphImputationEffectDecision {
         super::graph_imputation::require_decision_support(ctx, self)?;
         let replay = self.producer.replay(result.producer.receipt, ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
-            || result.calibration != "not_measured"
+            || result.calibration != self.unit_calibration()
             || replay.effect_draws() != result.producer.effect_draws()
         {
             return Err(GraphImputationEffectDecisionError::Invalid(
@@ -405,7 +404,7 @@ impl CompiledGraphImputationEffectDecision {
             decision_artifact: contract.to_bytes(artifact_id)?,
             chain_artifact: chain.export(&result.decision, artifact_id)?,
             program_identity: *self.lowered.identity().as_bytes(),
-            calibration: "not_measured".into(),
+            calibration: self.unit_calibration().into(),
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
@@ -439,7 +438,7 @@ pub fn consume_graph_imputation_effect_decision(
     if wire.version != 1
         || wire.required_feature != FEATURE
         || wire.program_identity != *expected_program.as_bytes()
-        || wire.calibration != "not_measured"
+        || wire.calibration != capability_calibration(GRAPH_IMPUTATION_COMPILED_DECISION.as_str())
     {
         return Err(GraphImputationEffectDecisionError::Invalid(
             "combined feature or identity differs",
@@ -483,7 +482,7 @@ pub fn consume_graph_imputation_effect_decision(
         producer: point,
         decision,
         lowered_program_identity: lowered.identity(),
-        calibration: "not_measured",
+        calibration: capability_calibration(GRAPH_IMPUTATION_COMPILED_DECISION.as_str()),
     })
 }
 
@@ -1226,7 +1225,7 @@ impl CompiledGraphImputationWorldDecision {
     /// Inspect the compiled program.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
+        CompiledProgramHandle::plan_view(self)
     }
     /// Refit shared graph/imputation worlds and evaluate the action decision.
     ///
@@ -1292,7 +1291,7 @@ impl CompiledGraphImputationWorldDecision {
             producer: reading,
             decision,
             lowered_program_identity: self.lowered.identity(),
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
     /// Return the unmeasured prospective calibration coordinate for the
@@ -1643,7 +1642,7 @@ impl CompiledGraphImputationWorldDecision {
         let live = self.execute(ctx)?;
         if result.producer.receipt != live.producer.receipt
             || result.lowered_program_identity != self.lowered.identity()
-            || result.calibration != "not_measured"
+            || result.calibration != self.unit_calibration()
             || result.decision.decision != live.decision.decision
             || result.decision.chain.identity() != live.decision.chain.identity()
         {
@@ -1873,7 +1872,7 @@ pub fn consume_graph_imputation_world_decision(
         producer: reading,
         decision,
         lowered_program_identity: expected,
-        calibration: "not_measured",
+        calibration: capability_calibration(GRAPH_IMPUTATION_COMPILED_DECISION.as_str()),
     })
 }
 

@@ -27,8 +27,12 @@ use serde::{Deserialize, Serialize};
 use super::multi_level_treatment::AdjustmentColumn;
 use crate::error::CausalError;
 
-/// Calibration standing of the reported standard errors.
-pub const OBSERVATIONAL_SURVIVAL_CALIBRATION: &str = "not_measured";
+/// Calibration standing of the reported standard errors: the state of the observational
+/// survival unit.
+#[must_use]
+pub fn observational_survival_calibration() -> &'static str {
+    crate::support::capability_calibration("estimate.observational_survival_effect")
+}
 
 /// The declared horizon, levels and censoring assumption.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -256,7 +260,7 @@ impl ObservationalSurvivalEffect {
             row_index: estimate.row_index.iter().map(|id| id.get()).collect(),
             survival_difference_scores: estimate.survival_difference_scores,
             rmst_difference_scores: estimate.rmst_difference_scores,
-            calibration: OBSERVATIONAL_SURVIVAL_CALIBRATION.into(),
+            calibration: observational_survival_calibration().into(),
         })
     }
 }

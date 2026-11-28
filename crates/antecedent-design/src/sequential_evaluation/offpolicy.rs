@@ -659,6 +659,8 @@ pub fn bootstrap_off_policy(
         log_identity,
         seed,
         source_paradigm: "sampling_distribution",
-        calibration: "not_measured",
+        calibration: antecedent_io_core::unit_calibration::capability(
+            "sequential_evaluation.policy_evaluation",
+        ),
     })
 }

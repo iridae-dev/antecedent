@@ -242,7 +242,8 @@ fn multi_source_mz_independent_studies() {
             interval: INTERVAL,
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "transport.multi_source_limited_experiment");
     measure(&mut tally, &functional, n, "iid", INDEPENDENT_REPLICATES, |rep| {
         mz_figure_1_independent_studies(&exact, n, rep.wrapping_mul(1_000_003))
     });
@@ -265,7 +266,8 @@ fn multi_source_mz_shared_units() {
             interval: INTERVAL,
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "transport.multi_source_limited_experiment");
     measure(&mut tally, &functional, n, "shared_units", REPLICATES, |rep| {
         mz_figure_1_shared_units(&exact, &shared, n, rep.wrapping_mul(1_000_033))
     });

@@ -39,7 +39,7 @@ use antecedent_io::{
 use antecedent_kernels::bayesian_bootstrap_weights;
 use serde::{Deserialize, Serialize};
 
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
     consume_chain_decision,
@@ -54,6 +54,8 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     ModelRole, ModelSlot, PosteriorAlgorithm, PosteriorPlan, Realization, StatisticalProgram,
 };
+use crate::support::capability_calibration;
+use crate::support::units_generated::TRANSPORT_TRIAL_IPW_DECISION;
 
 const FEATURE: &str = "trial_ipw_transport_predictive_decision_v1";
 const MAX_BYTES: usize = 80 * 1024 * 1024;
@@ -556,9 +558,8 @@ impl CompiledTrialIpwPredictiveDecision {
     ) -> Result<TrialIpwPredictiveDecisionResult, Error> {
         let rows = &self.request.rows;
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(|refusal| Error::Invalid(refusal.message()))?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+            .map_err(|refusal| Error::Invalid(refusal.message()))?;
         let _lease = scoped
             .acquire_admission(
                 0,
@@ -595,7 +596,7 @@ impl CompiledTrialIpwPredictiveDecision {
             predictive_draws: draws,
             decision,
             lowered_program_identity: self.lowered.identity(),
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
     /// Execute the complete route and expose unmeasured study coordinates for
@@ -688,7 +689,7 @@ impl CompiledTrialIpwPredictiveDecision {
     ) -> Result<Vec<u8>, Error> {
         let live = self.execute(ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
-            || result.calibration != "not_measured"
+            || result.calibration != self.unit_calibration()
             || result.predictive_draws != live.predictive_draws
             || result.decision.decision != live.decision.decision
             || result.decision.chain.identity() != live.decision.chain.identity()
@@ -717,7 +718,7 @@ impl CompiledTrialIpwPredictiveDecision {
             chain_artifact: chain.export(&live.decision, artifact_id)?,
             predictive_draws: live.predictive_draws,
             program_identity: *self.lowered.identity().as_bytes(),
-            calibration: "not_measured".into(),
+            calibration: self.unit_calibration().into(),
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_BYTES {
@@ -742,7 +743,7 @@ pub fn consume_trial_ipw_predictive_decision(
     let wire: Wire = antecedent_io::from_cbor(bytes)?;
     if wire.version != 1
         || wire.feature != FEATURE
-        || wire.calibration != "not_measured"
+        || wire.calibration != capability_calibration(TRANSPORT_TRIAL_IPW_DECISION.as_str())
         || wire.program_identity != *expected.as_bytes()
     {
         return Err(Error::Invalid("foreign trial IPW artifact"));

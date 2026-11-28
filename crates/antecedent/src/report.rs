@@ -39,7 +39,6 @@ use antecedent_core::{AssumptionSource, ExecutionContext, VariableId};
 
 use crate::PreparedStudy;
 use crate::analysis::CausalContract;
-use crate::analysis::association::ASSOCIATION_CALIBRATION;
 use crate::analysis::fallback::{AnalysisWithFallback, NONCAUSAL_NOTICE, RankedPlan};
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -271,7 +270,7 @@ impl FallbackReportInput {
                     analysis: payload.estimate.selection.analysis.as_str().to_owned(),
                     rows: payload.estimate.rows,
                     uncertainty: payload.uncertainty_label().to_owned(),
-                    calibration: ASSOCIATION_CALIBRATION.to_owned(),
+                    calibration: part.result.calibration_state().to_owned(),
                     refused_after: payload.refused_after.as_deref().map(str::to_owned),
                     terms: payload
                         .estimate

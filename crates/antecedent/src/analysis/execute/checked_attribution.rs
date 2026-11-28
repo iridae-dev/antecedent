@@ -40,7 +40,7 @@ fn population_refit<'a>(
 }
 
 /// Whether `query` is an intrinsic-influence attribution.
-fn attribute_intrinsic_target(query: &CausalQuery) -> bool {
+pub(super) fn attribute_intrinsic_target(query: &CausalQuery) -> bool {
     matches!(
         query,
         CausalQuery::Attribute(attribute)
@@ -818,6 +818,29 @@ impl CheckedAttributionOperation {
                 ..Default::default()
             }),
         );
+        if attribute_intrinsic_target(query) {
+            result.decide_capability(
+                ctx,
+                "gcm.attribution.intrinsic_influence",
+                "antecedent.gcm.attribute_intrinsic_influence",
+            )?;
+        } else if self.inference.is_bayesian() && is_mechanism_change_query(query) {
+            result.decide_capability(
+                ctx,
+                "attribution.mechanism_change_detection",
+                "antecedent.attribution.mechanism_change.posterior_probability",
+            )?;
+        } else if self.lag_aligned.is_some()
+            && self.procedure != AttributionProcedure::Point
+            && matches!(query, CausalQuery::Attribute(_))
+            && attribute_refit_covered(query)
+        {
+            result.decide_capability(
+                ctx,
+                "gcm.attribute.mechanism_refit",
+                "antecedent.gcm.attribute_mechanism_refit",
+            )?;
+        }
         if let Some(lease) = row_lease {
             result.retained_resources.push(lease);
         }

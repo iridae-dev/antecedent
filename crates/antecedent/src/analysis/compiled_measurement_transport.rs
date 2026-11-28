@@ -46,7 +46,7 @@ use super::compiled_point_program::PointProgram;
 use super::measurement_model::{
     CategoricalTarget, MeasurementAnalysisBinding, MeasurementInput, MeasurementModelRefusal,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::supplied_identity::{unencoded_variant, variant};
 use super::transported_measurement::{
     TransportedMeasurementEstimate, transport_measurement, transport_measurement_estimate,
@@ -432,15 +432,15 @@ impl CompiledMeasurementTransport {
         ctx: &ExecutionContext,
     ) -> Result<TransportedMeasurementEstimate, MeasurementModelRefusal> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(|refusal| MeasurementModelRefusal {
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+            MeasurementModelRefusal {
                 code: antecedent_core::reason_code!("route_not_supported"),
                 detail: antecedent_core::reason_details::measurement_model::INPUT_INVALID
                     .to_owned(),
                 message: refusal.to_string(),
                 remedy: None,
-            })?;
-        }
+            }
+        })?;
         let request = &self.request;
         transport_measurement_estimate(
             &request.models,
@@ -620,9 +620,7 @@ impl CompiledPooledDifferentialTransport {
     /// the support gate once it is on.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<PooledDifferentialRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
         let request = &self.request;
         let correction = transport_pooled_differential_prevalence(
             PooledDifferentialRequest {

@@ -630,7 +630,12 @@ impl super::Study {
         let mut observed = antecedent_core::execution_attempt::observe_with_context(ctx, || {
             antecedent_estimate::prepare::with_preparation_budget(
                 crate::planner::PhysicalExecutionPlan::preparation_budget(ctx),
-                || self.run_unnamed(ctx),
+                || {
+                    self.run_unnamed(ctx).and_then(|mut result| {
+                        self.decide_declared_capabilities(&mut result, ctx)?;
+                        Ok(result)
+                    })
+                },
             )
             .map_err(|error| crate::analysis::preflight::name_run_refusal(self, error, ctx))
         });
@@ -639,6 +644,80 @@ impl super::Study {
             result.stamp_would_refuse(&self.would_refuse, ctx);
         }
         observed
+    }
+
+    /// The capability units this study's declarations select over its route, each with the
+    /// entry point that reaches it.
+    fn declared_capabilities(&self) -> impl Iterator<Item = (&'static str, &'static str)> {
+        let aipw = match self.declared.estimator_spec.as_deref() {
+            Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => Some(config),
+            _ => None,
+        };
+        let weighted_target = self.declared.weighted_target.is_some().then_some((
+            "estimate.weighted_target_effect",
+            if self.declared.weighted_transport.is_some() {
+                "antecedent.analyze.transport_weighted_target"
+            } else if self.graph_posterior.is_some() {
+                "antecedent.analyze.graph_posterior_weighted_target"
+            } else {
+                "antecedent.analyze.weighted_target"
+            },
+        ));
+        let cluster_dml = aipw
+            .is_some_and(|config| config.cluster_dml.is_some())
+            .then_some(("estimate.clustered_dml_aipw", "antecedent.estimators.Aipw.cluster_dml"));
+        let penalized = aipw.is_some_and(|config| !config.propensity.is_default()).then_some((
+            "estimate.penalized_propensity_aipw",
+            "antecedent.estimators.Aipw.propensity_penalty",
+        ));
+        let named_prior = matches!(
+            &self.settings.inference,
+            InferenceMode::Bayesian(config) if config
+                .external_compose
+                .as_ref()
+                .is_some_and(|compose| compose.composed.coefficient_names.is_some())
+        )
+        .then_some((
+            "prior.composed_named_coordinates",
+            "antecedent.inference.Bayesian.prior_from_named_composed",
+        ));
+        [weighted_target, cluster_dml, penalized, named_prior].into_iter().flatten()
+    }
+
+    /// Decide `result` under every capability unit the study's declarations select.
+    ///
+    /// # Errors
+    ///
+    /// A release build refuses a selected unit that is not supported.
+    pub(crate) fn decide_declared_capabilities(
+        &self,
+        result: &mut StudyResult,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        for (capability, entry) in self.declared_capabilities() {
+            result.decide_capability(ctx, capability, entry)?;
+        }
+        Ok(())
+    }
+
+    /// The support gate of every capability unit the study's declarations select, for an
+    /// entry point that returns no result.
+    ///
+    /// # Errors
+    ///
+    /// A release build refuses a selected unit that is not supported.
+    pub(crate) fn require_declared_capabilities(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        for (capability, entry) in self.declared_capabilities() {
+            crate::support::unit::require_program(
+                ctx,
+                &crate::support::unit::SupportKey::Unit(crate::support::UnitId::new(capability)),
+                entry,
+            )?;
+        }
+        Ok(())
     }
 
     fn run_unnamed(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {

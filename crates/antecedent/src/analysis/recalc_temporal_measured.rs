@@ -169,7 +169,7 @@ impl CheckedMeasuredTemporal {
         let bundle = CheckedSource {
             version: 1,
             required_features: vec!["checked_temporal_measured_source_v1".into()],
-            calibration: "not_measured".into(),
+            calibration: crate::support::capability_calibration("recalculation.temporal").into(),
             source: original,
             config: IntervalConfigWire::from_config(config),
             result: IntervalResultWire::from_interval(&result),
@@ -233,7 +233,8 @@ impl CheckedMeasuredTemporal {
         let bundle: CheckedSource = antecedent_io::from_cbor(&wire.source)?;
         if bundle.version != 1
             || bundle.required_features != ["checked_temporal_measured_source_v1"]
-            || bundle.calibration != "not_measured"
+            || bundle.calibration
+                != crate::support::capability_calibration("recalculation.temporal")
             || bundle.source.len() > limits.max_source_bytes
             || antecedent_io::to_cbor(&bundle)? != wire.source
         {
@@ -286,7 +287,7 @@ impl CheckedMeasuredTemporal {
         let bundle: CheckedSource = antecedent_io::from_cbor(&self.source)?;
         let source = TemporalRecalcArtifactWire::decode(&bundle.source)?;
         Ok(
-            serde_json::json!({"calibration":"not_measured","source":source,"config":bundle.config,"result":bundle.result}),
+            serde_json::json!({"calibration":crate::support::capability_calibration("recalculation.temporal"),"source":source,"config":bundle.config,"result":bundle.result}),
         )
     }
 }

@@ -554,23 +554,28 @@ fn construction_for(
 fn measure(
     test: &'static str,
     dgp: &'static str,
+    capability: Option<&str>,
     base: usize,
     construction: &Construction,
     replicate: impl Fn(usize, u64) -> Option<((f64, f64), u64)> + Sync,
 ) {
-    measure_against(TRUTH, test, dgp, base, construction, replicate);
+    measure_against(TRUTH, test, dgp, capability, base, construction, replicate);
 }
 
 fn measure_against(
     truth: f64,
     test: &'static str,
     dgp: &'static str,
+    capability: Option<&str>,
     base: usize,
     construction: &Construction,
     replicate: impl Fn(usize, u64) -> Option<((f64, f64), u64)> + Sync,
 ) {
     let n = grid_n(base);
     let mut tally = analytic_tally(test, dgp, construction);
+    if let Some(capability) = capability {
+        tally = tally.measures("capability", capability);
+    }
     let mut centres = Vec::new();
     let mut se_squared_sum = 0.0;
     for row in map_replicates(n_sim(), |rep| replicate(n, grid_seed(91_000 + rep))) {
@@ -783,6 +788,7 @@ fn weighted_linear_adjustment_hc1_interval() {
     measure(
         "weighted_linear_adjustment_hc1_interval",
         "informative_sampling_constant_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction("linear.adjustment.ate", "hc1", "iid", "AverageEffect"),
         |n, seed| {
@@ -798,6 +804,7 @@ fn weighted_linear_adjustment_cluster_interval() {
     measure(
         "weighted_linear_adjustment_cluster_interval",
         "informative_sampling_clustered",
+        Some("estimate.uncertainty"),
         1200,
         &construction("linear.adjustment.ate", "cluster", "cluster", "AverageEffect"),
         |n, seed| {
@@ -842,7 +849,8 @@ fn measure_balanced_hajek(test: &'static str, cluster: bool) {
             .push_str("+interval_variance=homoskedastic_gaussian_arm_linear_population");
     }
     let mut tally =
-        CoverageTally::for_record(RecordKey { test, dgp, interval: method }, REPORTED_LEVEL);
+        CoverageTally::for_record(RecordKey { test, dgp, interval: method }, REPORTED_LEVEL)
+            .measures("capability", "estimate.uncertainty");
     let mut reference_df = Vec::new();
     for fit in map_replicates(n_sim(), |rep| {
         let sample = sample(n, grid_seed(91_000 + rep), Effect::Heterogeneous, cluster);
@@ -929,7 +937,8 @@ fn measure_population_aipw(
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp: "informative_sampling_heterogeneous_effect", interval: method },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "estimate.uncertainty");
     let mut diagnostics = Vec::new();
     for result in map_replicates(n_sim(), |rep| {
         fit(&sample(n, grid_seed(91_000 + rep), Effect::Heterogeneous, false))
@@ -979,6 +988,7 @@ fn weighted_aipw_interval() {
     measure(
         "weighted_aipw_interval",
         "informative_sampling_heterogeneous_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction("aipw", "homoskedastic", "iid", "AverageEffect"),
         |n, seed| {
@@ -1015,6 +1025,7 @@ fn weighted_stratification_interval() {
     measure(
         "weighted_stratification_interval",
         "informative_sampling_heterogeneous_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction_for(
             "propensity.stratification",
@@ -1036,6 +1047,7 @@ fn weighted_matching_interval() {
     measure(
         "weighted_matching_interval",
         "informative_sampling_heterogeneous_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction_for(
             "propensity.matching",
@@ -1057,6 +1069,7 @@ fn weighted_randomized_itt_interval() {
     measure(
         "weighted_randomized_itt_interval",
         "bernoulli_trial_on_informatively_sampled_units",
+        Some("estimate.uncertainty"),
         600,
         &construction("randomized_neyman", "", "iid", "RandomizedEffect"),
         |n, seed| {
@@ -1072,6 +1085,7 @@ fn weighted_panel_did_interval() {
     measure(
         "weighted_panel_did_interval",
         "cluster_panel_informative_sampling",
+        None,
         60,
         &construction("randomized_ht", "cluster", "cluster", "PanelDid"),
         panel,
@@ -1085,6 +1099,7 @@ fn weighted_glm_logit_interval() {
         binary_population_effect(),
         "weighted_glm_logit_interval",
         "informative_sampling_binary_outcome",
+        Some("estimate.uncertainty"),
         1200,
         &construction("glm.adjustment", "hc1", "iid", "AverageEffect"),
         |n, seed| {
@@ -1100,6 +1115,7 @@ fn weighted_glm_gaussian_interval() {
     measure(
         "weighted_glm_gaussian_interval",
         "informative_sampling_constant_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction("glm.adjustment", "hc1", "iid", "AverageEffect"),
         |n, seed| {
@@ -1117,6 +1133,7 @@ fn weighted_distance_matching_interval() {
     measure(
         "weighted_distance_matching_interval",
         "informative_sampling_heterogeneous_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction_for(
             "distance.matching",
@@ -1138,6 +1155,7 @@ fn weighted_dml_aipw_interval() {
     measure(
         "weighted_dml_aipw_interval",
         "informative_sampling_heterogeneous_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction("dml", "homoskedastic", "iid", "AverageEffect"),
         |n, seed| {
@@ -1172,6 +1190,7 @@ fn weighted_dml_partially_linear_interval() {
     measure(
         "weighted_dml_partially_linear_interval",
         "informative_sampling_constant_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction("dml", "homoskedastic", "iid", "AverageEffect"),
         |n, seed| {
@@ -1187,6 +1206,7 @@ fn weighted_dr_learner_interval() {
     measure(
         "weighted_dr_learner_interval",
         "informative_sampling_heterogeneous_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction("dr.learner", "homoskedastic", "iid", "AverageEffect"),
         |n, seed| {
@@ -1228,6 +1248,7 @@ fn weighted_aipw_att_interval() {
     measure(
         "weighted_aipw_att_interval",
         "informative_sampling_constant_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction_for(
             "aipw",
@@ -1263,7 +1284,8 @@ fn weighted_aipw_atc_interval() {
             interval: method,
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "estimate.uncertainty");
     for result in map_replicates(n_sim(), |rep| {
         let s = sample(n, grid_seed(91_000 + rep), Effect::Constant, false);
         let (data, estimand) = table(&s)?;
@@ -1309,6 +1331,7 @@ fn weighted_aipw_trimmed_interval() {
     measure(
         "weighted_aipw_trimmed_interval",
         "informative_sampling_constant_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction_for(
             "aipw",
@@ -1337,6 +1360,7 @@ fn weighted_aipw_cluster_dml_interval() {
     measure(
         "weighted_aipw_cluster_dml_interval",
         "informative_sampling_clustered_heterogeneous_effect",
+        Some("estimate.uncertainty"),
         1200,
         &cluster_reference_construction("aipw"),
         |n, seed| {
@@ -1428,6 +1452,7 @@ fn weighted_aipw_ridge_propensity_interval() {
     measure(
         "weighted_aipw_ridge_propensity_interval",
         "informative_sampling_heterogeneous_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction("aipw", "homoskedastic", "iid", "AverageEffect"),
         |n, seed| {
@@ -1444,6 +1469,7 @@ fn weighted_aipw_lasso_propensity_interval() {
     measure(
         "weighted_aipw_lasso_propensity_interval",
         "informative_sampling_heterogeneous_effect",
+        Some("estimate.uncertainty"),
         1200,
         &construction("aipw", "homoskedastic", "iid", "AverageEffect"),
         |n, seed| {
@@ -1461,6 +1487,7 @@ fn weighted_glm_negative_binomial_interval() {
         count_population_effect(),
         "weighted_glm_negative_binomial_interval",
         "informative_sampling_overdispersed_counts",
+        Some("estimate.uncertainty"),
         1200,
         &construction("glm.adjustment", "hc1", "iid", "AverageEffect"),
         |n, seed| {
@@ -1476,6 +1503,7 @@ fn weighted_dml_cluster_interval() {
     measure(
         "weighted_dml_cluster_interval",
         "informative_sampling_clustered_heterogeneous_effect",
+        Some("estimate.uncertainty"),
         1200,
         &cluster_reference_construction("dml"),
         |n, seed| {
@@ -1491,6 +1519,7 @@ fn weighted_dr_learner_cluster_interval() {
     measure(
         "weighted_dr_learner_cluster_interval",
         "informative_sampling_clustered_heterogeneous_effect",
+        Some("estimate.uncertainty"),
         1200,
         &cluster_reference_construction("dr.learner"),
         |n, seed| {

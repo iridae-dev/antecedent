@@ -65,7 +65,7 @@ use super::discovered_transport_trial::{
     estimate_trial_compatible_transport_confidence_set,
     verify_trial_compatible_transport_confidence_set_against,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::structure_route::{CompiledExecution, DiscoveredStructure, DiscoverySpec};
 use super::supplied_identity::{Canonical, Declaration, SetOf, variant};
 use crate::analysis::execute::Study;
@@ -780,11 +780,9 @@ impl CompiledDiscoveredClassTransport {
             }
         };
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(|refusal| {
-                DiscoveredClassTransportError::Program(CausalError::from(refusal))
-            })?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+            DiscoveredClassTransportError::Program(CausalError::from(refusal))
+        })?;
         let request = &self.request;
         let transport = transport_discovered_structure_with_context(
             &found.outcome,

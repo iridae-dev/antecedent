@@ -620,6 +620,11 @@ pub fn execute_bayesian_with_receipt(
     use super::recalc_receipt::{Counter, LawValue, ReceiptRecorder, decide};
     use antecedent_core::recalc::{Boundary, Stage};
     use antecedent_expr::execution_counts::{StaticWork, count_static_work, note_static_work};
+    super::recalc_receipt::require_recalc_unit(
+        Some(ctx),
+        "recalculation.bayesian",
+        "antecedent.recalc_bayesian.BayesianSession.execute",
+    )?;
     request.validate()?;
     let identities = request.identities(ctx);
     let plan = bayesian_plan(&session.previous, &identities, session.boundary, true);

@@ -591,7 +591,8 @@ fn record_coverage(case: &Case, planned: u32, scores: &[Option<Score>]) {
         let mut tally = CoverageTally::for_record(
             RecordKey { test: case.id, dgp: case.scenario.dgp(), interval: "confidence_sequence" },
             0.95,
-        );
+        )
+        .measures("capability", "adaptive_inference.participant_family");
         if selected {
             tally = tally.labelled("selected_contrast");
         }
@@ -659,8 +660,9 @@ fn run_case(case: &Case) {
         summary.selected_coverage_at_stop
     );
     record_coverage(case, planned, &scores);
-    // The precision, selection and sample-use targets are stated for the case's own participants.
-    if calibration::grid_point() != calibration::BASE_GRID_POINT {
+    // The precision, selection and sample-use targets are stated for the case's own participants
+    // and replicates.
+    if calibration::grid_point() != calibration::BASE_GRID_POINT || calibration::smoke() {
         return;
     }
     assert!(

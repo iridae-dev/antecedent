@@ -45,8 +45,11 @@ use crate::study_candidate::DurableStudyCandidate;
 
 /// The ranking guarantee of every plan: a point ordering, no rank-error coverage.
 pub const PLAN_RANKING_GUARANTEE: &str = "point_only";
-/// Calibration of every plan: no coverage was measured.
-pub const PLAN_CALIBRATION: &str = "not_measured";
+/// The calibration state of the evidence-plan unit.
+#[must_use]
+pub fn plan_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("design.evidence_plan")
+}
 /// What a stopped search does and does not say.
 pub const PLAN_BUDGET_STATEMENT: &str = "the search stopped on a declared budget; subsets left \
 unexamined are unknown, not impossible, and no scientific conclusion follows from the stop";
@@ -603,10 +606,10 @@ impl EvidencePlan {
         PLAN_RANKING_GUARANTEE
     }
 
-    /// The calibration of the ordering: no coverage was measured.
+    /// The calibration state of the ordering's unit.
     #[must_use]
-    pub const fn calibration(&self) -> &'static str {
-        PLAN_CALIBRATION
+    pub fn calibration(&self) -> &'static str {
+        plan_calibration()
     }
 
     /// The options a verified route found sufficient, best first.

@@ -631,6 +631,7 @@ mod tests {
 
     #[test]
     fn paired_equilibrium_worlds_are_derived_and_replayed() {
+        crate::evidence_unit!("capability", "cyclic.action_world_decisions");
         let ctx = ExecutionContext::for_tests(47);
         let plan = compile_cyclic_action_world_decision(request(), outputs(), contract(), &ctx)
             .expect("model and decision compiler");

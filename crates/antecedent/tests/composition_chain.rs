@@ -289,6 +289,7 @@ fn naive_effect(planted: &Planted) -> f64 {
 
 #[test]
 fn the_chain_recovers_the_closed_form_population_effect_and_names_every_stage() {
+    antecedent::evidence_unit!("capability", "estimate.weighted_target_effect");
     on_large_stack(|| {
         let planted = plant(2_026);
         let truth = closed_form_truth(&planted);

@@ -71,8 +71,11 @@ use crate::artifact_codec::CanonicalSize;
 pub const VECTOR_TREATMENT_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const VECTOR_TREATMENT_ARTIFACT_FEATURE: &str = "vector_treatment_v1";
-/// Calibration coordinate: coverage, Type I error and power were not measured.
-pub const VECTOR_TREATMENT_CALIBRATION: &str = "not_measured";
+/// The calibration state of the vector-treatment unit: coverage, Type I error and power.
+#[must_use]
+pub fn vector_treatment_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("estimate.vector_treatment")
+}
 /// Most bytes an artifact may occupy: the largest export budget, enforced on consumption.
 pub const MAX_VECTOR_TREATMENT_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 /// Row count the legacy robust-covariance `rows` replay format was originally written for. It
@@ -960,7 +963,7 @@ impl VectorTreatmentArtifact {
             feature: VECTOR_TREATMENT_ARTIFACT_FEATURE.to_owned(),
             null: VECTOR_TREATMENT_NULL.to_owned(),
             inference_claim: VECTOR_TREATMENT_INFERENCE_CLAIM.to_owned(),
-            calibration: VECTOR_TREATMENT_CALIBRATION.to_owned(),
+            calibration: vector_treatment_calibration().to_owned(),
             covariance: decl.covariance.clone(),
             replay: replay.tag().to_owned(),
             row_snapshot: decl.row_snapshot.clone(),
@@ -1116,7 +1119,7 @@ impl VectorTreatmentArtifact {
         }
         crate::artifact_codec::require_markers::<VectorTreatmentArtifactError>(&[
             (meta.inference_claim == VECTOR_TREATMENT_INFERENCE_CLAIM, "inference claim"),
-            (meta.calibration == VECTOR_TREATMENT_CALIBRATION, "calibration"),
+            (meta.calibration == vector_treatment_calibration(), "calibration"),
             (meta.caveats == standing_caveats(), "caveats"),
         ])?;
         let decl = Decl::from_meta(&meta)?;

@@ -163,7 +163,8 @@ fn measure_study(
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp, interval: POSTERIOR_INTERVAL },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "association.conjugate_count_posterior");
     for run in map_replicates(n_sim(), runs) {
         let Some(((band, reported), truth)) = run else {
             tally.skip();
@@ -271,10 +272,16 @@ fn measure_selection(
     target: &str,
     interval: impl Fn(u64) -> Option<(f64, f64)> + Sync,
 ) {
+    let capability = if construction.1.estimator == "select_linear_power_prior" {
+        "prior.composed_named_coordinates"
+    } else {
+        "association.conjugate_count_posterior"
+    };
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp, interval: construction.0 },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", capability);
     for run in map_replicates(n_sim(), interval) {
         let Some(band) = run else {
             tally.skip();

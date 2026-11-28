@@ -172,7 +172,8 @@ fn off_policy_importance_weighted_wald_interval() {
             interval: "wald_normal",
         },
         LEVEL,
-    );
+    )
+    .measures("capability", "sequential_evaluation.policy_evaluation");
     let runs = map_replicates(n_sim(), |rep| {
         let seed = grid_seed(SEED_BASE + rep);
         evaluate(&simulated_log(n, seed), seed)

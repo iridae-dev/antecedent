@@ -48,7 +48,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use common::calibration::{gaussian, grid_n, stream_seed};
+use common::calibration::{gaussian, grid_for, grid_n, smoke_budget, stream_seed};
 use common::reported::scalar_normal_pair;
 use grid_cell::{Cell, Target, measure};
 
@@ -116,6 +116,10 @@ fn execute(test: &str, builder: StudyBuilder, variant: Variant, seed: u64) -> (S
     (study, result)
 }
 
+fn grid_rows(base: usize) -> usize {
+    smoke_budget(grid_n(base), grid_for(base).n_at(0, base))
+}
+
 // ============================================================= counterfactual
 
 /// The outcome's coefficient on `a`: the mean effect of `do(a = 1)` against `do(a = 0)`.
@@ -123,7 +127,9 @@ const CF_EFFECT: f64 = 1.5;
 /// Rows of a counterfactual design.
 const N_COUNTERFACTUAL: usize = 500;
 /// Row-bootstrap replicates behind the standard error.
-const CF_REPLICATES: u32 = 100;
+fn cf_replicates() -> u32 {
+    u32::try_from(smoke_budget(100, 50)).unwrap()
+}
 
 /// Columns `a, z, w, y`: `a, z, w ~ N(0,1)` independent, `y = 0.5 + 1.5a + z + e`.
 fn counterfactual_data(n: usize, seed: u64) -> TabularData {
@@ -158,11 +164,11 @@ fn counterfactual(test: &'static str, family: u64) {
         &Target::scalar(CF_EFFECT),
         |rep, variant| {
             let seed = stream_seed(family, rep);
-            let data = counterfactual_data(grid_n(N_COUNTERFACTUAL), seed);
+            let data = counterfactual_data(grid_rows(N_COUNTERFACTUAL), seed);
             let builder = attach(Study::tabular(data), &graph, VARIANTS[variant].0)
                 .query(query.clone())
                 .inference(InferenceMode::Frequentist)
-                .bootstrap_replicates(CF_REPLICATES);
+                .bootstrap_replicates(cf_replicates());
             execute(test, builder, VARIANTS[variant], seed)
         },
         |result| vec![scalar_normal_pair(result)],
@@ -181,7 +187,9 @@ const ANOMALY_TRUTH: f64 = 1.0;
 /// Rows of an anomaly design.
 const N_ANOMALY: usize = 1000;
 /// Row-bootstrap replicates behind the standard error.
-const ATTRIBUTION_REPLICATES: u32 = 200;
+fn attribution_replicates() -> u32 {
+    u32::try_from(smoke_budget(200, 50)).unwrap()
+}
 
 /// Columns `z, y`: `y = 1 + 2z + 0.7e`.
 fn chain_data(n: usize, seed: u64) -> TabularData {
@@ -219,11 +227,11 @@ fn anomaly_attribution(test: &'static str, family: u64) {
         &Target::scalar(ANOMALY_TRUTH),
         |rep, variant| {
             let seed = stream_seed(family, rep);
-            let data = chain_data(grid_n(N_ANOMALY), seed);
+            let data = chain_data(grid_rows(N_ANOMALY), seed);
             let builder = attach(Study::tabular(data), &graph, VARIANTS[variant].0)
                 .query(query.clone())
                 .inference(InferenceMode::Frequentist)
-                .bootstrap_replicates(ATTRIBUTION_REPLICATES);
+                .bootstrap_replicates(attribution_replicates());
             execute(test, builder, VARIANTS[variant], seed)
         },
         |result| vec![scalar_normal_pair(result)],

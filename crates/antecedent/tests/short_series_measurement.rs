@@ -55,7 +55,7 @@ use antecedent::estimate::TemporalMediationUncertainty;
 use antecedent::{InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{CausalQuery, ExecutionContext, MediationContrast};
 use antecedent_data::TimeSeriesData;
-use common::calibration::{Z90, coverage_band, n_sim, normal_interval};
+use common::calibration::{Z90, coverage_band, n_sim, normal_interval, smoke, smoke_budget};
 use common::driven_dgp::{self, Scenario};
 use common::{fixtures, persistent_dgp};
 
@@ -96,11 +96,15 @@ fn study(
         .query(query)
         .inference(InferenceMode::Frequentist)
         .refute(RefuteSuite::None)
-        .bootstrap_replicates(boot)
+        .bootstrap_replicates(replicates(boot))
         .build()
         .ok()?
         .run(&ExecutionContext::for_tests(seed))
         .ok()
+}
+
+fn replicates(full: u32) -> u32 {
+    u32::try_from(smoke_budget(usize::try_from(full).unwrap(), 50)).unwrap()
 }
 
 /// The number printed right after `key` in `message` (NaN when absent).
@@ -283,7 +287,7 @@ fn mixture_dbn_sequential(rho: f64, n: usize, seed: u64) -> Option<Rep> {
         .temporal_query(persistent_dgp::multi_sustained())
         .inference(InferenceMode::Frequentist)
         .refute(RefuteSuite::None)
-        .bootstrap_replicates(199)
+        .bootstrap_replicates(replicates(199))
         .build()
         .ok()?
         .run(&ExecutionContext::for_tests(seed))
@@ -398,6 +402,10 @@ fn quantile(values: &[f64], q: f64) -> f64 {
     v[((v.len() - 1) as f64 * q).round() as usize]
 }
 
+fn swept(len: usize) -> Vec<usize> {
+    if smoke() && len > 2 { vec![0, len - 1] } else { (0..len).collect() }
+}
+
 fn run_cells(designs: &[Design]) -> Vec<Cell> {
     let only = std::env::var("ANTECEDENT_SHORT_SERIES_DESIGNS").ok();
     let jobs: Vec<(usize, usize, usize)> = designs
@@ -409,7 +417,10 @@ fn run_cells(designs: &[Design]) -> Vec<Cell> {
             })
         })
         .flat_map(|(d, design)| {
-            (0..RHOS.len()).flat_map(move |r| design.ns.iter().map(move |&n| (d, r, n)))
+            let ns: Vec<usize> = swept(design.ns.len()).into_iter().map(|i| design.ns[i]).collect();
+            swept(RHOS.len())
+                .into_iter()
+                .flat_map(move |r| ns.clone().into_iter().map(move |n| (d, r, n)))
         })
         .collect();
     let offset: u64 = std::env::var("ANTECEDENT_SHORT_SERIES_SEED_OFFSET")

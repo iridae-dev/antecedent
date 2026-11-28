@@ -24,7 +24,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 
 use super::choice_inference::{ChoiceInferenceRefusal, ChoiceInferenceSession, ChoiceRequest};
 use super::compiled_measured_interval::{MeasuredIntervalProgram, MeasuredIntervalRun, bayesian};
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::supplied_identity::{unencoded_variant, variant};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -197,13 +197,13 @@ impl CompiledChoiceInterval<'_> {
         ctx: &ExecutionContext,
     ) -> Result<MeasuredIntervalRun, ChoiceInferenceRefusal> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(|refusal| ChoiceInferenceRefusal {
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+            ChoiceInferenceRefusal {
                 code: refusal.code(),
                 detail: refusal.detail.to_owned(),
                 message: refusal.to_string(),
-            })?;
-        }
+            }
+        })?;
         let measured =
             self.session.measure_result_interval(&self.request, &self.artifact_id, &scoped)?;
         Ok(MeasuredIntervalRun {

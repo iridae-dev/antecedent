@@ -104,10 +104,11 @@ pub struct AssociationSection {
     pub is_intervention_effect: bool,
 }
 
-impl From<&AssociationPayload> for AssociationSection {
-    fn from(payload: &AssociationPayload) -> Self {
+impl AssociationSection {
+    /// The section of `payload`, whose result's evidence unit is calibrated as `calibration`.
+    pub(crate) fn of(payload: &AssociationPayload, calibration: &str) -> Self {
         let estimate = &payload.estimate;
-        let calibration = antecedent::analysis::association::ASSOCIATION_CALIBRATION.to_owned();
+        let calibration = calibration.to_owned();
         Self {
             analysis: estimate.selection.analysis.as_str().to_owned(),
             rule: estimate.selection.rule.to_owned(),

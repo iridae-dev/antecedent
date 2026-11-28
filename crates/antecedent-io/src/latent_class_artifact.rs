@@ -60,8 +60,11 @@ use crate::width::lossless_u64;
 pub const LATENT_CLASS_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const LATENT_CLASS_ARTIFACT_FEATURE: &str = "latent_class_effects_v1";
-/// Calibration coordinate of the bootstrap standard errors: coverage was not measured.
-pub const LATENT_CLASS_ARTIFACT_CALIBRATION: &str = "not_measured";
+/// The calibration state of the latent-class effects unit, for its bootstrap standard errors.
+#[must_use]
+pub fn latent_class_artifact_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("estimate.latent_class_effects")
+}
 /// Most bootstrap replicates a producer may request and a consumer will replay.
 pub const LATENT_CLASS_ARTIFACT_MAX_BOOTSTRAP: u32 = 1_000;
 /// Log-likelihood trace entries kept verbatim in the record (the full trace is digested).
@@ -596,7 +599,7 @@ fn build_meta(
         n_rows: lossless_u64(request.data.outcome.len()),
         covariate_names: request.data.covariate_names.clone(),
         data_binding: None,
-        calibration: LATENT_CLASS_ARTIFACT_CALIBRATION.to_owned(),
+        calibration: latent_class_artifact_calibration().to_owned(),
         inference_claim: LATENT_CLASS_INFERENCE_CLAIM.to_owned(),
         caveat: LATENT_CLASS_CAVEAT.to_owned(),
         identity: LatentClassIdentity { premises_id, config_id, data_id, result_id, digest: whole },
@@ -864,7 +867,7 @@ impl LatentClassArtifact {
         crate::artifact_codec::require_markers::<LatentClassArtifactError>(&[
             (meta.feature == LATENT_CLASS_ARTIFACT_FEATURE, "feature marker"),
             (meta.inference_claim == LATENT_CLASS_INFERENCE_CLAIM, "inference claim"),
-            (meta.calibration == LATENT_CLASS_ARTIFACT_CALIBRATION, "calibration"),
+            (meta.calibration == latent_class_artifact_calibration(), "calibration"),
             (meta.caveat == LATENT_CLASS_CAVEAT, "caveat"),
         ])?;
         let request = match (meta.data_binding.as_deref(), data) {

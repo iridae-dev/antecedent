@@ -227,7 +227,8 @@ fn typed_transported_poisson_mechanism_first_order_interval() {
             interval: "delta_method_wald",
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "transport.typed_mechanism_transport");
     let runs = map_replicates(n_sim(), |rep| interval(n, grid_seed(SEED_BASE + rep)));
     for run in runs {
         let Some(band) = run else {

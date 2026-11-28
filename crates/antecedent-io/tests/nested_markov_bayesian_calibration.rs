@@ -291,6 +291,7 @@ fn measure(coordinate: usize, test: &'static str) {
             },
             0.95,
         )
+        .measures("capability", "identify.binary_nested_markov")
         .labelled(label.to_string())
     });
     let mut auxiliary = Auxiliary::restore(fixture(coordinate, test, n), test, n);
@@ -417,6 +418,9 @@ fn measure(coordinate: usize, test: &'static str) {
     println!(
         "diagnostic-precision {test} n={n} posterior_mean={mean:?} exact_truth={truths:?} average_joint_covariance={posterior:?} empirical_joint_covariance={empirical:?} relative_frobenius_error={relative_covariance_error}"
     );
+    if calibration::smoke() {
+        return;
+    }
     assert!(relative_covariance_error <= 0.25, "joint covariance precision gate");
     for i in 0..3 {
         assert!(

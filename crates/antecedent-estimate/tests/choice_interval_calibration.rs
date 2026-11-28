@@ -59,7 +59,8 @@ fn pooled(test: &'static str, options: usize, expected_id: &str) {
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp: POOLED_DGP, interval: CHOICE_INTERVAL_METHOD },
         MEASURED_LEVEL,
-    );
+    )
+    .measures("capability", "choice_inference.interval_candidates");
     let basis = calibration_basis(
         DIRICHLET_ESTIMATOR,
         FIRST_OPTION_SHARE_FUNCTIONAL,
@@ -99,7 +100,8 @@ fn hierarchical(test: &'static str, expected_id: &str) {
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp: HIERARCHICAL_DGP, interval: CHOICE_INTERVAL_METHOD },
         MEASURED_LEVEL,
-    );
+    )
+    .measures("capability", "choice_inference.interval_candidates");
     let basis = calibration_basis(
         HIERARCHICAL_ESTIMATOR,
         FIRST_OPTION_SHARE_FUNCTIONAL,

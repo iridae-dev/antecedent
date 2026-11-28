@@ -23,7 +23,7 @@ use antecedent_io::cohort_decision::CohortBinding;
 use antecedent_learn::transported_effect::{SelectionShiftDeclaration, TransportRefusal};
 
 use super::compiled_point_program::PointProgram;
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::transported_cohort::{TransportedCohort, transport_cohort_effect_from_result};
 use crate::analysis::execute::Study;
 use crate::planner::PlanView;
@@ -198,9 +198,8 @@ impl CompiledTransportedCohort {
     /// on.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<TransportedCohort, TransportRefusal> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(|error| refusal(error.to_string()))?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+            .map_err(|error| refusal(error.to_string()))?;
         let request = &self.request;
         transport_cohort_effect_from_result(
             &request.artifact,

@@ -70,7 +70,7 @@ pub struct FittedDependentMeasurementReport {
     pub posterior_draws: Vec<Vec<f64>>,
     /// Identity of the common draw schedule.
     pub alignment_identity: String,
-    /// Always `not_measured`; no repeated-sampling coverage is inherited.
+    /// Calibration state of the route's evidence unit; no repeated-sampling coverage is inherited.
     pub calibration: String,
 }
 
@@ -87,7 +87,7 @@ pub struct FittedDependentMeasurementInterval {
     pub lower: f64,
     /// Upper equal-tail quantile.
     pub upper: f64,
-    /// Always `not_measured` until a new whole-route record is earned.
+    /// Calibration state of the route's evidence unit.
     pub calibration: String,
 }
 
@@ -134,7 +134,10 @@ impl FittedDependentMeasurementReport {
             nominal_level: level,
             lower,
             upper,
-            calibration: "not_measured".into(),
+            calibration: crate::support::unit_calibration(&crate::support::UnitRef::Capability(
+                crate::support::units_generated::OBSERVATION_QUERY_FINITE_LAW_CONDITIONING,
+            ))
+            .into(),
         })
     }
 }
@@ -521,7 +524,7 @@ impl CompiledFittedDependentMeasurement {
             plug_in,
             posterior_draws,
             alignment_identity: self.lowered.identity().to_hex(),
-            calibration: "not_measured".into(),
+            calibration: self.unit_calibration().into(),
         })
     }
 

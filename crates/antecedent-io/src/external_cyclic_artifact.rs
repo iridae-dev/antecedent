@@ -84,7 +84,7 @@ pub struct ExternalCyclicReport {
     pub counterfactuals: Option<Vec<EquilibriumResult>>,
     /// `verified_external_model_conditional` or `specified_or_fitted_model_conditional`.
     pub claim: String,
-    /// Always `not_measured`.
+    /// The calibration state of the external-mechanisms unit.
     pub calibration: String,
 }
 
@@ -271,7 +271,10 @@ impl ExternalCyclicRequest {
                 MechanismTrust::VerifiedExternal => "verified_external_model_conditional".into(),
                 MechanismTrust::Native => "specified_or_fitted_model_conditional".into(),
             },
-            calibration: "not_measured".into(),
+            calibration: antecedent_io_core::unit_calibration::capability(
+                "cyclic.external_mechanisms",
+            )
+            .into(),
         })
     }
 

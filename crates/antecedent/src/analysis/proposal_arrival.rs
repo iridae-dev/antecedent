@@ -539,7 +539,7 @@ pub fn execute_with_limits(
         point,
         mean,
         inference: "empirical_point_only".into(),
-        calibration: "not_measured".into(),
+        calibration: crate::support::capability_calibration("design.proposal_arrival").into(),
         work: counts.into(),
     })
 }

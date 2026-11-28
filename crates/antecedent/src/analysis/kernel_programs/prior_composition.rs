@@ -416,9 +416,7 @@ fn transport_refusal(refusal: &NotSupported) -> TransportError {
 }
 
 fn gate<I>(program: &KernelProgram<I>, ctx: &ExecutionContext) -> Result<(), NotSupported> {
-    if GATE_ON_UNIT_SUPPORT {
-        program.gate(ctx)?;
-    }
+    program.gate_when(GATE_ON_UNIT_SUPPORT, ctx)?;
     Ok(())
 }
 

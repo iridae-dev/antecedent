@@ -152,7 +152,13 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         if self.score_table.is_none() {
             self.require_retarget_support()?;
-            return self.retarget_adjusted_model(weights, depends_on, ctx);
+            let mut result = self.retarget_adjusted_model(weights, depends_on, ctx)?;
+            result.decide_capability(
+                ctx,
+                "recalculation.prepared_adjusted",
+                "antecedent.PreparedStudy.retarget.adjusted_fit",
+            )?;
+            return Ok(result);
         }
         let table = self.retarget_score_table()?;
         let _summary_means = admit_retarget_bytes(

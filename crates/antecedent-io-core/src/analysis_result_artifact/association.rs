@@ -4,7 +4,7 @@
 //! and digests are unchanged. An `Association` query requires it. The result describes the
 //! observed law of the columns: the body carries no scalar effect estimate, standard error or
 //! interval beside it, the section states that it is not an intervention effect and ranks no
-//! action, and it claims no support and a `not_measured` calibration. A loader checks that every
+//! action, and it claims no support and its unit's calibration state. A loader checks that every
 //! reported number is finite, that the selected analysis is one the declared selection rule can
 //! name, and that the uncertainty label names only what the section holds.
 //!
@@ -157,11 +157,11 @@ pub struct AssociationPredictionWire {
     /// Mean continuous ranked probability score (real outcome) or `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mean_crps: Option<f64>,
-    /// Always `not_measured`: a score is a point value with no coverage record.
+    /// The section's calibration state: a score is a point value with no coverage record.
     pub calibration: String,
 }
 
-/// Noncausal association of the observed data (unsupported, `not_measured`).
+/// Noncausal association of the observed data (unsupported).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AssociationWire {
@@ -197,7 +197,8 @@ pub struct AssociationWire {
     pub refused_after: Option<String>,
     /// Uncertainty label.
     pub uncertainty: String,
-    /// Always `not_measured`.
+    /// The calibration state of the graphless row the result states and meets, else
+    /// `not_measured`.
     pub calibration: String,
     /// Always `false`.
     pub supported: bool,
@@ -219,8 +220,9 @@ pub(in crate::analysis_result_artifact) fn validate_association(
         (false, Some(_)) => return fail("the section is attached to another query"),
         (true, Some(section)) => section,
     };
+    let calibration = super::stated_section_rows::association_calibration(result);
     if section.supported
-        || section.calibration != "not_measured"
+        || section.calibration != calibration
         || section.ranks_actions
         || section.is_intervention_effect
         || result.estimate.is_some()
@@ -268,7 +270,7 @@ pub(in crate::analysis_result_artifact) fn validate_association(
     if let Some(prediction) = &section.prediction
         && (prediction.folds < 2
             || prediction.cases == 0
-            || prediction.calibration != "not_measured"
+            || prediction.calibration != calibration
             || !prediction.mean_score.is_finite()
             || !prediction.baseline_score.is_finite()
             || !prediction.mean_crps.is_none_or(f64::is_finite))

@@ -101,6 +101,8 @@ const BOOT_REPS: u32 = 60;
 /// Nominal level of every interval in this file.
 const LEVEL: f64 = 0.95;
 
+const AVERAGE_EFFECT_CELL: &str = "AverageEffect/Dag/explicit/Frequentist/none";
+
 /// Coverage count plus mean interval length and Monte Carlo spread of the point.
 ///
 /// Mean length and mean SE are over replicates that produced an interval (a
@@ -127,6 +129,13 @@ impl Tally {
         let case = estimator_level::case_for(test);
         let key = RecordKey { test, dgp, interval: case.interval };
         Self { record: Some((CoverageTally::for_record(key, LEVEL), case)), ..Self::default() }
+    }
+
+    /// Declare the evidence unit `kind`/`id` the record measures.
+    #[must_use]
+    fn measures(mut self, kind: &str, id: &str) -> Self {
+        self.record = self.record.map(|(tally, case)| (tally.measures(kind, id), case));
+        self
     }
 
     /// Bind the replicate about to be scored: `rows` complete rows and, for a
@@ -425,7 +434,8 @@ fn linear_adjustment_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = LinearAdjustmentAte::default().with_bootstrap_replicates(0);
     let ctx = ExecutionContext::for_tests(1);
-    let mut tally = Tally::for_record("linear_adjustment_analytic_ci_coverage", "confounded_scm");
+    let mut tally = Tally::for_record("linear_adjustment_analytic_ci_coverage", "confounded_scm")
+        .measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let (data, estimand) = confounded_scm(n_obs(), 1000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -447,7 +457,8 @@ fn linear_adjustment_hc1_ci_coverage() {
         .with_bootstrap_replicates(0)
         .with_se_kind(AnalyticSeKind::Hc1);
     let ctx = ExecutionContext::for_tests(11);
-    let mut tally = Tally::for_record("linear_adjustment_hc1_ci_coverage", "confounded_scm");
+    let mut tally = Tally::for_record("linear_adjustment_hc1_ci_coverage", "confounded_scm")
+        .measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let (data, estimand) = confounded_scm(n_obs(), 1100 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -467,7 +478,8 @@ fn linear_adjustment_hc1_ci_coverage() {
 fn ipw_hajek_bootstrap_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting::new().with_bootstrap_replicates(BOOT_REPS);
-    let mut tally = Tally::for_record("ipw_hajek_bootstrap_ci_coverage", "confounded_scm");
+    let mut tally = Tally::for_record("ipw_hajek_bootstrap_ci_coverage", "confounded_scm")
+        .measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         // One context per simulation: a shared context would hand every
         // simulation the same bootstrap resample indices.
@@ -498,7 +510,8 @@ fn ipw_hajek_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting::new().with_bootstrap_replicates(0);
     let ctx = ExecutionContext::for_tests(2);
-    let mut tally = Tally::for_record("ipw_hajek_analytic_ci_coverage", "confounded_scm");
+    let mut tally = Tally::for_record("ipw_hajek_analytic_ci_coverage", "confounded_scm")
+        .measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let (data, estimand) = confounded_scm(grid_n(500), 2100 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -546,7 +559,8 @@ fn ipw_hajek_analytic_conformance_scm_ci_coverage() {
     let mut tally = Tally::for_record(
         "ipw_hajek_analytic_conformance_scm_ci_coverage",
         "propensity_ipw_conformance_scm",
-    );
+    )
+    .measures("matrix", AVERAGE_EFFECT_CELL);
     let n = grid_n(1200);
     let effects = map_replicates(n_sim(), |s| {
         let mut rng = ExecutionContext::for_tests(grid_seed(3 + 1000 * s))
@@ -575,7 +589,8 @@ fn aipw_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = AipwAte::new().with_bootstrap_replicates(0);
     let ctx = ExecutionContext::for_tests(3);
-    let mut tally = Tally::for_record("aipw_analytic_ci_coverage", "confounded_scm");
+    let mut tally = Tally::for_record("aipw_analytic_ci_coverage", "confounded_scm")
+        .measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let (data, estimand) = confounded_scm(n_obs(), 3000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -657,7 +672,8 @@ fn penalized_aipw_coverage(
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = AipwAte { propensity: nuisance, ..AipwAte::new() }
         .with_bootstrap_replicates(bootstrap_replicates);
-    let mut tally = Tally::for_record(test, "penalized_scm");
+    let mut tally = Tally::for_record(test, "penalized_scm")
+        .measures("capability", "estimate.penalized_propensity_aipw");
     let effects = map_replicates(n_sim(), |s| {
         // One context per simulation: a shared context would hand every simulation the same
         // bootstrap resample indices and the same fold plan.
@@ -801,7 +817,8 @@ fn aipw_residualized_tally(
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
         .with_target_population(population);
     let ctx = ExecutionContext::for_tests(seed);
-    let mut tally = Tally::for_record(test, "heterogeneous_binary_scm");
+    let mut tally = Tally::for_record(test, "heterogeneous_binary_scm")
+        .measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let (data, clusters) = heterogeneous_binary_scm(grid_n(600), seed + s, cluster_sd);
         let mut est = AipwAte::new().with_bootstrap_replicates(0).with_se_kind(se_kind);
@@ -899,7 +916,8 @@ fn matching_homoskedastic_ci_coverage() {
         .with_bootstrap_replicates(0)
         .with_se_kind(AnalyticSeKind::Homoskedastic);
     let ctx = ExecutionContext::for_tests(4);
-    let mut tally = Tally::for_record("matching_homoskedastic_ci_coverage", "confounded_scm");
+    let mut tally = Tally::for_record("matching_homoskedastic_ci_coverage", "confounded_scm")
+        .measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let (data, estimand) = confounded_scm(n_obs(), 4000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -973,7 +991,7 @@ fn wald_coverage_on(
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
     let est = WaldIv::new().with_bootstrap_replicates(0).with_se_kind(se_kind);
     let ctx = ExecutionContext::for_tests(seed);
-    let mut tally = Tally::for_record(test, dgp);
+    let mut tally = Tally::for_record(test, dgp).measures("matrix", AVERAGE_EFFECT_CELL);
     let mut weak_f = 0u32;
     // Per replicate: the point, whether the first stage read weak, and the
     // Anderson–Rubin set the tally scores (`None` is a miss).
@@ -1047,7 +1065,7 @@ fn wald_coverage_on(
         // fewer weak-instrument draws at the larger grid points by construction: the
         // invariant that this design actually exercises weak identification is a
         // property of the DGP at its base sample size, not of every grid point.
-        if grid_point() == BASE_GRID_POINT {
+        if grid_point() == BASE_GRID_POINT && !calibration::smoke() {
             assert!(
                 weak_share > min_weak_share,
                 "{label}: DGP must leave an F<10 share above {min_weak_share}, got {weak_share}"
@@ -1118,7 +1136,7 @@ fn two_sls_coverage(
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
     let est = TwoStageLeastSquares::new().with_bootstrap_replicates(0).with_se_kind(se_kind);
     let ctx = ExecutionContext::for_tests(seed);
-    let mut tally = Tally::for_record(test, "two_sls_scm");
+    let mut tally = Tally::for_record(test, "two_sls_scm").measures("matrix", AVERAGE_EFFECT_CELL);
     // Per replicate: the point and the Anderson–Rubin set the tally scores
     // (`None` is a miss).
     let scored = map_replicates(n_sim(), |s| {
@@ -1222,7 +1240,13 @@ fn frontdoor_scm(n: usize, seed: u64) -> TabularData {
     table(&[("t", &t), ("y", &y), ("m", &m)])
 }
 
-fn frontdoor_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, seed: u64) {
+fn frontdoor_coverage(
+    test: &'static str,
+    label: &str,
+    se_kind: AnalyticSeKind,
+    unit: (&str, &str),
+    seed: u64,
+) {
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
     let estimand = IdentifiedEstimand::frontdoor(
@@ -1232,7 +1256,7 @@ fn frontdoor_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, 
     );
     let est = FrontDoorTwoStage::new().with_bootstrap_replicates(0).with_se_kind(se_kind);
     let ctx = ExecutionContext::for_tests(seed);
-    let mut tally = Tally::for_record(test, "frontdoor_scm");
+    let mut tally = Tally::for_record(test, "frontdoor_scm").measures(unit.0, unit.1);
     let effects = map_replicates(n_sim(), |s| {
         let data = frontdoor_scm(grid_n(400), seed + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -1253,6 +1277,7 @@ fn frontdoor_stacked_hc0_ci_coverage() {
         "frontdoor_stacked_hc0_ci_coverage",
         "frontdoor_stacked_hc0",
         AnalyticSeKind::Hc0,
+        ("capability", "recalculation.design_specific"),
         37_000,
     );
 }
@@ -1264,6 +1289,7 @@ fn frontdoor_stacked_hc1_ci_coverage() {
         "frontdoor_stacked_hc1_ci_coverage",
         "frontdoor_stacked_hc1",
         AnalyticSeKind::Hc1,
+        ("matrix", AVERAGE_EFFECT_CELL),
         38_000,
     );
 }
@@ -1331,7 +1357,7 @@ fn frontdoor_functional_coverage(
         )
     };
     let ctx = ExecutionContext::for_tests(seed);
-    let mut tally = Tally::for_record(test, dgp);
+    let mut tally = Tally::for_record(test, dgp).measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let data = frontdoor_functional_scm(grid_n(400), seed + s, discrete);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -1429,7 +1455,8 @@ fn rd_sharp_analytic_ci_coverage() {
         .with_bootstrap_replicates(0)
         .with_se_kind(AnalyticSeKind::Homoskedastic);
     let ctx = ExecutionContext::for_tests(6);
-    let mut tally = Tally::for_record("rd_sharp_analytic_ci_coverage", "rd_scm");
+    let mut tally = Tally::for_record("rd_sharp_analytic_ci_coverage", "rd_scm")
+        .measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let (data, estimand) = rd_scm(n_obs(), 6000 + s, 0.0, 1.0, false);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -1512,7 +1539,8 @@ fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
         .with_se_kind(AnalyticSeKind::Hc1);
     let classical = hc1.clone().with_se_kind(AnalyticSeKind::Homoskedastic);
     let ctx = ExecutionContext::for_tests(16);
-    let mut tally = Tally::for_record("rd_sharp_hc1_heteroskedastic_ci_coverage", "rd_scm");
+    let mut tally = Tally::for_record("rd_sharp_hc1_heteroskedastic_ci_coverage", "rd_scm")
+        .measures("capability", "recalculation.design_specific");
     // Out-of-assumption probe (homoskedastic SE on a heteroskedastic law): no record.
     let mut probe = Tally::default();
     let fits = map_replicates(n_sim(), |s| {
@@ -1607,7 +1635,9 @@ fn dml_analytic_ci_coverage() {
         dgp: "confounded_scm",
         interval: "analytic_se",
     };
-    let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
+    let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL)
+        .unasserted()
+        .measures("matrix", AVERAGE_EFFECT_CELL);
     let mut skipped = 0u32;
     let rows = n_obs();
     let results = map_replicates(n_sim(), |s| {
@@ -1635,7 +1665,9 @@ fn dr_learner_analytic_ci_coverage() {
         dgp: "confounded_scm",
         interval: "analytic_se",
     };
-    let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
+    let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL)
+        .unasserted()
+        .measures("matrix", AVERAGE_EFFECT_CELL);
     let mut skipped = 0u32;
     let rows = n_obs();
     let results = map_replicates(n_sim(), |s| {
@@ -1666,7 +1698,9 @@ fn causal_forest_analytic_ci_coverage() {
         dgp: "confounded_scm",
         interval: "analytic_se",
     };
-    let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
+    let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL)
+        .unasserted()
+        .measures("matrix", AVERAGE_EFFECT_CELL);
     let mut skipped = 0u32;
     let rows = n_obs();
     let results = map_replicates(n_sim(), |s| {
@@ -1750,7 +1784,8 @@ fn ipw_hajek_weak_overlap_adversarial_ci_coverage() {
     let est = PropensityWeighting::new().with_bootstrap_replicates(0);
     let ctx = ExecutionContext::for_tests(72);
     let mut tally =
-        Tally::for_record("ipw_hajek_weak_overlap_adversarial_ci_coverage", "weak_overlap_scm");
+        Tally::for_record("ipw_hajek_weak_overlap_adversarial_ci_coverage", "weak_overlap_scm")
+            .measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let (data, estimand) = weak_overlap_scm(grid_n(500), 72_000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -1787,7 +1822,8 @@ fn rd_sharp_hc1_curved_adversarial_ci_coverage() {
     let mut tally = Tally::for_record(
         "rd_sharp_hc1_curved_adversarial_ci_coverage",
         "rd_curved_heterogeneous_scm",
-    );
+    )
+    .measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let (data, estimand) = rd_curved_heterogeneous_scm(10 * n_obs(), 73_000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -1818,7 +1854,7 @@ fn matching_coverage_on(
         .with_bootstrap_replicates(0)
         .with_se_kind(AnalyticSeKind::Homoskedastic);
     let ctx = ExecutionContext::for_tests(seed);
-    let mut tally = Tally::for_record(test, dgp);
+    let mut tally = Tally::for_record(test, dgp).measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let (data, estimand) = make(n_obs(), seed * 1000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -1931,7 +1967,8 @@ fn frontdoor_stacked_hc1_curved_mediator_ci_coverage() {
     let mut tally = Tally::for_record(
         "frontdoor_stacked_hc1_curved_mediator_ci_coverage",
         "frontdoor_curved_mediator_scm",
-    );
+    )
+    .measures("matrix", AVERAGE_EFFECT_CELL);
     let effects = map_replicates(n_sim(), |s| {
         let data = frontdoor_curved_mediator_scm(grid_n(400), 40_000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
@@ -1966,7 +2003,7 @@ fn reported_level_below_precision_floor_fails() {
     }
     assert!((tally.rate() - 0.939).abs() < 1e-12);
     assert!(tally.rate() < floor);
-    assert!(std::panic::catch_unwind(|| tally.assert()).is_err());
+    assert!(calibration::gated(|| std::panic::catch_unwind(|| tally.assert())).is_err());
 }
 
 /// A rate above the precision ceiling fails the pass predicate.
@@ -1988,7 +2025,7 @@ fn coverage_above_precision_ceiling_fails() {
     }
     assert!((tally.rate() - 0.961).abs() < 1e-12);
     assert!(tally.rate() > ceiling);
-    assert!(std::panic::catch_unwind(|| tally.assert()).is_err());
+    assert!(calibration::gated(|| std::panic::catch_unwind(|| tally.assert())).is_err());
 }
 
 /// A skip leaves the coverage denominator and counts as a miss.

@@ -30,7 +30,7 @@ use antecedent_model::external_mechanism::{
 use antecedent_model::nonlinear_equilibrium::{EquilibriumError, RegimeRow};
 
 use super::compiled_point_program::PointProgram;
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -222,9 +222,7 @@ impl CompiledExternalFeedbackFit {
         ctx: &ExecutionContext,
     ) -> Result<ExternalFeedbackFitRun, ExternalFeedbackFitError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(CausalError::from)?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(CausalError::from)?;
         let request = &self.request;
         let fit = fit_external_feedback(
             &request.system,

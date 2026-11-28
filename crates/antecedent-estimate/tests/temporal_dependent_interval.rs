@@ -21,9 +21,9 @@
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::temporal_dependent_interval::{
-    DependentIntervalConfig, INTERVAL_CALIBRATION_STATUS, INTERVAL_CLAIM, IntervalMethod,
-    ObservedStateSequence, SequenceHistory, TemporalUnitPanel, UnitHistories,
-    dependent_unit_interval,
+    DependentIntervalConfig, INTERVAL_CLAIM, IntervalMethod, ObservedStateSequence,
+    SequenceHistory, TemporalUnitPanel, UnitHistories, dependent_unit_interval,
+    interval_calibration_status,
 };
 use antecedent_estimate::temporal_initial_state::{
     FixedStateQuery, InitialStateLaw, InitialStatePopulation, InitialStateSpec, MarginalizedQuery,
@@ -164,7 +164,7 @@ fn dynamic_scm_studentized_interval_covers_independent_truth() {
     assert!(by_unit.width() > 0.12 && by_unit.width() < 0.16, "width {}", by_unit.width());
     assert!(by_unit.contains(truth), "[{}, {}] misses {truth}", by_unit.lower, by_unit.upper);
     assert_eq!(by_unit.claim, INTERVAL_CLAIM);
-    assert_eq!(by_unit.calibration, INTERVAL_CALIBRATION_STATUS);
+    assert_eq!(by_unit.calibration, interval_calibration_status());
     assert_eq!(by_unit.calibration, "not_measured");
     assert!((by_unit.level - 0.95).abs() < 1e-12);
 }

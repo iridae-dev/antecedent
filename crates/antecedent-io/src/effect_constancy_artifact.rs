@@ -37,8 +37,11 @@ use serde::{Deserialize, Serialize};
 pub const EFFECT_CONSTANCY_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const EFFECT_CONSTANCY_ARTIFACT_FEATURE: &str = "effect_constancy_v1";
-/// Calibration coordinate of this test: Type I error and power were not measured.
-pub const EFFECT_CONSTANCY_CALIBRATION: &str = "not_measured";
+/// The calibration state of the effect-constancy unit: Type I error and power.
+#[must_use]
+pub fn effect_constancy_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("temporal.effect_constancy")
+}
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
@@ -680,7 +683,7 @@ impl EffectConstancyArtifact {
             feature: EFFECT_CONSTANCY_ARTIFACT_FEATURE.to_owned(),
             null: EFFECT_CONSTANCY_NULL.to_owned(),
             inference_claim: EFFECT_CONSTANCY_INFERENCE_CLAIM.to_owned(),
-            calibration: EFFECT_CONSTANCY_CALIBRATION.to_owned(),
+            calibration: effect_constancy_calibration().to_owned(),
             alpha: request.alpha,
             partitions: request
                 .partitions
@@ -788,7 +791,7 @@ impl EffectConstancyArtifact {
         }
         crate::artifact_codec::require_markers::<EffectConstancyArtifactError>(&[
             (meta.inference_claim == EFFECT_CONSTANCY_INFERENCE_CLAIM, "inference claim"),
-            (meta.calibration == EFFECT_CONSTANCY_CALIBRATION, "calibration"),
+            (meta.calibration == effect_constancy_calibration(), "calibration"),
             (meta.caveats == [NON_REJECTION_CAVEAT, POWER_CAVEAT], "caveats"),
         ])?;
         let request = request_of(&meta, &numbers)?;

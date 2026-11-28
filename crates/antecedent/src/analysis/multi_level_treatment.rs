@@ -38,8 +38,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::CausalError;
 
-/// Calibration standing of the reported standard error while no coverage record governs it.
-pub const MULTI_LEVEL_TREATMENT_CALIBRATION: &str = "not_measured";
+/// Calibration standing of the reported standard error while no coverage record governs it:
+/// the state of the generalized-propensity unit.
+#[must_use]
+pub fn multi_level_treatment_calibration() -> &'static str {
+    crate::support::capability_calibration("estimate.generalized_propensity_aipw")
+}
 /// Calibration standing once a current attesting coverage record governs the interval.
 pub const MULTI_LEVEL_TREATMENT_CALIBRATED: &str = "calibrated";
 /// Interval status when a governing coverage record measured the construction at this scope.
@@ -440,7 +444,7 @@ fn report(
         calibration: if interval_status == MULTI_LEVEL_INTERVAL_CALIBRATED {
             MULTI_LEVEL_TREATMENT_CALIBRATED
         } else {
-            MULTI_LEVEL_TREATMENT_CALIBRATION
+            multi_level_treatment_calibration()
         }
         .into(),
         interval,

@@ -714,7 +714,10 @@ pub(super) fn fit(
             failed_draws: 0,
             uncertainty: String::new(),
             claim: "model_conditional_mechanism_only".into(),
-            calibration: "not_measured".into(),
+            calibration: antecedent_io_core::unit_calibration::capability(
+                "joint_response.interval_readings",
+            )
+            .into(),
         };
         let draws = match &options.inference {
             PanelInference::Frequentist { draws } => {

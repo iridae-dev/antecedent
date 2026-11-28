@@ -30,7 +30,7 @@ use antecedent_core::{
 use antecedent_data::{LaggedColumn, SamplingRegularity, TimeSeriesData};
 use antecedent_estimate::{EstimationError, TemporalLinearPredictor};
 
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use crate::error::CausalError;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
@@ -260,9 +260,8 @@ impl CompiledTemporalPrediction {
             return Err(TemporalPredictionError::Reentry);
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(TemporalPredictionError::NotSupported)?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+            .map_err(TemporalPredictionError::NotSupported)?;
         run(&self.request, &scoped)
     }
 }

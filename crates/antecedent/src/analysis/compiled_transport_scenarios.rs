@@ -35,7 +35,7 @@ use antecedent_identify::sid::scenarios::{
 use antecedent_io::IoError;
 
 use super::compiled_point_program::PointProgram;
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::supplied_identity::{Canonical, SetOf, encoded};
 use super::transport_scenarios::PreparedTransportScenarios;
 use crate::analysis::execute::Study;
@@ -67,7 +67,7 @@ pub struct TransportScenariosRun {
     pub lowered_program_identity: SemanticDigest,
     /// Always `per_scenario_points`: no inference across scenarios.
     pub claim: &'static str,
-    /// Always `not_measured`.
+    /// Calibration state of the route's evidence unit.
     pub calibration: &'static str,
 }
 
@@ -280,15 +280,13 @@ impl CompiledTransportScenarios {
     /// A numerical failure, an invalid outcome, cancellation, or the support gate once it is on.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<TransportScenariosRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
         let report = self.prepared.prepared().evaluate(&scoped)?;
         Ok(TransportScenariosRun {
             report,
             lowered_program_identity: self.lowered.identity(),
             claim: "per_scenario_points",
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
 
@@ -300,17 +298,15 @@ impl CompiledTransportScenarios {
     /// As [`PreparedTransportScenarios::estimate`], and the support gate once it is on.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<TransportScenariosRun, IoError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(|refusal| {
-                IoError::from(antecedent_estimate::EstimationError::from(refusal))
-            })?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+            IoError::from(antecedent_estimate::EstimationError::from(refusal))
+        })?;
         let report = self.prepared.estimate(&scoped)?;
         Ok(TransportScenariosRun {
             report,
             lowered_program_identity: self.lowered.identity(),
             claim: "per_scenario_points",
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
 

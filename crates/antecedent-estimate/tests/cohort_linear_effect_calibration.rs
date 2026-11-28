@@ -213,7 +213,8 @@ fn run(design: Design, base: usize) {
     let mut tally = CoverageTally::for_record(
         RecordKey { test: design.test, dgp: design.dgp, interval: INTERVAL_METHOD },
         design.level,
-    );
+    )
+    .measures("capability", "cohort_decision.interval");
     let results = map_replicates(n_sim(), |replicate| {
         one_replicate(design, n, calibration::grid_seed(0x6c_0000 + replicate))
     });

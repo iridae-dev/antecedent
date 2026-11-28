@@ -11,9 +11,9 @@
 //! `p = exp(-25/12)`.
 
 use antecedent_io::mechanism_discrepancy_artifact::{
-    MECHANISM_DISCREPANCY_ARTIFACT_VERSION, MECHANISM_DISCREPANCY_CALIBRATION, MeasurementWire,
-    MechanismDiscrepancyArtifact, MechanismDiscrepancyArtifactError, MechanismDiscrepancyMeta,
-    MechanismDiscrepancyRequestWire, ParentWire, PopulationWire, decode_parts, encode_parts,
+    MECHANISM_DISCREPANCY_ARTIFACT_VERSION, MeasurementWire, MechanismDiscrepancyArtifact,
+    MechanismDiscrepancyArtifactError, MechanismDiscrepancyMeta, MechanismDiscrepancyRequestWire,
+    ParentWire, PopulationWire, decode_parts, encode_parts, mechanism_discrepancy_calibration,
 };
 
 fn measurement(protocol: &str, parent_unit: &str) -> MeasurementWire {
@@ -77,7 +77,7 @@ fn discrepancy_artifact_acceptance_numbers_replay_through_the_container() {
     // The six-decimal normal quantiles agree with the bisection values to well under 1e-6.
     let mdd = report.result.coefficients[1].minimal_detectable_difference;
     assert!((mdd - (1.959_964 + 0.841_621) * 0.6).abs() < 1e-6, "mdd {mdd}");
-    assert_eq!(report.calibration, MECHANISM_DISCREPANCY_CALIBRATION);
+    assert_eq!(report.calibration, mechanism_discrepancy_calibration());
     assert_eq!(report.calibration, "not_measured");
     assert_eq!(report.version, MECHANISM_DISCREPANCY_ARTIFACT_VERSION);
     assert!(!report.result.non_rejection_certifies_invariance);

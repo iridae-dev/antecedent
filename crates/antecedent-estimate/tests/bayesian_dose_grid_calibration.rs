@@ -67,7 +67,8 @@ fn measure(test: &'static str, functional_key: &str, functional: DoseFunctional,
             interval: "posterior_quantile",
         },
         LEVEL,
-    );
+    )
+    .measures("capability", "estimate.dose_grid_posterior");
     let runs = map_replicates(n_sim(), |rep| {
         let mut rng = candidate::Generator::new(grid_seed(0x47ab_5000 + rep));
         let (mut dose, mut outcome) = (Vec::with_capacity(n), Vec::with_capacity(n));

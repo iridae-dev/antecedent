@@ -68,7 +68,7 @@ use antecedent_graph::{
     Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalAdmg,
 };
 use antecedent_prob::InferenceDiagnostics;
-use common::calibration::{Z95, gaussian, grid_n, stream_seed};
+use common::calibration::{Z95, gaussian, grid_for, grid_n, smoke_budget, stream_seed};
 use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, response_normal_pair, response_posterior_pairs,
 };
@@ -521,7 +521,9 @@ impl Mode {
     fn inference(self) -> InferenceMode {
         match self {
             Self::Frequentist => InferenceMode::Frequentist,
-            Self::Bayesian => InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(DRAWS)),
+            Self::Bayesian => {
+                InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(smoke_budget(DRAWS, 40)))
+            }
         }
     }
 
@@ -892,7 +894,9 @@ fn measure_coordinate(
         &design.targets,
         |rep, variant| {
             let seed = stream_seed(family, rep);
-            let data = (design.data)(grid_n(design.base_n), seed);
+            let base = design.base_n;
+            let n = smoke_budget(grid_n(base), grid_for(base).n_at(0, base));
+            let data = (design.data)(n, seed);
             let (study, result) =
                 execute(&design, mode, variants[variant], &data, seed, REPORTED_LEVEL)?;
             if variant == 0 && derived(&result).is_none() {

@@ -45,8 +45,11 @@ use serde::{Deserialize, Serialize};
 pub const CHOICE_INFERENCE_RESULT_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const CHOICE_INFERENCE_RESULT_ARTIFACT_FEATURE: &str = "choice_inference_result_v1";
-/// Calibration status: no coverage record measures any choice route.
-pub const CHOICE_INFERENCE_CALIBRATION: &str = "not_measured";
+/// The calibration state of the choice-inference unit.
+#[must_use]
+pub fn choice_inference_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("choice_inference.interval_candidates")
+}
 /// Most bytes an artifact may occupy.
 pub const MAX_CHOICE_INFERENCE_RESULT_BYTES: usize = 256 * 1024 * 1024;
 /// Relative tolerance when comparing a stored value with its recomputation.
@@ -733,7 +736,7 @@ fn check(
         meta.feature == CHOICE_INFERENCE_RESULT_ARTIFACT_FEATURE,
         "feature marker",
     )?;
-    if meta.claim != "point_only" || meta.calibration != CHOICE_INFERENCE_CALIBRATION {
+    if meta.claim != "point_only" || meta.calibration != choice_inference_calibration() {
         return Err(Error::UnsupportedSemantics("claim or calibration status"));
     }
     let contract = contract_from(declaration_from_wire(&meta.declaration)?)?;
@@ -976,7 +979,7 @@ impl ChoiceInferenceResultArtifact {
             method: result.method.to_owned(),
             value_bits: bits(&result.values),
             claim: "point_only".to_owned(),
-            calibration: CHOICE_INFERENCE_CALIBRATION.to_owned(),
+            calibration: choice_inference_calibration().to_owned(),
             unsupported_claim: result.unsupported_claim.map(str::to_owned),
             identity: String::new(),
         };

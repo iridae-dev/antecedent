@@ -165,7 +165,11 @@ fn measure(route: Route, test: &'static str, mean: [f64; 3], sd: [f64; 3]) {
     };
     let n = grid_n(600);
     let mut tally =
-        CoverageTally::for_record(RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL);
+        CoverageTally::for_record(RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL)
+            .measures("capability", "estimate.outcome_nuisance_prior");
+    if matches!(route, Route::DmlComposed | Route::AipwComposed) {
+        tally = tally.measures("capability", "prior.composed_named_coordinates");
+    }
     for row in
         map_replicates(n_sim(), |rep| replicate_on(route, n, grid_seed(93_000 + rep), mean, sd))
     {

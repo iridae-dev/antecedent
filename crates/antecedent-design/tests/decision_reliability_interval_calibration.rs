@@ -303,6 +303,7 @@ fn run_gated_at_offset(
         let run_seed = grid_seed(0x4d00_0000 + base_salt + (k as u64) * 64 + cell as u64);
         let mut tally =
             CoverageTally::for_record(RecordKey { test, dgp, interval: interval_method }, LEVEL)
+                .measures("capability", "decision_reliability.ranking_probability_interval")
                 .labelled(label);
         let scored = map_replicates(n_sim(), |replicate| {
             score(route, &design, lead, run_seed, replicate, "")
@@ -341,6 +342,7 @@ fn run_named_boundary(
     let run_seed = grid_seed(0x4e00_0000 + k as u64);
     let mut tally =
         CoverageTally::for_record(RecordKey { test, dgp, interval: interval_method }, LEVEL)
+            .measures("capability", "decision_reliability.ranking_probability_interval")
             .labelled("shared_rho_0.5");
     let scored = map_replicates(n_sim(), |replicate| {
         score(route, &design, lead, run_seed, replicate, suffix)

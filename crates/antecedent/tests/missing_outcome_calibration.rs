@@ -88,7 +88,8 @@ fn construction(estimator: &str) -> Construction {
 fn measure(test: &'static str, dgp: &'static str, estimator: &str, mechanism: Mechanism) {
     let n = grid_n(600);
     let mut tally =
-        CoverageTally::for_record(RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL);
+        CoverageTally::for_record(RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL)
+            .measures("capability", "estimate.uncertainty");
     for row in map_replicates(n_sim(), |rep| replicate(n, grid_seed(71_000 + rep), mechanism)) {
         let Some((interval, rows)) = row else {
             tally.skip();

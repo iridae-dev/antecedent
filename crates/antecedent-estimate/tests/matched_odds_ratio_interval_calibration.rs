@@ -93,7 +93,8 @@ fn matched_pairs_conditional_odds_ratio_wald_interval() {
             interval: "wald_normal",
         },
         LEVEL,
-    );
+    )
+    .measures("capability", "estimate.matched_case_control_odds_ratio");
     let runs = map_replicates(n_sim(), |rep| interval(n, grid_seed(SEED_BASE + rep)));
     for run in runs {
         let Some(band) = run else {

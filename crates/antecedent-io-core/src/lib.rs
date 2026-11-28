@@ -143,8 +143,8 @@ pub use analysis_result_artifact::{
     InterferenceInferenceWire, InterferencePointwiseIntervalWire, InterventionalDistributionWire,
     IvBoundsIntervalWire, IvBoundsPosteriorWire, IvBoundsWire, LocalPolynomialRatioWire,
     LongitudinalRegimeWire, MediationPosteriorSummaryWire, OutcomeContrastWire,
-    POSTERIOR_ROW_CALIBRATION, POSTERIOR_ROW_UNCERTAINTY, PanelDidWire, PolicyValueWire,
-    PosteriorRowWire, RandomizedEffectWire, SequentialContrastWire, StructuralResponseAtomWire,
+    POSTERIOR_ROW_UNCERTAINTY, PanelDidWire, PolicyValueWire, PosteriorRowWire,
+    RandomizedEffectWire, SequentialContrastWire, StructuralResponseAtomWire,
     StructuralResponseMixtureWire, StructuralWeightBasisWire, SurvivalDifferenceBandWire,
     SurvivalWire, SyntheticControlWire, SyntheticDidWire, TemporalIdentificationWire,
     TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
@@ -153,7 +153,7 @@ pub use analysis_result_artifact::{
     encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
     encode_analysis_result_artifact_with_contract_and_source,
     encode_analysis_result_artifact_with_provenance, identified_set_interval_from_wire,
-    identified_set_interval_to_wire,
+    identified_set_interval_to_wire, posterior_row_calibration,
 };
 pub use analysis_wire::{
     DiagnosticWire, HedgeCertificateWire, IdentificationResultWire, IdentifiedEstimandWire,
@@ -414,3 +414,6 @@ pub mod compiled_identification_wire;
 
 /// Exact admitted JSON encoding for borrowed native read models.
 pub mod admitted_json;
+
+/// The calibration state of each evidence unit, embedded from its coverage records.
+pub mod unit_calibration;

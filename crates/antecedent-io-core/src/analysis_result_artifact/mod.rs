@@ -901,18 +901,28 @@ pub struct PosteriorRowWire {
 
 /// What every stored posterior row's uncertainty is.
 pub const POSTERIOR_ROW_UNCERTAINTY: &str = "posterior";
-/// Calibration status of every posterior row.
-pub const POSTERIOR_ROW_CALIBRATION: &str = "not_measured";
+/// The calibration state of the unit a posterior row of `estimator` belongs to: the capability
+/// record that owns the estimator, else [`crate::unit_calibration::NOT_MEASURED`].
+#[must_use]
+pub fn posterior_row_calibration(estimator: &str) -> &'static str {
+    match estimator {
+        "bayesian.dose_grid" => crate::unit_calibration::capability("estimate.dose_grid_posterior"),
+        "bayesian.smoothed_dose" => {
+            crate::unit_calibration::capability("transport.smoothed_dose_response.bayesian")
+        }
+        _ => crate::unit_calibration::NOT_MEASURED,
+    }
+}
 
 impl PosteriorRowWire {
-    /// An empty posterior of `estimator` over `coordinates`, calibration status `not_measured`.
+    /// An empty posterior of `estimator` over `coordinates`, calibrated as its estimator's unit.
     #[must_use]
     pub fn new(estimator: &str, target: String, coordinates: Vec<String>, draws: usize) -> Self {
         Self {
             estimator: estimator.to_owned(),
             target,
             uncertainty: POSTERIOR_ROW_UNCERTAINTY.to_owned(),
-            calibration: POSTERIOR_ROW_CALIBRATION.to_owned(),
+            calibration: posterior_row_calibration(estimator).to_owned(),
             supported: false,
             randomized_ipow: None,
             coordinates,
@@ -961,7 +971,7 @@ impl PosteriorRowWire {
         let square =
             |values: &Option<Vec<f64>>| values.as_ref().is_none_or(|v| v.len() == width * width);
         if self.uncertainty != POSTERIOR_ROW_UNCERTAINTY
-            || self.calibration != POSTERIOR_ROW_CALIBRATION
+            || self.calibration != posterior_row_calibration(&self.estimator)
             || self.supported != self.randomized_ipow.is_some()
             || self.randomized_ipow.as_ref().is_some_and(|source| {
                 self.estimator != crate::randomized_ipow_wire::ESTIMATOR
@@ -1030,7 +1040,8 @@ pub struct SequentialContrastWire {
     pub contrast_scores: Vec<f64>,
     /// `normal_interval_calibration_not_measured` or the modular posterior label.
     pub uncertainty: String,
-    /// Always `not_measured`.
+    /// The calibration state of the graphless row the result states and meets, else
+    /// `not_measured`.
     pub calibration: String,
     /// Always `false`.
     pub supported: bool,
@@ -1105,7 +1116,8 @@ pub struct HistoryMatchWire {
     /// `abadie_imbens_and_newey_west_period_interval_calibration_not_measured` on an artifact
     /// written with the normal period interval. The label names the interval's construction.
     pub uncertainty: String,
-    /// Always `not_measured`.
+    /// The calibration state of the graphless row the result states and meets, else
+    /// `not_measured`.
     pub calibration: String,
     /// Always `false`.
     pub supported: bool,

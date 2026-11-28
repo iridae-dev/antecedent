@@ -1204,6 +1204,21 @@ impl From<ReceiptError> for RecalcRunError {
     }
 }
 
+/// The support gate of the recalculation capability unit `unit` at its entry point `entry`;
+/// without a context, the calling thread's log records what a release build refuses.
+pub(crate) fn require_recalc_unit(
+    ctx: Option<&ExecutionContext>,
+    unit: &'static str,
+    entry: &'static str,
+) -> Result<(), RecalcRunError> {
+    let key = crate::support::unit::SupportKey::Unit(crate::support::UnitId::new(unit));
+    match ctx {
+        Some(ctx) => crate::support::unit::require_program(ctx, &key, entry),
+        None => crate::support::unit::require_program_unscoped(&key, entry),
+    }
+    .map_err(|refusal| RecalcRunError::Execution(refusal.into()))
+}
+
 struct Live {
     prepared: Arc<PreparedStudy>,
     law: LawValue,
@@ -1421,6 +1436,11 @@ pub fn execute_with_receipt(
     request: &RecalcRequest,
     ctx: &ExecutionContext,
 ) -> Result<RecalcOutcome, RecalcRunError> {
+    require_recalc_unit(
+        Some(ctx),
+        "recalculation.selective",
+        "antecedent.recalc.execute_with_receipt",
+    )?;
     request.validate()?;
     // A cancelled run stops before any stage runs and leaves the session as it was.
     if ctx.cancellation.is_cancelled() {

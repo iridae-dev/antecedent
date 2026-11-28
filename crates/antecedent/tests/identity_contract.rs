@@ -6026,38 +6026,17 @@ fn lag1_panel() -> (antecedent_data::PanelData, TemporalDag) {
 }
 
 #[test]
-fn every_supported_cell_has_a_calibration_record_or_code() {
+fn no_supported_cell_binds_a_calibration_list() {
+    // A cell's coverage records are the ones whose test executed it (parity/unit_index.json);
+    // scripts/gate_unit_claims.py requires records or a reason of every publisher.
     let supported = include_str!("../../../parity/support_cells.toml");
-    let mut missing = Vec::new();
-    for block in supported.split("[[cell]]").skip(1) {
-        let has_record = block.contains("calibration =");
-        let has_reason = block.contains("calibration_reason =");
-        // A record list beside `boundary_record` says what was measured and that none
-        // of it is a nominal pass; any other pairing is one too many or too few.
-        let boundary_only = block.contains("calibration_reason = \"boundary_record\"");
-        if has_record == has_reason && !(has_record && boundary_only) {
-            missing.push(block.lines().take(6).collect::<Vec<_>>().join(" "));
-        }
-        if has_record {
-            for line in block.lines() {
-                let line = line.trim();
-                if let Some(rest) = line.strip_prefix("calibration =") {
-                    for id in rest.split(['[', ']', ',', '"']).filter(|s| s.starts_with("cov.")) {
-                        assert!(
-                            antecedent::coverage_records_data::RECORDS
-                                .iter()
-                                .any(|row| row.id == id),
-                            "missing coverage record {id}"
-                        );
-                    }
-                }
-            }
-        }
-    }
-    assert!(
-        missing.is_empty(),
-        "cells missing exactly one of calibration / calibration_reason: {missing:?}"
-    );
+    let bound: Vec<String> = supported
+        .split("[[cell]]")
+        .skip(1)
+        .filter(|block| block.lines().any(|line| line.trim_start().starts_with("calibration =")))
+        .map(|block| block.lines().take(6).collect::<Vec<_>>().join(" "))
+        .collect();
+    assert!(bound.is_empty(), "cells binding a calibration list: {bound:?}");
 }
 
 #[test]

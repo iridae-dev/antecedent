@@ -33,7 +33,7 @@ use antecedent_io::IoError;
 use super::compiled_measured_interval::{
     MeasuredIntervalProgram, MeasuredIntervalRun, frequentist,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::supplied_identity::variant;
 use super::temporal_extensions::{IntervalEstimand, measure_dependent_interval};
 use crate::analysis::execute::Study;
@@ -248,12 +248,12 @@ impl CompiledTemporalDependentInterval {
     /// support gate once it is on.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<MeasuredIntervalRun, IoError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(|refusal| IoError::Refused {
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+            IoError::Refused {
                 code: refusal.code(),
                 message: format!("{}: {refusal}", refusal.detail),
-            })?;
-        }
+            }
+        })?;
         let request = &self.request;
         let measured = measure_dependent_interval(
             &request.snapshot_id,

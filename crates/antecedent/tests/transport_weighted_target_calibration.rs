@@ -114,7 +114,8 @@ fn assert_coverage_over(
         });
         let mut tally =
             CoverageTally::for_record(RecordKey { test, dgp, interval: INTERVAL }, LEVEL)
-                .labelled(format!("bandwidth {bandwidth}"));
+                .labelled(format!("bandwidth {bandwidth}"))
+                .measures("capability", "estimate.weighted_target_effect");
         for run in runs {
             let Some(band) = run else {
                 tally.skip();

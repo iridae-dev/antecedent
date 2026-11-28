@@ -14,6 +14,7 @@
 use std::sync::Arc;
 
 use antecedent::prelude::ExecutionContext;
+use antecedent::support::UnitRef;
 use antecedent::{BayesianConfig, InferenceMode, PrimaryEstimate, Study, TemporalDesignEstimate};
 use antecedent_core::{
     CausalQuery, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
@@ -1777,16 +1778,16 @@ fn coordinate_of(fit: &TemporalDesignEstimate, name: &str) -> usize {
 
 /// The corrected two-arm means against the inverted misclassification algebra, by hand.
 ///
-/// Frequentist. Sixteen units of two periods at assignment probability 0.5: eight units are
-/// treated at both periods (sixteen decisions, nine recorded positives) and eight are control
-/// (sixteen decisions, six recorded positives). An arm mean is the Horvitz-Thompson sum of
-/// `Y / 0.5` over the arm's decisions divided by all 32 decisions, `2 * 9 / 32 = 9/16` and
-/// `2 * 6 / 32 = 3/8`; it is the arm's sample mean only because the arms are balanced.
+/// Frequentist. 128 units of six periods at assignment probability 0.5: 64 units are treated at
+/// every period (384 decisions, 216 recorded positives) and 64 are control (384 decisions, 144
+/// recorded positives). An arm mean is the Horvitz-Thompson sum of `Y / 0.5` over the arm's
+/// decisions divided by all 768 decisions, `2 * 216 / 768 = 9/16` and `2 * 144 / 768 = 3/8`; it
+/// is the arm's sample mean only because the arms are balanced.
 /// With 90 of 100 true positives and 85 of 100 true negatives recorded correctly, sensitivity
 /// 0.9 and specificity 0.85 give the corrected control mean `(0.375 + 0.85 - 1) / 0.75 = 0.3`,
 /// the corrected treated mean `(0.5625 - 0.15) / 0.75 = 0.55` and the contrast 0.25.
 ///
-/// Bayesian. Twelve identical units (treated four times with outcomes 1, 1, 0, 0; control four
+/// Bayesian. 100 identical units (treated four times with outcomes 1, 1, 0, 0; control four
 /// times with outcomes 1, 0, 0, 0; balanced, so the Horvitz-Thompson means `2 * 2 / 8` and
 /// `2 * 1 / 8` are the arm sample means): every cluster weighting leaves them at 0.5 and 0.25,
 /// so the posterior varies only through the validation draws, and a validation sample of a
@@ -1797,12 +1798,13 @@ fn the_misclassification_corrected_two_arm_means_equal_the_inverted_error_algebr
     let ctx = ExecutionContext::for_tests(41);
     let (mut names, mut periods, mut assignment, mut recorded) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for unit in 0..16 {
-        for period in 0..2_i64 {
-            let decision = unit * 2 + usize::try_from(period).unwrap();
-            let treated = unit < 8;
-            // Decisions 0..16 are treated (positives at 0..9); 16..32 control (positives at 16..22).
-            let positive = if treated { decision < 9 } else { decision < 22 };
+    for unit in 0..128 {
+        for period in 0..6_i64 {
+            let decision = unit * 6 + usize::try_from(period).unwrap();
+            let treated = unit < 64;
+            // Decisions 0..384 are treated (positives at 0..216); 384..768 control (positives at
+            // 384..528).
+            let positive = if treated { decision < 216 } else { decision < 528 };
             names.push(format!("u{unit}"));
             periods.push(period);
             assignment.push(treated);
@@ -1814,6 +1816,15 @@ fn the_misclassification_corrected_two_arm_means_equal_the_inverted_error_algebr
         run(&table(&[("y", recorded.as_slice())]), query, InferenceMode::Frequentist, 0, &ctx);
     let fit = section(&result);
     assert_eq!(&*fit.uncertainty, "cluster_robust_ratio_normal_with_validation_delta");
+    assert_eq!((fit.clusters, fit.pairs), (128, 768));
+    assert!(result.states_section_row());
+    assert_eq!(
+        result.unit().map(UnitRef::record_id).as_deref(),
+        Some(
+            "temporal_design:two_arm:cluster_robust_ratio_normal_with_validation_delta:\
+             pointwise_95_normal_interval"
+        )
+    );
     let (effect, control) =
         (coordinate_of(fit, "excursion_effect"), coordinate_of(fit, "control_mean"));
     assert!((fit.estimate[effect] - 0.25).abs() < 1e-9, "{}", fit.estimate[effect]);
@@ -1823,7 +1834,7 @@ fn the_misclassification_corrected_two_arm_means_equal_the_inverted_error_algebr
 
     let (mut names, mut periods, mut assignment, mut recorded) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for unit in 0..12 {
+    for unit in 0..100 {
         for (period, (treated, positive)) in [
             (true, true),
             (true, true),
@@ -1848,6 +1859,15 @@ fn the_misclassification_corrected_two_arm_means_equal_the_inverted_error_algebr
     let result = run(&table(&[("y", recorded.as_slice())]), query, bayesian(1000), 0, &ctx);
     let fit = section(&result);
     assert_eq!(&*fit.uncertainty, "bayesian_bootstrap_with_beta_validation_draws");
+    assert_eq!((fit.clusters, fit.pairs), (100, 800));
+    assert!(result.states_section_row());
+    assert_eq!(
+        result.unit().map(UnitRef::record_id).as_deref(),
+        Some(
+            "temporal_design:two_arm:bayesian_bootstrap_with_beta_validation_draws:\
+             pointwise_95_posterior_quantiles"
+        )
+    );
     for (name, truth) in [("excursion_effect", 0.3125), ("control_mean", 0.1875)] {
         let index = coordinate_of(fit, name);
         assert!((fit.estimate[index] - truth).abs() < 2e-3, "{name}: {}", fit.estimate[index]);

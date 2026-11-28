@@ -509,6 +509,9 @@ impl RandomizedSelectionResult {
     #[must_use]
     pub fn report(&self) -> serde_json::Value {
         let observed = &self.procedure.observed;
+        let calibration = crate::support::capability_calibration(
+            crate::support::units_generated::JOINT_RESPONSE_INTERVAL_READINGS.as_str(),
+        );
         serde_json::json!({"identity":self.identity.to_hex(),"selected_program":observed.selected_id,
             "training_value":observed.training_value,"heldout":observed.heldout,
             "runner_up_gap":observed.runner_up_gap,"partition":self.procedure.partition,
@@ -516,7 +519,7 @@ impl RandomizedSelectionResult {
             "changed_selection":self.procedure.changed_selection,"near_ties":self.procedure.near_ties,
             "uncertainty":"independent_unit_sandwich_on_reserved_observations",
             "bootstrap_role":"whole_procedure_diagnostics_no_ordinary_bootstrap_coverage_at_ties",
-            "calibration":"not_measured"})
+            "calibration":calibration})
     }
     /// Export original data and policy with a report that must be re-executed.
     /// # Errors

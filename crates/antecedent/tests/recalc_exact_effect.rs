@@ -130,6 +130,7 @@ fn receipt_counts_for_each_step_equal_the_hand_enumerated_work_and_identities_tr
 
 #[test]
 fn frozen_scores_resume_in_a_fresh_session_to_the_hand_effect_and_hand_decision() {
+    antecedent::evidence_unit!("capability", "recalculation.frozen_scores_artifact");
     let mut session = RecalcSession::new();
     let base = request(2.0, 2.0, 0.5);
     let first = go(&mut session, &base);

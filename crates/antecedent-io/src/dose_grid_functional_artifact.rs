@@ -62,8 +62,11 @@ pub const DOSE_GRID_ARTIFACT_VERSION: u32 = 1;
 pub const DOSE_GRID_ARTIFACT_FEATURE: &str = "dose_grid_functional_row_v1";
 /// Additional required semantics: caller attests an exact conditional quadratic mean.
 pub const DOSE_GRID_QUADRATIC_FEATURE: &str = "dose_grid_quadratic_mean_v1";
-/// Calibration status of every interval of this row.
-pub const DOSE_GRID_CALIBRATION: &str = "not_measured";
+/// The calibration state of the dose-grid functional unit, for every interval of its row.
+#[must_use]
+pub fn dose_grid_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("estimate.dose_grid_functional")
+}
 /// State of the simultaneous band of this row.
 pub const DOSE_GRID_BAND_CLOSED: &str = "closed";
 /// The only inference claim of this row.
@@ -536,7 +539,7 @@ fn status_name(label: SupportStatus) -> String {
 
 fn calibration_name(calibration: IntervalCalibration) -> String {
     match calibration {
-        IntervalCalibration::NotMeasured => DOSE_GRID_CALIBRATION.to_owned(),
+        IntervalCalibration::NotMeasured => dose_grid_calibration().to_owned(),
     }
 }
 
@@ -845,7 +848,7 @@ impl DoseGridRequestWire {
             support_status: status_name(row.support.status),
             fits: row.numerical.fits,
             max_abs_influence_sum: row.numerical.max_abs_influence_sum,
-            calibration: DOSE_GRID_CALIBRATION.to_owned(),
+            calibration: dose_grid_calibration().to_owned(),
             smoothing_bias_included: self.quadratic_mean,
             simultaneous_band: if row.simultaneous_band.is_none() {
                 DOSE_GRID_BAND_CLOSED.to_owned()
@@ -1073,7 +1076,7 @@ impl DoseGridArtifactWire {
         {
             return Err(unsupported("required features"));
         }
-        if self.result.calibration != DOSE_GRID_CALIBRATION
+        if self.result.calibration != dose_grid_calibration()
             || self.result.smoothing_bias_included != self.request.quadratic_mean
             || self.result.inference_claim != DOSE_GRID_INFERENCE_CLAIM
         {

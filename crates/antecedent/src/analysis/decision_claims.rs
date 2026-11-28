@@ -632,6 +632,17 @@ fn build(
     policy: StructuralPolicy,
     expected: Option<&ClaimSource>,
 ) -> Result<ScenarioClaims, ClaimError> {
+    crate::support::unit::require_program_unscoped(
+        &crate::support::unit::SupportKey::Unit(crate::support::UnitId::new(
+            "decision.scenario_claims",
+        )),
+        if input.kind == ClaimKind::GraphDependent {
+            "antecedent.claims.cpdag_completion_atoms"
+        } else {
+            "antecedent.claims.scenario_atoms"
+        },
+    )
+    .map_err(|refusal| ClaimError::UnsupportedClaimShape(refusal.message()))?;
     binding.validate()?;
     let declared = check_weights(input)?;
     let completions = input.kind == ClaimKind::GraphDependent;

@@ -47,8 +47,11 @@ pub const NESTED_MARKOV_ARTIFACT_FEATURE: &str = "binary_nested_markov_pilot_v1"
 pub const NESTED_MARKOV_GRAPH_ID: &str = "binary_admg.verma.x1_x2_x3_x4.v1";
 /// Id of the district (c-factor) Mobius parameterization.
 pub const NESTED_MARKOV_PARAMETERIZATION: &str = "district_mobius_c_factor.v1";
-/// The only calibration status of this cell until coverage is measured.
-pub const NESTED_MARKOV_CALIBRATION: &str = "not_measured";
+/// The calibration state of the binary nested-Markov unit.
+#[must_use]
+pub fn nested_markov_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("identify.binary_nested_markov")
+}
 
 /// Why a nested-Markov artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -512,7 +515,7 @@ impl NestedMarkovArtifactWire {
             regimes: input.regimes.iter().map(NestedRegimeWire::from_counts).collect(),
             options: NestedOptionsWire::from_options(options),
             receipt: NestedReceiptWire::from_report(report),
-            calibration: NESTED_MARKOV_CALIBRATION.into(),
+            calibration: nested_markov_calibration().into(),
             premises_digest: String::new(),
             data_digest: String::new(),
         };
@@ -583,7 +586,7 @@ impl NestedMarkovArtifactWire {
         if wire.required_features != [NESTED_MARKOV_ARTIFACT_FEATURE] {
             return Err(unsupported("required features").into());
         }
-        if wire.calibration != NESTED_MARKOV_CALIBRATION {
+        if wire.calibration != nested_markov_calibration() {
             return Err(unsupported("calibration is not_measured").into());
         }
         if wire.receipt.status.inference != "interval_candidates_calibration_annotated" {
@@ -751,7 +754,8 @@ pub struct NestedFisherArtifact {
     pub method: String,
     /// Declared sampling assumption, not authenticated from the count table.
     pub sampling: String,
-    /// Original candidate standing remains `not_measured`, including inside a measured envelope.
+    /// The calibration state of the nested-Markov Fisher unit, including inside a measured
+    /// envelope.
     pub calibration: String,
     /// Bound point-fit premises, data and likelihood receipt.
     pub point: NestedMarkovArtifactWire,
@@ -797,7 +801,10 @@ impl NestedFisherArtifact {
             version: 1,
             method: "binary_verma_expected_fisher_delta_internal_v1".into(),
             sampling: "iid_multinomial_integer_counts_correctly_specified_interior_model".into(),
-            calibration: "not_measured".into(),
+            calibration: antecedent_io_core::unit_calibration::capability(
+                "identify.binary_nested_markov_fisher",
+            )
+            .into(),
             point: NestedMarkovArtifactWire::from_report(input, options, &candidate.pilot)?,
             nominal_level,
             parameter_covariance: candidate.parameter_covariance.clone(),

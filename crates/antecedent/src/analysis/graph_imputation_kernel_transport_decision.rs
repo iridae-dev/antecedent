@@ -35,6 +35,7 @@ use super::graph_imputation_transport_decision::{
     effect_chain, imputation_pooled_interval_95, order_statistic_interval_95, transported_child_df,
 };
 use super::propagation_chain_decision::{compile_chain_decision, consume_chain_decision};
+use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
@@ -45,6 +46,8 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
+use crate::support::capability_calibration;
+use crate::support::units_generated::GRAPH_IMPUTATION_COMPILED_DECISION;
 
 const FEATURE: &str = "graph_imputation_kernel_transport_decision_v2";
 const BOOTSTRAP_FEATURE: &str = "graph_imputation_kernel_transport_target_bootstrap_decision_v2";
@@ -553,9 +556,7 @@ fn bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
     }
 }
 
-impl crate::analysis::program_handle::CompiledProgramHandle
-    for CompiledGraphImputationKernelTransportDecision
-{
+impl CompiledProgramHandle for CompiledGraphImputationKernelTransportDecision {
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered
     }
@@ -571,7 +572,7 @@ impl CompiledGraphImputationKernelTransportDecision {
     /// Inspect the schedule before fitting or kernel standardization.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Reimpute source rows, reselect graphs, fit kernel-standardized children
@@ -760,7 +761,7 @@ impl CompiledGraphImputationKernelTransportDecision {
             producer: reading,
             decision,
             lowered_program_identity: self.lowered.identity(),
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
 
@@ -917,7 +918,7 @@ impl CompiledGraphImputationKernelTransportDecision {
     ) -> Result<Vec<u8>, Error> {
         let live = self.execute(ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
-            || result.calibration != "not_measured"
+            || result.calibration != self.unit_calibration()
             || result.producer.receipt != live.producer.receipt
             || result.producer.draws != live.producer.draws
             || result.decision.decision != live.decision.decision
@@ -953,7 +954,7 @@ impl CompiledGraphImputationKernelTransportDecision {
             chain_artifact: chain.export(&live.decision, artifact_id)?,
             producer_receipt: live.producer.receipt,
             program_identity: *self.lowered.identity().as_bytes(),
-            calibration: "not_measured".into(),
+            calibration: self.unit_calibration().into(),
             target_bootstrap: self.target_bootstrap,
             confounded: self.confounded,
             cluster_bootstrap: self.cluster_bootstrap.clone(),
@@ -1002,7 +1003,7 @@ pub fn consume_graph_imputation_kernel_transport_decision(
     if wire.version != 1
         || wire.required_feature != expected_feature
         || wire.program_identity != *expected_program.as_bytes()
-        || wire.calibration != "not_measured"
+        || wire.calibration != capability_calibration(GRAPH_IMPUTATION_COMPILED_DECISION.as_str())
     {
         return Err(Error::Invalid("mixed target feature or identity differs"));
     }

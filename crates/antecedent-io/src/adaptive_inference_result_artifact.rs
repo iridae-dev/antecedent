@@ -46,8 +46,21 @@ use serde::{Deserialize, Serialize};
 pub const ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE: &str = "adaptive_inference_result_v1";
-/// Calibration status: no whole-procedure coverage record measures any route.
-pub const ADAPTIVE_INFERENCE_CALIBRATION: &str = "not_measured";
+/// The calibration state of the adaptive-inference unit whose route `spec` requests.
+#[must_use]
+pub fn adaptive_inference_calibration(spec: &AdaptiveResultSpec) -> &'static str {
+    antecedent_io_core::unit_calibration::capability(match spec {
+        AdaptiveResultSpec::BayesianPosterior { .. } => "adaptive_inference.bayesian_posterior",
+        AdaptiveResultSpec::PosteriorStopping { .. } => {
+            "adaptive_inference.decision_theoretic_stopping"
+        }
+        AdaptiveResultSpec::AdaptiveWeighting { .. } => "adaptive_inference.adaptive_weighting",
+        AdaptiveResultSpec::ConfidenceSequence { .. } => {
+            "adaptive_inference.anytime_valid_sequence"
+        }
+        AdaptiveResultSpec::GroupSequential { .. } => "adaptive_inference.group_sequential",
+    })
+}
 /// Most bytes an artifact may occupy.
 pub const MAX_ADAPTIVE_INFERENCE_RESULT_BYTES: usize = 256 * 1024 * 1024;
 /// Relative tolerance when comparing a stored value with its recomputation
@@ -754,11 +767,11 @@ fn check(
         meta.feature == ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE,
         "feature marker",
     )?;
-    if meta.claim != "point_only" || meta.calibration != ADAPTIVE_INFERENCE_CALIBRATION {
+    let spec = spec_from_wire(&meta.spec)?;
+    if meta.claim != "point_only" || meta.calibration != adaptive_inference_calibration(&spec) {
         return Err(Error::UnsupportedSemantics("claim or calibration status"));
     }
     let contract_artifact = AdaptiveMonitoringContractArtifact::from_meta(&meta.contract, None)?;
-    let spec = spec_from_wire(&meta.spec)?;
     if contract_artifact.paradigm() != spec.paradigm() {
         return Err(Error::ResultMismatch("paradigm"));
     }
@@ -852,7 +865,7 @@ impl AdaptiveInferenceResultArtifact {
             method: result.method.to_owned(),
             value_bits: result.values.iter().map(|v| v.to_bits()).collect(),
             claim: "point_only".to_owned(),
-            calibration: ADAPTIVE_INFERENCE_CALIBRATION.to_owned(),
+            calibration: adaptive_inference_calibration(spec).to_owned(),
             unsupported_claim: result.unsupported_claim.map(str::to_owned),
             identity: String::new(),
         };

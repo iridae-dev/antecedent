@@ -351,6 +351,7 @@ fn construction(query: &str, estimator: &str) -> Construction {
 fn measure(
     test: &'static str,
     dgp: &'static str,
+    capability: &str,
     construction: &Construction,
     truth: f64,
     seed_base: u64,
@@ -360,7 +361,8 @@ fn measure(
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp, interval: "delta_method_wald" },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", capability);
     let runs = map_replicates(n_sim(), |rep| interval(n, grid_seed(seed_base + rep)));
     for run in runs {
         let Some(band) = run else {
@@ -388,6 +390,7 @@ fn composed_linear_gaussian_mechanisms_first_order_interval() {
     measure(
         "composed_linear_gaussian_mechanisms_first_order_interval",
         "recursive_gaussian_chain_closed_form_interventional_mean",
+        "mechanism_composition.acyclic_joint_model",
         &construction(
             "MechanismCompositionContrast",
             "mechanism_composition.first_order_delta_method",
@@ -404,6 +407,7 @@ fn transported_linear_gaussian_mechanisms_first_order_interval() {
     measure(
         "transported_linear_gaussian_mechanisms_first_order_interval",
         "recursive_gaussian_chain_with_refitted_target_mechanism_closed_form_interventional_mean",
+        "transport.fitted_linear_gaussian_mechanism",
         &construction(
             "TransportedMechanismContrast",
             "mechanism_transport.first_order_delta_method",

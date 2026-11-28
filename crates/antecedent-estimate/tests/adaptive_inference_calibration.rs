@@ -156,7 +156,9 @@ fn thompson_design(
 ) {
     let n = grid_n(base);
     let mut tally =
-        CoverageTally::for_record(RecordKey { test, dgp, interval: "posterior_quantile" }, 0.95);
+        CoverageTally::for_record(RecordKey { test, dgp, interval: "posterior_quantile" }, 0.95)
+            .measures("capability", "adaptive_inference.bayesian_posterior")
+            .measures("capability", "adaptive_inference.unsupported_guarantees");
     let results = map_replicates(n_sim(), |replicate| {
         let seed = calibration::grid_seed(0x7a_0000 + replicate);
         let stopped = thompson_to_stopping(truth, n, seed);
@@ -314,8 +316,15 @@ fn weighted_design(
     measured: [Option<f64>; 3],
 ) {
     let n = grid_n(base);
+    let weighting = if measurements > 1 {
+        "adaptive_inference.repeated_measures_weighting"
+    } else {
+        "adaptive_inference.adaptive_weighting"
+    };
     let mut tally =
-        CoverageTally::for_record(RecordKey { test, dgp, interval: "analytic_se" }, 0.95);
+        CoverageTally::for_record(RecordKey { test, dgp, interval: "analytic_se" }, 0.95)
+            .measures("capability", weighting)
+            .measures("capability", "adaptive_inference.unsupported_guarantees");
     let results = map_replicates(n_sim(), |replicate| {
         let seed = calibration::grid_seed(0x7b_0000 + replicate);
         let trial = epsilon_greedy_to_stopping(truth, epsilon, n, lag, measurements, seed);
@@ -572,7 +581,9 @@ fn sequence_design(test: &'static str, dgp: &'static str, contrast: bool) {
     let n = grid_n(400);
     let truth = [0.4, 0.6];
     let mut tally =
-        CoverageTally::for_record(RecordKey { test, dgp, interval: "confidence_sequence" }, 0.95);
+        CoverageTally::for_record(RecordKey { test, dgp, interval: "confidence_sequence" }, 0.95)
+            .measures("capability", "adaptive_inference.anytime_valid_sequence")
+            .measures("capability", "adaptive_inference.unsupported_guarantees");
     let target = if contrast { truth[1] - truth[0] } else { truth[1] };
     let results = map_replicates(n_sim(), |replicate| {
         let seed = calibration::grid_seed(0x7e_0000 + replicate);
@@ -701,7 +712,8 @@ fn repeated_interval_design(test: &'static str, dgp: &'static str, effect: f64) 
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp, interval: "repeated_confidence_interval" },
         0.95,
-    );
+    )
+    .measures("capability", "adaptive_inference.group_sequential");
     let results = map_replicates(n_sim(), |replicate| {
         group_sequential_repeated_interval(effect, n, calibration::grid_seed(0x7f_0000 + replicate))
     });

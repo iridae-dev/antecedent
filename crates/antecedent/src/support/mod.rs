@@ -39,6 +39,7 @@
 
 mod axis;
 mod bridge;
+mod calibration;
 mod cell;
 mod gate;
 mod matrix;
@@ -48,7 +49,12 @@ mod trace;
 pub(crate) mod unit;
 pub(crate) mod units_generated;
 
+pub(crate) use calibration::capability_calibration;
+pub use calibration::{NOT_MEASURED, unit_calibration};
 pub(crate) use trace::executed as trace_executed;
+pub(crate) use trace::interval_reported as trace_interval;
+#[cfg(feature = "evidence-trace")]
+pub(crate) use trace::output_produced as trace_output;
 pub(crate) use trace::route_ran as trace_route;
 pub use trace::{TRACE_ENV, binary_name, caller_thread, declare_unit};
 pub use unit::{UnitId, UnitRef};

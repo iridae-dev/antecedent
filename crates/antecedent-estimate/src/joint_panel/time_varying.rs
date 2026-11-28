@@ -1306,7 +1306,10 @@ fn fit_temporal_inner(
         posterior_converged,
         uncertainty,
         claim: "model_conditional_temporal_mechanism_only".into(),
-        calibration: "not_measured".into(),
+        calibration: antecedent_io_core::unit_calibration::capability(
+            "joint_response.interval_readings",
+        )
+        .into(),
         source_identity: compiled.identity()?,
         retention,
         retained_volume: retained,

@@ -1021,7 +1021,8 @@ fn measure_sampled_transport_coverage(
     // grid rather than the shared default so collected scopes match the plan.
     let n = [250_u64, 1_000, 4_000][calibration::grid_point()];
     let mut tally =
-        CoverageTally::for_record(RecordKey { test, dgp, interval: "delta_method_wald" }, 0.95);
+        CoverageTally::for_record(RecordKey { test, dgp, interval: "delta_method_wald" }, 0.95)
+            .measures("capability", "counterfactual.transport_sampled_interval");
     let construction = Construction {
         query: "CounterfactualTransport".to_owned(),
         graph_class: "Admg".to_owned(),

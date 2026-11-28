@@ -1933,6 +1933,9 @@ mod tests {
                 "learner_coverage method={method} n={n} replicates={reps} coverage={coverage} bias={bias}"
             );
             tally.assert();
+            if calibration::smoke() {
+                continue;
+            }
             assert!(
                 (fixture["coverage_acceptance"][0].as_f64().unwrap()
                     ..=fixture["coverage_acceptance"][1].as_f64().unwrap())

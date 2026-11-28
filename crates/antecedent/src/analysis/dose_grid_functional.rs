@@ -26,9 +26,9 @@ pub use antecedent_estimate::dose_grid_functional::{
 };
 pub use antecedent_io::dose_grid_functional_artifact::{
     DOSE_GRID_ARTIFACT_FEATURE, DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_CLOSED,
-    DOSE_GRID_CALIBRATION, DOSE_GRID_INFERENCE_CLAIM, DOSE_GRID_QUADRATIC_FEATURE, DoseClaimsWire,
-    DoseContrastWire, DoseFunctionalWire, DoseGridArtifactError, DoseGridArtifactWire,
-    DoseGridConsumeLimits, DoseGridRequestWire, DoseGridResultWire, DosePointWire, DoseSupportWire,
+    DOSE_GRID_INFERENCE_CLAIM, DOSE_GRID_QUADRATIC_FEATURE, DoseClaimsWire, DoseContrastWire,
+    DoseFunctionalWire, DoseGridArtifactError, DoseGridArtifactWire, DoseGridConsumeLimits,
+    DoseGridRequestWire, DoseGridResultWire, DosePointWire, DoseSupportWire, dose_grid_calibration,
     dose_support_table,
 };
 pub use antecedent_io::dose_grid_functional_artifact::{

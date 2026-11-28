@@ -24,6 +24,7 @@ use crate::discovery::{
     RpcmciDiscoveryResult, RpcmciLearning,
 };
 use crate::discovery_defaults::resolve_ci;
+use crate::support::unit::{SupportKey, UnitId, require_program};
 use crate::{
     AcceptedGraph, CausalError, CompiledExecution, DiscoveredStructure, DiscoverySpec, Study,
 };
@@ -31,6 +32,17 @@ use crate::{
 const LEGACY_MAGIC: &[u8] = b"ANTE-RPCMCI-LEARNED-1\0";
 const SCHEMA_MAGIC: &[u8] = b"ANTE-RPCMCI-LEARNED-2\0";
 const MAX_BYTES: usize = 16 * 1024 * 1024;
+const REPLAY_UNIT: UnitId = UnitId::new("discovery.learned_rpcmci_replay");
+const RUN_ENTRY: &str = "antecedent.discovery.RPCMCI.run_portable";
+const CONSUME_ENTRY: &str = "antecedent.rpcmci_portable.consume_learned_rpcmci";
+
+fn require_replay_unit(
+    ctx: &ExecutionContext,
+    entry: &'static str,
+) -> Result<(), RpcmciReplayError> {
+    require_program(ctx, &SupportKey::Unit(REPLAY_UNIT), entry)
+        .map_err(|refusal| CausalError::from(refusal).into())
+}
 
 /// Retained native, unweighted partial-correlation RPCMCI declaration and complete series.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -231,6 +243,7 @@ impl LearnedRpcmciRequest {
     /// # Errors
     /// Invalid declaration, unsupported route, failed discovery or resource stop.
     pub fn run(self, ctx: &ExecutionContext) -> Result<LearnedRpcmciArtifact, RpcmciReplayError> {
+        require_replay_unit(ctx, RUN_ENTRY)?;
         self.run_with_schema(Some(SourceSchema::ContinuousContextV1), ctx)
     }
 
@@ -530,6 +543,7 @@ fn replay(
             "the bundle differs from the retained RPCMCI artifact identity",
         ));
     }
+    require_replay_unit(ctx, CONSUME_ENTRY)?;
     let mut replay_context = ctx.clone();
     replay_context.rng = RngFactory::from_seed(wire.report.seed);
     let live = wire.request.run_with_schema(source_schema, &replay_context)?;

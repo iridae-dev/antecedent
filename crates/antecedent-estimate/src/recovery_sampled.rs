@@ -57,8 +57,11 @@ pub const SAMPLED_RECOVERY_MAX_ROWS: usize = 1_000_000;
 pub const SAMPLED_RECOVERY_MAX_BINARY_VARIABLES: usize = 6;
 /// Nominal level of the whole-row `BCa` interval.
 pub(crate) const SAMPLED_RECOVERY_INTERVAL_LEVEL: f64 = 0.95;
-/// Original source artifact status, distinct from measured-envelope authorization.
-pub const SAMPLED_RECOVERY_CALIBRATION: &str = "not_measured";
+/// The calibration state of the sampled-recovery unit, distinct from measured-envelope authorization.
+#[must_use]
+pub fn sampled_recovery_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("recovery.sampled_observation")
+}
 
 /// Why a sampled-recovery request was refused. The detail and reason code are
 /// fixed per kind.
@@ -363,7 +366,7 @@ pub struct SampledEffectInterval {
     pub lower: f64,
     /// Upper empirical quantile endpoint.
     pub upper: f64,
-    /// Always [`SAMPLED_RECOVERY_CALIBRATION`]: no coverage claim is made.
+    /// Always [`sampled_recovery_calibration`]: no coverage claim is made.
     pub calibration: &'static str,
 }
 
@@ -1234,7 +1237,7 @@ pub fn estimate_sampled_recovery(
         level: SAMPLED_RECOVERY_INTERVAL_LEVEL,
         lower: type7_quantile(&sorted, probabilities[0]),
         upper: type7_quantile(&sorted, probabilities[1]),
-        calibration: SAMPLED_RECOVERY_CALIBRATION,
+        calibration: sampled_recovery_calibration(),
     };
     let mut receipt = SampledRecoveryReceipt {
         snapshot_id: input.snapshot_id.clone(),
@@ -1387,7 +1390,7 @@ mod digest_tests {
                 level: 0.95,
                 lower: 0.1,
                 upper: 0.7,
-                calibration: SAMPLED_RECOVERY_CALIBRATION,
+                calibration: sampled_recovery_calibration(),
             },
             replicates: vec![
                 SampledReplicateRecord {

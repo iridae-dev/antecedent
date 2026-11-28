@@ -75,7 +75,9 @@ use antecedent_graph::{
     TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged,
 };
 use antecedent_prob::InferenceDiagnostics;
-use common::calibration::{GRID_POINTS, gaussian, grid_n, stream_seed, unit_uniform};
+use common::calibration::{
+    GRID_POINTS, gaussian, grid_for, grid_n, smoke_budget, stream_seed, unit_uniform,
+};
 use common::reported::{posterior_pair, scalar_normal_pair};
 use common::static_dgp::{sigmoid, uniform};
 use grid_cell::{Cell, IntervalPair, Target, measure, measure_at, sharing_base};
@@ -339,10 +341,17 @@ const COMPARISON: f64 = 3.0;
 const N_ANOMALY: usize = 1000;
 /// Rows of each population of a change design.
 const N_POPULATION: usize = 600;
+fn grid_rows(base: usize) -> usize {
+    smoke_budget(grid_n(base), grid_for(base).n_at(0, base))
+}
 /// Posterior draws of a Bayesian attribution.
-const ATTRIBUTION_DRAWS: usize = 400;
+fn attribution_draws() -> usize {
+    smoke_budget(400, 40)
+}
 /// Circular-block bootstrap replicates of a frequentist attribution interval.
-const ATTRIBUTION_REPLICATES: u32 = 200;
+fn attribution_replicates() -> u32 {
+    u32::try_from(smoke_budget(200, 50)).unwrap()
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AttrKind {
@@ -652,7 +661,7 @@ fn attribution(
     let inference = match mode {
         Mode::Frequentist => InferenceMode::Frequentist,
         Mode::Bayesian => {
-            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(ATTRIBUTION_DRAWS))
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(attribution_draws()))
         }
     };
     measure(
@@ -662,7 +671,7 @@ fn attribution(
             let seed = stream_seed(family, rep);
             let (rows, query) = match kind {
                 AttrKind::Anomaly => (
-                    law.rows(grid_n(N_ANOMALY), |_| CENTER, seed),
+                    law.rows(grid_rows(N_ANOMALY), |_| CENTER, seed),
                     CausalQuery::AnomalyAttribution(
                         AnomalyAttributionQuery::new([target], 1_000_000).with_reference(
                             AnomalyReference::fixed(CENTER, law.target_variance().sqrt()),
@@ -670,7 +679,7 @@ fn attribution(
                     ),
                 ),
                 AttrKind::Change => {
-                    let pop = grid_n(N_POPULATION);
+                    let pop = grid_rows(N_POPULATION);
                     (
                         law.rows(2 * pop, |i| if i < pop { BASELINE } else { COMPARISON }, seed),
                         CausalQuery::ChangeAttribution(ChangeAttributionQuery::new(
@@ -686,7 +695,7 @@ fn attribution(
                 .query(query)
                 .inference(inference.clone());
             if mode == Mode::Frequentist {
-                builder = builder.bootstrap_replicates(ATTRIBUTION_REPLICATES);
+                builder = builder.bootstrap_replicates(attribution_replicates());
             }
             execute(test, builder, variants[variant], seed)
         },
@@ -704,9 +713,13 @@ const CF_EFFECT: f64 = 1.5;
 /// Rows of a counterfactual design.
 const N_COUNTERFACTUAL: usize = 500;
 /// Posterior draws of a Bayesian counterfactual.
-const CF_DRAWS: usize = 400;
+fn cf_draws() -> usize {
+    smoke_budget(400, 40)
+}
 /// Shared resampled tables behind a frequentist mixture's standard error.
-const CF_REPLICATES: u32 = 100;
+fn cf_replicates() -> u32 {
+    u32::try_from(smoke_budget(100, 50)).unwrap()
+}
 
 /// Columns `a, z, w, y`: `a, z, w ~ N(0,1)` independent, `y = 0.5 + 1.5a + z + e`. `w` is an
 /// independent covariate with no effect on `y`.
@@ -793,15 +806,15 @@ fn counterfactual(test: &'static str, family: u64, class: Class, mode: Mode, var
         &Target::scalar(CF_EFFECT),
         |rep, variant| {
             let seed = stream_seed(family, rep);
-            let data = counterfactual_data(grid_n(N_COUNTERFACTUAL), seed);
+            let data = counterfactual_data(grid_rows(N_COUNTERFACTUAL), seed);
             let builder =
                 graph.attach(Study::tabular(data), variants[variant].0).query(query.clone());
             let builder = match mode {
                 Mode::Frequentist => builder
                     .inference(InferenceMode::Frequentist)
-                    .bootstrap_replicates(CF_REPLICATES),
+                    .bootstrap_replicates(cf_replicates()),
                 Mode::Bayesian => builder.inference(InferenceMode::Bayesian(
-                    BayesianConfig::laplace().n_draws(CF_DRAWS),
+                    BayesianConfig::laplace().n_draws(cf_draws()),
                 )),
             };
             execute(test, builder, variants[variant], seed)

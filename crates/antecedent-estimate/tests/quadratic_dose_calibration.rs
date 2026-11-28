@@ -22,7 +22,8 @@ fn measure(test: &'static str, expected_id: &str, functional: DoseFunctional, tr
             interval: "analytic_se",
         },
         0.95,
-    );
+    )
+    .measures("capability", "estimate.quadratic_dose");
     let results = map_replicates(n_sim(), |rep| {
         let mut rng = candidate::Generator::new(grid_seed(0x47ab_0000 + rep));
         let (mut dose, mut outcome) = (Vec::with_capacity(n), Vec::with_capacity(n));

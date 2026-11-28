@@ -119,7 +119,8 @@ fn trade_off(test: &'static str, expected_id: &str) {
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp: DGP, interval: CALIBRATION_INTERVAL_METHOD },
         LEVEL,
-    );
+    )
+    .measures("capability", "preference_learning.choice_model");
     let basis = calibration_basis(CovarianceKind::Model, 1, n as u64, LEVEL);
     let results = map_replicates(n_sim(), |replicate| {
         let seed = grid_seed(0x7072_0000 + replicate);

@@ -53,8 +53,8 @@ use crate::{CausalError, CompileCause, Study};
 
 pub use antecedent_design::design_ranking_artifact::{
     ConsumeExpectation, ConsumedCandidate, ConsumedDesignRanking, DESIGN_RANKING_ARTIFACT_KIND,
-    DESIGN_RANKING_ARTIFACT_VERSION, DESIGN_RANKING_CALIBRATION, DesignRankingArtifactError,
-    DesignRankingArtifactWire, EvsiCandidateWire, ReplayKind, consume_expecting, consume_wire,
+    DESIGN_RANKING_ARTIFACT_VERSION, DesignRankingArtifactError, DesignRankingArtifactWire,
+    EvsiCandidateWire, ReplayKind, consume_expecting, consume_wire, design_ranking_calibration,
 };
 /// Deprecated: admits the artifact without an identity its consumer retained.
 ///

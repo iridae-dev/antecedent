@@ -9,8 +9,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent::analysis::sample_split_analysis::{
-    AnalysisEffectRequest, SplitAnalysisEffect, SplitRule, WHOLE_METHOD_CALIBRATION,
-    discover_on_split, split_evidence_sources,
+    AnalysisEffectRequest, SplitAnalysisEffect, SplitRule, discover_on_split,
+    split_evidence_sources, whole_method_calibration,
 };
 use antecedent::analysis::selective_discovery::discovery_data_source;
 use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap};
@@ -124,8 +124,8 @@ fn only_the_analysis_part_passes_the_check_and_the_binding_states_what_it_suppor
     let split = discover_on_split(&contract(), &data, rule(6), &ctx()).unwrap();
     let binding = split.check_analysis_table(split.analysis_rows()).unwrap();
     assert!(binding.conditional_on_selected_graph());
-    assert_eq!(binding.whole_method_calibration(), WHOLE_METHOD_CALIBRATION);
-    assert_eq!(WHOLE_METHOD_CALIBRATION, "not_measured");
+    assert_eq!(binding.whole_method_calibration(), whole_method_calibration());
+    assert_eq!(whole_method_calibration(), "not_measured");
     assert_eq!(binding.receipt_identity, split.receipt().identity);
     assert_eq!(binding.structure_identity, split.outcome().structure_identity);
 

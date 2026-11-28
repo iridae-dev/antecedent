@@ -5,11 +5,11 @@ use super::{
     AnalysisBinding, Bound, Json, Knowledge, NumericColumn, OwnedColumnarStorage, ParentSetEffect,
     ParentSetOptions, Py, PyArray1, PyModule, PyModuleMethods, PyResult, Python, Reply, STAGE,
     SelectiveDiscoveryError, SplitDiscovery, SplitEffect, SplitRule, TableView, TabularData,
-    Transformation, ValidityBitmap, VariableId, WHOLE_METHOD_CALIBRATION, contract_map,
-    declaration_json, discover_on_split, discovery_failure, error_json, estimate_effect_on_split,
-    estimate_parent_set_effect, estimate_parent_set_effect_with_knowledge, field, get_text,
-    get_u64, hex, input_err, json, outcome_json, parse_json, pyclass, pyfunction, pymethods,
-    refusal_json, report_json, split_evidence_sources, static_contract, wrap_pyfunction,
+    Transformation, ValidityBitmap, VariableId, contract_map, declaration_json, discover_on_split,
+    discovery_failure, error_json, estimate_effect_on_split, estimate_parent_set_effect,
+    estimate_parent_set_effect_with_knowledge, field, get_text, get_u64, hex, input_err, json,
+    outcome_json, parse_json, pyclass, pyfunction, pymethods, refusal_json, report_json,
+    split_evidence_sources, static_contract, whole_method_calibration, wrap_pyfunction,
 };
 
 // ---------------------------------------------------------------------------
@@ -162,7 +162,7 @@ impl SampleSplitDiscoveryHandle {
             "analysis_data_identity": hex(&receipt.analysis_data.digest),
             "identity": hex(&receipt.identity),
             "conditional_on_selected_graph": true,
-            "whole_method_calibration": WHOLE_METHOD_CALIBRATION,
+            "whole_method_calibration": whole_method_calibration(),
         })
         .to_string()
     }

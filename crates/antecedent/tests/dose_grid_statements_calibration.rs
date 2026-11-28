@@ -216,8 +216,9 @@ fn measure(
         .iter()
         .enumerate()
         .map(|(index, (name, truth))| {
-            let mut tally =
-                CoverageTally::for_record(pointwise_key, REPORTED_LEVEL).labelled(name.clone());
+            let mut tally = CoverageTally::for_record(pointwise_key, REPORTED_LEVEL)
+                .labelled(name.clone())
+                .measures("capability", "estimate.dose_grid_bias_aware");
             for fit in &fits {
                 let Some(fit) = fit else {
                     tally.skip();
@@ -240,7 +241,9 @@ fn measure(
             replicates_ok: Some(u32::try_from(BAND_REPLICATES).expect("a small count")),
             ..scope
         };
-        let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL).labelled("band");
+        let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL)
+            .labelled("band")
+            .measures("capability", "estimate.dose_grid_bias_aware");
         for fit in &fits {
             let Some(fit) = fit else {
                 tally.skip();

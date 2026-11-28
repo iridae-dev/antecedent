@@ -54,6 +54,7 @@ fn measure(latent: bool, test: &'static str, expected_ids: [&str; 3]) {
             },
             0.95,
         )
+        .measures("capability", "identify.binary_nested_markov_fisher")
         .labelled(format!("{f:?}"))
     });
     let n = grid_n(2000);

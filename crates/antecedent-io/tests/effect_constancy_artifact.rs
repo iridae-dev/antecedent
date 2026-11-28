@@ -3,9 +3,9 @@
 //! versions and the `not_measured` calibration coordinate.
 
 use antecedent_io::effect_constancy_artifact::{
-    DependenceWire, EFFECT_CONSTANCY_ARTIFACT_VERSION, EFFECT_CONSTANCY_CALIBRATION,
-    EffectConstancyArtifact, EffectConstancyArtifactError, EffectConstancyRequestWire,
-    EffectEstimandWire, FamilyWire, PartitionWire, decode_parts, encode_parts,
+    DependenceWire, EFFECT_CONSTANCY_ARTIFACT_VERSION, EffectConstancyArtifact,
+    EffectConstancyArtifactError, EffectConstancyRequestWire, EffectEstimandWire, FamilyWire,
+    PartitionWire, decode_parts, effect_constancy_calibration, encode_parts,
 };
 
 fn estimand() -> EffectEstimandWire {
@@ -79,7 +79,7 @@ fn artifact_frozen_acceptance_zero_difference_has_zero_statistic() {
     assert_eq!(report.result.statistic_kind, "cochran_q");
     assert_eq!(report.result.degrees_of_freedom, 1);
     assert_eq!(report.result.conclusion, "not_rejected");
-    assert_eq!(report.calibration, EFFECT_CONSTANCY_CALIBRATION);
+    assert_eq!(report.calibration, effect_constancy_calibration());
     assert_eq!(report.calibration, "not_measured");
     assert_eq!(report.inference_claim, "point_only");
     assert_eq!(report.version, EFFECT_CONSTANCY_ARTIFACT_VERSION);

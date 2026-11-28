@@ -72,7 +72,12 @@ pub(crate) fn gate_decision<H>(ctx: &ExecutionContext, handle: &H) -> Result<(),
 where
     H: CompiledProgramHandle + ?Sized,
 {
-    if COMPILED_DECISION_GATE_LIVE { gate_program(ctx, handle) } else { Ok(()) }
+    if COMPILED_DECISION_GATE_LIVE {
+        gate_program(ctx, handle)
+    } else {
+        let _ = handle.support();
+        Ok(())
+    }
 }
 
 /// Whether the `Invalid` payload of a cyclic decision error is the wire message of a

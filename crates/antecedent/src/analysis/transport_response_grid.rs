@@ -39,7 +39,7 @@ use antecedent_graph::SelectionDiagram;
 use antecedent_identify::TransportIdentification;
 
 use super::compiled_point_program::PointProgram;
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::supplied_identity::{Canonical, SetOf, encoded};
 use super::transport_supplied_nuisance::TransportResponseGridColumns;
 use crate::analysis::TransportTrialSpec;
@@ -329,9 +329,7 @@ impl CompiledTransportResponseGrid {
     /// `(0, 1)`, no trial or no target rows), cancellation, or the support gate once it is on.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<TransportResponseGridRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
         if scoped.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "transport response grid" });
         }
@@ -353,7 +351,7 @@ impl CompiledTransportResponseGrid {
             estimate,
             lowered_program_identity: self.lowered.identity(),
             claim: "point_only",
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
 }

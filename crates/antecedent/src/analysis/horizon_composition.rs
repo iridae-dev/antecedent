@@ -314,6 +314,13 @@ pub fn horizon_composition_interval(
     coefficients: &[f64],
     operation: PropagationOperation,
 ) -> Result<HorizonCompositionInterval, ExternalRefusal> {
+    crate::support::unit::require_program_unscoped(
+        &crate::support::unit::SupportKey::Unit(crate::support::UnitId::new(
+            "joint_law.composed_spread_aligned_functional",
+        )),
+        "antecedent.horizon_composition.horizon_composition_interval",
+    )
+    .map_err(|refusal| ExternalRefusal::new(refusal.code(), JOINT_LAW_STAGE, refusal.detail))?;
     if operation.class() == antecedent_contract::PropagationClass::Nonlinear {
         return Err(refuse(
             antecedent_core::reason_code!("option_not_applicable"),

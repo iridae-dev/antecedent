@@ -177,7 +177,9 @@ fn score(
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp, interval: NORMAL_APPROXIMATION_CONSTRUCTION },
         LEVEL,
-    );
+    )
+    .measures("capability", "joint_law.composed_interval")
+    .measures("capability", "joint_law.composed_interval_check");
     for (interval, basis) in results {
         bind_basis(&mut tally, &basis);
         tally.record(interval, truth);

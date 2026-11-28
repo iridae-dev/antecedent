@@ -688,7 +688,8 @@ pub(crate) fn ate_result_from_analysis(
             section
         }),
         association: result.association().map(|value| {
-            let mut section = crate::association_api::AssociationSection::from(value);
+            let mut section =
+                crate::association_api::AssociationSection::of(value, result.calibration_state());
             section.supported = result.states_section_row();
             section
         }),

@@ -36,7 +36,7 @@ use super::bridge_transport_premise_assessment::{
     BridgeTransportPremiseAssessmentError, BridgeTransportPremiseAssessmentResult,
     CompiledBridgeTransportPremiseAssessment, recompile_bridge_transport_premise_assessment,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::propagation_chain::PropagationChain;
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
@@ -319,10 +319,8 @@ impl CompiledBridgeTransportDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<BridgeTransportDecisionResult, BridgeTransportDecisionError> {
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(ctx, self)
-                .map_err(|refusal| BridgeTransportDecisionError::Invalid(refusal.message()))?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, ctx, self)
+            .map_err(|refusal| BridgeTransportDecisionError::Invalid(refusal.message()))?;
         let bridge = self.bridge.derive(&self.source, None, self.seed)?;
         let draft = Self::chain_draft(&bridge)?;
         let decision = compile_chain_decision(draft, self.decision.clone(), ctx)?.execute(ctx)?;
@@ -645,11 +643,8 @@ impl CompiledAssessedBridgeTransportDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgeTransportDecisionResult, AssessedBridgeTransportDecisionError> {
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(ctx, self).map_err(|refusal| {
-                AssessedBridgeTransportDecisionError::Invalid(refusal.message())
-            })?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, ctx, self)
+            .map_err(|refusal| AssessedBridgeTransportDecisionError::Invalid(refusal.message()))?;
         let assessment = self.assessment.execute(ctx)?;
         let bridge = self.bridge.execute(ctx)?;
         Ok(AssessedBridgeTransportDecisionResult {
@@ -1044,10 +1039,8 @@ impl CompiledAssessedBridgeRobustDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgeRobustDecisionResult, AssessedBridgeRobustDecisionError> {
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(ctx, self)
-                .map_err(|refusal| AssessedBridgeRobustDecisionError::Invalid(refusal.message()))?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, ctx, self)
+            .map_err(|refusal| AssessedBridgeRobustDecisionError::Invalid(refusal.message()))?;
         // The children compile their data-dependent chains, which a lowered dispatch refuses as
         // reentry, so they run under the caller's context.
         let assessed = self.assessed.execute(ctx)?;
@@ -1056,7 +1049,7 @@ impl CompiledAssessedBridgeRobustDecision {
             assessed,
             robust,
             lowered_program_identity: self.lowered.identity(),
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
 
@@ -1072,7 +1065,7 @@ impl CompiledAssessedBridgeRobustDecision {
     ) -> Result<Vec<u8>, AssessedBridgeRobustDecisionError> {
         let live = self.execute(ctx)?;
         if result.lowered_program_identity != live.lowered_program_identity
-            || result.calibration != "not_measured"
+            || result.calibration != self.unit_calibration()
             || result.assessed.assessment != live.assessed.assessment
             || result.robust != live.robust
         {
@@ -1215,7 +1208,7 @@ pub struct AssessedBridgePosteriorDecisionResult {
     pub decision: ChainDecisionResult,
     /// Full outer program identity.
     pub lowered_program_identity: SemanticDigest,
-    /// Always `not_measured`.
+    /// Calibration state of the route's evidence unit.
     pub calibration: &'static str,
 }
 
@@ -1498,10 +1491,8 @@ impl CompiledAssessedBridgePosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgePosteriorDecisionResult, AssessedBridgeRobustDecisionError> {
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(ctx, self)
-                .map_err(|refusal| AssessedBridgeRobustDecisionError::Invalid(refusal.message()))?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, ctx, self)
+            .map_err(|refusal| AssessedBridgeRobustDecisionError::Invalid(refusal.message()))?;
         if ctx.rng.master_seed() != self.seed {
             return Err(AssessedBridgeRobustDecisionError::Invalid(
                 "target posterior seed changed",
@@ -1513,7 +1504,7 @@ impl CompiledAssessedBridgePosteriorDecision {
             assessed,
             decision,
             lowered_program_identity: self.lowered.identity(),
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
 
@@ -1529,7 +1520,7 @@ impl CompiledAssessedBridgePosteriorDecision {
     ) -> Result<Vec<u8>, AssessedBridgeRobustDecisionError> {
         let live = self.execute(ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
-            || result.calibration != "not_measured"
+            || result.calibration != self.unit_calibration()
             || result.assessed.assessment != live.assessed.assessment
             || result.decision.chain.identity() != live.decision.chain.identity()
             || result.decision.decision != live.decision.decision

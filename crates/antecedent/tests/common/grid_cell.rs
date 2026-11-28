@@ -6,7 +6,7 @@
 //! structure. Validation runs after estimation and an accepted graph is estimated as the
 //! explicit one, so those siblings report the interval the base execution reports. The
 //! driver measures the base execution on every replicate and, on the first
-//! [`SIBLING_REPLICATES`] replicates, executes every sibling and requires its interval to
+//! [`sibling_replicates`] replicates, executes every sibling and requires its interval to
 //! be the base interval bit for bit. Each sibling's record is bound from the sibling's
 //! own execution (its own runtime match key and validation mode), and scored on the
 //! intervals that check proved it reports.
@@ -15,7 +15,7 @@
 //! one data law, one identifying functional, one estimator. A test measures such
 //! coordinates together inside [`sharing_base`]: the first measurement is the base, and
 //! every later one is held to the same check (each of its executions, on the first
-//! [`SIBLING_REPLICATES`] replicates, must report the base interval bit for bit on the
+//! [`sibling_replicates`] replicates, must report the base interval bit for bit on the
 //! same sample and scope) and recorded the same way.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -37,8 +37,11 @@ use crate::common::calibration::{
 use crate::common::calibration_bind::constructions;
 use crate::common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate_at};
 
-/// Replicates on which every sibling is executed and compared with the base.
-pub const SIBLING_REPLICATES: u32 = 2;
+/// Replicates on which every sibling is executed and compared with the base: one in a smoke
+/// run, which gates nothing and only has to execute every sibling.
+pub fn sibling_replicates() -> u32 {
+    if crate::common::calibration::smoke() { 1 } else { 2 }
+}
 
 /// `[reported level, gate level]` intervals of one scored target.
 pub type IntervalPair = [Option<(f64, f64)>; 2];
@@ -104,7 +107,7 @@ struct Base {
     /// The replicates this run measures: all of them, or, in a recheck by extension, the
     /// ones after the first run's.
     replicates: Vec<Replicate>,
-    /// Replicates `0..SIBLING_REPLICATES`, on which every sibling is executed; executed
+    /// Replicates `0..sibling_replicates()`, on which every sibling is executed; executed
     /// again in a recheck by extension, whose own replicates start later.
     head: Vec<Replicate>,
 }
@@ -125,7 +128,7 @@ thread_local! {
 /// `coordinates` calls the measuring functions of this module once per coordinate, each
 /// with this test's name and the same replicate datasets. The first call measures its
 /// base variant on every replicate, as it would alone. Every later call executes each of
-/// its recorded variants on the first [`SIBLING_REPLICATES`] replicates only, requires
+/// its recorded variants on the first [`sibling_replicates`] replicates only, requires
 /// the base interval bit for bit on the base's truths and scope, and records each variant
 /// under its own match key and validation mode, scored on the base's intervals.
 ///
@@ -213,7 +216,7 @@ pub fn measure_at(
 /// base would pay its validation on every replicate. Variant 0 is then a validation-none
 /// execution of the same route: it is scored on every replicate and emits no record, and
 /// variants `1..variants` are the listed cells. Each listed cell is executed on the first
-/// [`SIBLING_REPLICATES`] replicates, must report the base interval bit for bit (validation
+/// [`sibling_replicates`] replicates, must report the base interval bit for bit (validation
 /// runs after estimation), and is recorded under its own match key and validation mode, bound
 /// from its own executions, and scored on the intervals that check proved it reports.
 ///
@@ -352,7 +355,7 @@ fn measure_inner(
                 };
                 (Replicate { base: Some(base), intervals, truth }, siblings)
             };
-            let head_len = n_sim().min(SIBLING_REPLICATES);
+            let head_len = n_sim().min(sibling_replicates());
             let extending = replicate_start() > 0;
             let runs =
                 map_replicates(n_sim(), |rep| one(rep, !extending && rep < u64::from(head_len)));
@@ -383,7 +386,7 @@ fn measure_inner(
                 cell.test
             );
             let replicates = base.head.as_slice();
-            let executed = map_replicates_from(0, n_sim().min(SIBLING_REPLICATES), |rep| {
+            let executed = map_replicates_from(0, n_sim().min(sibling_replicates()), |rep| {
                 let shared = &replicates[usize::try_from(rep).expect("replicate index")];
                 assert_eq!(
                     bits(&truths(rep)),

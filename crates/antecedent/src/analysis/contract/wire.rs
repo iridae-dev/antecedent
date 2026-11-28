@@ -241,12 +241,22 @@ pub(super) fn fill_family_section(
         ResultPayload::Survival(v) => wire.survival = Some(v.to_wire(support)),
         ResultPayload::PosteriorRow(v) => wire.posterior_row = Some(v.clone()),
         ResultPayload::LongitudinalRegime(v) => wire.longitudinal_regime = Some(v.into()),
-        ResultPayload::SequentialContrast(v) => wire.sequential_contrast = Some(v.into()),
-        ResultPayload::HistoryMatch(v) => wire.history_match = Some(v.into()),
+        ResultPayload::SequentialContrast(v) => {
+            wire.sequential_contrast =
+                Some(result_wire::sequential_contrast_wire(v, result.calibration_state()));
+        }
+        ResultPayload::HistoryMatch(v) => {
+            wire.history_match =
+                Some(result_wire::history_match_wire(v, result.calibration_state()));
+        }
         ResultPayload::QuasiRollout(v) => wire.quasi_rollout = Some(v.as_ref().into()),
         ResultPayload::TemporalDesign(v) => wire.temporal_design = Some(v.as_ref().into()),
-        ResultPayload::IvBounds(v) => wire.iv_bounds = Some(result_wire::iv_bounds_wire(v)),
-        ResultPayload::Association(v) => wire.association = Some(result_wire::association_wire(v)),
+        ResultPayload::IvBounds(v) => {
+            wire.iv_bounds = Some(result_wire::iv_bounds_wire(v, result.calibration_state()));
+        }
+        ResultPayload::Association(v) => {
+            wire.association = Some(result_wire::association_wire(v, result.calibration_state()));
+        }
         ResultPayload::Interference { inference, .. } => {
             wire.interference_inference = inference.as_ref().map(Into::into);
         }

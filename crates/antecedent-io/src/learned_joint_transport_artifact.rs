@@ -62,8 +62,11 @@ use serde::{Deserialize, Serialize};
 pub const LEARNED_JOINT_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const LEARNED_JOINT_ARTIFACT_FEATURE: &str = "learned_joint_transport_conjugate_v1";
-/// The only calibration status of this cell until coverage is measured.
-pub const LEARNED_JOINT_CALIBRATION: &str = "not_measured";
+/// The calibration state of the learned joint transport unit.
+#[must_use]
+pub fn learned_joint_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("transport.learned_joint")
+}
 
 /// Why a learned joint transport artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -330,7 +333,7 @@ impl LearnedResultWire {
     fn from_fit(fit: &LearnedJointFit) -> Self {
         let d = &fit.diagnostics;
         let calibration = match d.calibration {
-            JointTransportCalibration::NotMeasured => LEARNED_JOINT_CALIBRATION,
+            JointTransportCalibration::NotMeasured => learned_joint_calibration(),
         };
         let p = &fit.provider;
         Self {
@@ -468,7 +471,7 @@ impl LearnedJointArtifactWire {
                 covariates: target.covariates.clone(),
             },
             result: LearnedResultWire::from_fit(&fit),
-            calibration: LEARNED_JOINT_CALIBRATION.into(),
+            calibration: learned_joint_calibration().into(),
             premises_digest: String::new(),
             data_digest: String::new(),
         };
@@ -536,8 +539,8 @@ impl LearnedJointArtifactWire {
         if wire.required_features != [LEARNED_JOINT_ARTIFACT_FEATURE] {
             return Err(unsupported("required features").into());
         }
-        if wire.calibration != LEARNED_JOINT_CALIBRATION
-            || wire.result.diagnostics.calibration != LEARNED_JOINT_CALIBRATION
+        if wire.calibration != learned_joint_calibration()
+            || wire.result.diagnostics.calibration != learned_joint_calibration()
         {
             return Err(unsupported("calibration is not_measured").into());
         }

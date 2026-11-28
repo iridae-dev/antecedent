@@ -226,7 +226,7 @@ pub(super) fn bootstrap_diagnostic_over(
     .with_fields([
         ("replicates_ok", ok.to_string()),
         ("replicates_failed", failed.to_string()),
-        ("calibration", "not_measured".to_owned()),
+        ("calibration", crate::support::NOT_MEASURED.to_owned()),
     ])
 }
 

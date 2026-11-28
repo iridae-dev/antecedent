@@ -166,6 +166,18 @@ pub fn tier_diagnostics(
     result: &StudyResult,
     ctx: &ExecutionContext,
 ) -> Result<TierDiagnostics, TierDiagnosticsError> {
+    crate::support::unit::require_program(
+        ctx,
+        &crate::support::unit::SupportKey::Unit(crate::support::UnitId::new(
+            "estimate.tier_diagnostics",
+        )),
+        "antecedent.tier_diagnostics",
+    )
+    .map_err(|refusal| TierDiagnosticsError {
+        code: refusal.code(),
+        detail: refusal.detail,
+        message: refusal.message().to_owned(),
+    })?;
     observe(ctx)?;
     let derived = |rule: &str| {
         result.identification.derivation.steps.iter().any(|step| step.rule.as_ref() == rule)

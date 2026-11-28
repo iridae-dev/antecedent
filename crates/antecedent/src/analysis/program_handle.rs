@@ -55,6 +55,15 @@ pub(crate) trait CompiledProgramHandle {
     fn support(&self) -> Option<UnitDecision> {
         route_decision(self.lowered().route())
     }
+
+    /// The calibration state of the unit the route runs under, `not_measured` while no unit is
+    /// bound to the route. Reading it records no support decision.
+    fn unit_calibration(&self) -> &'static str {
+        crate::support::units_generated::unit_of(self.lowered().route())
+            .map_or(crate::support::NOT_MEASURED, |unit| {
+                crate::support::unit_calibration(&crate::support::UnitRef::Capability(unit))
+            })
+    }
 }
 
 /// Pass the support gate of `handle`'s route, with the dispatch-scoped context, before the
@@ -82,4 +91,32 @@ where
         .map(|decision| &decision.unit);
     crate::support::trace_route(route, returned);
     result
+}
+
+/// [`gate_program`] when `gate` is set. A family whose gate is still off runs its route whatever
+/// the unit decided; the decision is recorded all the same, so the evidence the run produces
+/// names the unit it ran under.
+///
+/// # Errors
+///
+/// As [`gate_program`], only when `gate` is set.
+pub(crate) fn gate_program_when<H>(
+    gate: bool,
+    ctx: &ExecutionContext,
+    handle: &H,
+) -> Result<(), NotSupported>
+where
+    H: CompiledProgramHandle + ?Sized,
+{
+    if gate {
+        return gate_program(ctx, handle);
+    }
+    let route = handle.lowered().route();
+    let decision = route_decision(route);
+    let returned = decision
+        .as_ref()
+        .filter(|decision| decision.status == crate::support::CellStatus::Supported)
+        .map(|decision| &decision.unit);
+    crate::support::trace_route(route, returned);
+    Ok(())
 }

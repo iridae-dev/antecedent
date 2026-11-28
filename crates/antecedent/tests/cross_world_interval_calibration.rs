@@ -127,7 +127,8 @@ fn design(test: &'static str, dgp: &'static str, q: [f64; 4], sampling: UnitSamp
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp, interval: CROSS_WORLD_CONSTRUCTION },
         CROSS_WORLD_LEVEL,
-    );
+    )
+    .measures("capability", "cross_world_execution.sampled_and_interval_readings");
     let results = map_replicates(n_sim(), |replicate| {
         let seed = grid_seed(0x95_0000 + replicate);
         let (units, realized_mean) = simulate(q, n, seed);

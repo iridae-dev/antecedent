@@ -473,7 +473,7 @@ impl super::Study {
         let standard = MechanismProgram::standard();
         let program = self.mechanisms.as_deref().unwrap_or(&standard);
         let answer = run_model_query(program, graph, data, &self.query, ctx)?;
-        Ok(self.finish_identified_execute(
+        let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
@@ -491,7 +491,15 @@ impl super::Study {
                 empty_provenance: true,
                 ..Default::default()
             }),
-        ))
+        );
+        if super::checked_attribution::attribute_intrinsic_target(&self.query) {
+            result.decide_capability(
+                ctx,
+                "gcm.attribution.intrinsic_influence",
+                "antecedent.gcm.attribute_intrinsic_influence",
+            )?;
+        }
+        Ok(result)
     }
 }
 

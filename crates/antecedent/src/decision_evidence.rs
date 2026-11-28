@@ -24,6 +24,29 @@ pub use adaptive::{
 pub use antecedent_design::decision_evidence::*;
 pub use antecedent_estimate::randomized_joint::JointClusterContrast;
 
+const MARGIN_INTERVAL_UNIT: crate::support::UnitId =
+    crate::support::UnitId::new("decision.experimental_margin.interval_candidates");
+
+/// Evaluate a derived quantity over joint evidence, decided under the experimental-margin
+/// interval unit ([`antecedent_design::decision_evidence::derive`]).
+///
+/// # Errors
+///
+/// [`EvidenceRefusal`] as [`antecedent_design::decision_evidence::derive`], and in a release
+/// build when the unit is not supported.
+pub fn derive(
+    evidence: &JointExperimentEvidence,
+    request: &Request,
+    quantity: &DerivedQuantity,
+) -> Result<DerivedResult, EvidenceRefusal> {
+    crate::support::unit::require_program_unscoped(
+        &crate::support::unit::SupportKey::Unit(MARGIN_INTERVAL_UNIT),
+        "antecedent.decision_evidence.derive",
+    )
+    .map_err(|refusal| EvidenceRefusal::Invalid(refusal.to_string()))?;
+    antecedent_design::decision_evidence::derive(evidence, request, quantity)
+}
+
 /// Center fixed-coefficient pretreatment adjustment at the population pretreatment mean.
 ///
 /// Each cluster receives `Y_c - coefficient * (X_c - n_c * X_bar)`, where `X_bar` is computed

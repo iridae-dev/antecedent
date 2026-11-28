@@ -153,6 +153,7 @@ fn run(
 
 #[test]
 fn composite_decision_equals_the_hand_utilities_of_the_analytic_front_door_response() {
+    antecedent::evidence_unit!("capability", "recalculation.composite");
     let (mut session, mut request, mut p1, mut p2) = fixture();
     let first = run(&mut session, &request, &mut p1, &mut p2);
     let utilities: Vec<f64> = first.decision.outcomes.iter().map(|o| o.expected_utility).collect();

@@ -139,7 +139,8 @@ fn record(design: Design, test: &'static str, dgp_name: &'static str) {
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp: dgp_name, interval: INTERVAL },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "transport.smoothed_dose_response");
     let rows = map_replicates(n_sim(), |rep| execute(design, Scenario::Good, &[2.0], n, rep));
     for row in rows {
         match row {

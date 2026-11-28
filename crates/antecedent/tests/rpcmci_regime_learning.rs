@@ -142,6 +142,7 @@ fn portable_shared_series_replays_and_accepts_explicit_regimes() {
         names: Vec<String>,
         columns: Vec<Vec<f64>>,
     }
+    antecedent::evidence_unit!("capability", "discovery.learned_rpcmci_replay");
     let data: Fixture = serde_json::from_str(include_str!(
         "../../../conformance/discovery/rpcmci_shared_portable.json"
     ))

@@ -44,7 +44,7 @@ use antecedent_io::{
 use antecedent_kernels::standard_normal;
 use serde::{Deserialize, Serialize};
 
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
     consume_chain_decision,
@@ -59,6 +59,8 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     ModelRole, ModelSlot, PosteriorAlgorithm, PosteriorPlan, Realization, StatisticalProgram,
 };
+use crate::support::capability_calibration;
+use crate::support::units_generated::TRANSPORT_JOINT_TRANSPORT_DECISION;
 
 const FEATURE: &str = "joint_transport_predictive_decision_v2";
 /// Whether `execute` passes the support gate of the unit the route is bound to
@@ -584,11 +586,8 @@ impl CompiledJointTransportPredictiveDecision {
         ctx: &ExecutionContext,
     ) -> Result<JointTransportPredictiveDecisionResult, JointTransportPredictiveDecisionError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(|refusal| {
-                JointTransportPredictiveDecisionError::Invalid(refusal.message())
-            })?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+            .map_err(|refusal| JointTransportPredictiveDecisionError::Invalid(refusal.message()))?;
         let (producer, fit) = JointBayesianArtifactWire::build(
             &self.identification,
             &self.request.model,
@@ -621,7 +620,7 @@ impl CompiledJointTransportPredictiveDecision {
             producer,
             decision,
             lowered_program_identity: self.lowered.identity(),
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
 
@@ -716,7 +715,7 @@ impl CompiledJointTransportPredictiveDecision {
     ) -> Result<Vec<u8>, JointTransportPredictiveDecisionError> {
         let replay = self.execute(ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
-            || result.calibration != "not_measured"
+            || result.calibration != self.unit_calibration()
             || result.fit != replay.fit
             || result.producer.export()? != replay.producer.export()?
             || result.decision.decision != replay.decision.decision
@@ -746,7 +745,7 @@ impl CompiledJointTransportPredictiveDecision {
             producer_artifact: replay.producer.export()?,
             chain_artifact: chain.export(&result.decision, artifact_id)?,
             program_identity: *self.lowered.identity().as_bytes(),
-            calibration: "not_measured".into(),
+            calibration: self.unit_calibration().into(),
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
@@ -776,7 +775,7 @@ pub fn consume_joint_transport_predictive_decision(
     let wire: PredictiveDecisionWire = antecedent_io::from_cbor(bytes)?;
     if wire.version != 2
         || wire.required_feature != FEATURE
-        || wire.calibration != "not_measured"
+        || wire.calibration != capability_calibration(TRANSPORT_JOINT_TRANSPORT_DECISION.as_str())
         || wire.program_identity != *expected_program.as_bytes()
     {
         return Err(JointTransportPredictiveDecisionError::Invalid(

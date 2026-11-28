@@ -580,6 +580,11 @@ pub fn execute_static_response_with_receipt(
     request: &StaticResponseRequest,
     ctx: &ExecutionContext,
 ) -> Result<StaticRecalcOutcome, RecalcRunError> {
+    super::recalc_receipt::require_recalc_unit(
+        Some(ctx),
+        "recalculation.static_response",
+        "antecedent.recalc_static.StaticResponseSession.execute",
+    )?;
     request.validate()?;
     let ids = request.identities();
     let plan = scope_plan(&session.previous, &ids, session.boundary, request.supported());
@@ -879,6 +884,11 @@ pub fn execute_mz_with_receipt(
     request: &MzRecalcRequest,
     ctx: &ExecutionContext,
 ) -> Result<StaticRecalcOutcome, RecalcRunError> {
+    super::recalc_receipt::require_recalc_unit(
+        Some(ctx),
+        "recalculation.static_response",
+        "antecedent.recalc_static.MultiSourceSession.execute",
+    )?;
     request.validate()?;
     let ids = request.identities();
     let plan = scope_plan(&session.previous, &ids, session.boundary, request.supported());

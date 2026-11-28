@@ -29,6 +29,11 @@ pub const VERSION: u32 = 1;
 pub const FEATURE: &str = "binary_verma_continuous_beta_slice_posterior_internal_v1";
 /// Exact declared sampling model.
 pub const SAMPLING: &str = "iid_multinomial_integer_counts_correctly_specified_verma_nested_markov";
+/// The calibration state of the binary nested-Markov unit this posterior candidate belongs to.
+#[must_use]
+pub fn calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("identify.binary_nested_markov")
+}
 
 /// Consumer-owned bounds; the artifact cannot raise any of these.
 #[derive(Clone, Copy, Debug)]
@@ -82,7 +87,8 @@ pub struct Artifact {
     pub coordinates: Vec<String>,
     /// Declared sampling assumption.
     pub sampling: String,
-    /// Original candidate standing remains `not_measured`; a distinct outer envelope resolves scalar authority.
+    /// The original candidate's unit calibration state ([`calibration`]); a distinct outer
+    /// envelope resolves scalar authority.
     pub calibration: String,
     /// Inferential standing, distinct from nonparametric identification.
     pub inference: String,
@@ -238,7 +244,7 @@ impl Artifact {
             rng: nested_markov_bayesian::RNG.into(),
             coordinates: nested_markov_bayesian::COORDINATES.iter().map(|s| (*s).into()).collect(),
             sampling: SAMPLING.into(),
-            calibration: "not_measured".into(),
+            calibration: calibration().into(),
             inference: "posterior_candidate_withheld_calibration_not_measured".into(),
             point,
             prior,
@@ -291,7 +297,7 @@ impl Artifact {
             || wire.rng != nested_markov_bayesian::RNG
             || wire.coordinates != nested_markov_bayesian::COORDINATES
             || wire.sampling != SAMPLING
-            || wire.calibration != "not_measured"
+            || wire.calibration != calibration()
             || wire.inference != "posterior_candidate_withheld_calibration_not_measured"
         {
             return Err(invalid("unsupported format or inferential standing"));

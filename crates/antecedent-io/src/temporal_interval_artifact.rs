@@ -20,9 +20,9 @@ use crate::temporal_initial_state_artifact::{InitialStateLawWire, hex64, mismatc
 use crate::temporal_refresh_artifact::ReceiptWire;
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::temporal_dependent_interval::{
-    DependentInterval, DependentIntervalConfig, INTERVAL_CALIBRATION_STATUS, INTERVAL_CLAIM,
-    IntervalMethod, ObservedStateSequence, SequenceHistory, TemporalEstimator, TemporalUnitPanel,
-    UnitHistories, dependent_unit_interval,
+    DependentInterval, DependentIntervalConfig, INTERVAL_CLAIM, IntervalMethod,
+    ObservedStateSequence, SequenceHistory, TemporalEstimator, TemporalUnitPanel, UnitHistories,
+    dependent_unit_interval, interval_calibration_status,
 };
 use antecedent_estimate::temporal_initial_state::{
     FixedStateEffect, FixedStateQuery, InitialStateSpec, MarginalizedEffect, MarginalizedQuery,
@@ -545,7 +545,7 @@ impl TemporalIntervalArtifactWire {
             return Err(mismatch(PREFIX, "seal"));
         }
         self.check_limits(limits)?;
-        if self.result.calibration != INTERVAL_CALIBRATION_STATUS
+        if self.result.calibration != interval_calibration_status()
             || self.result.claim != INTERVAL_CLAIM
         {
             return Err(mismatch(PREFIX, "calibration"));

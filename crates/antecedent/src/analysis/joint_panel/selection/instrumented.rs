@@ -547,10 +547,13 @@ impl InstrumentedSelectionResult {
     #[must_use]
     pub fn report(&self) -> serde_json::Value {
         let p = &self.procedure;
+        let calibration = crate::support::capability_calibration(
+            crate::support::units_generated::JOINT_RESPONSE_INTERVAL_READINGS.as_str(),
+        );
         serde_json::json!({"identity":self.identity.to_hex(),"selected":p.observed.action,
             "training_value":p.observed.training_value,"heldout":p.observed.heldout,
             "partition":p.partition,"repetitions":p.repetitions,"mean_optimism":p.mean_optimism,
-            "changed_selection":p.changed_selection,"calibration":"not_measured",
+            "changed_selection":p.changed_selection,"calibration":calibration,
             "uncertainty":"independent_heldout_full_joint_iv_delete_unit_contrast_covariance",
             "target":"homogeneous_structural_moment_model_population_increment"})
     }

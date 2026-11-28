@@ -104,7 +104,12 @@ pub(crate) fn require_decision_support<H>(
 where
     H: CompiledProgramHandle + ?Sized,
 {
-    if DECISION_SUPPORT_EARNED { require_handle_support(ctx, handle) } else { Ok(()) }
+    if DECISION_SUPPORT_EARNED {
+        require_handle_support(ctx, handle)
+    } else {
+        let _ = handle.support();
+        Ok(())
+    }
 }
 
 /// The support gate of the compiled route `route`, for an entry point that holds no handle
@@ -131,7 +136,12 @@ pub(crate) fn require_decision_route_support(
     ctx: &ExecutionContext,
     route: &'static str,
 ) -> Result<(), GraphImputationError> {
-    if DECISION_SUPPORT_EARNED { require_route_support(ctx, route) } else { Ok(()) }
+    if DECISION_SUPPORT_EARNED {
+        require_route_support(ctx, route)
+    } else {
+        let _ = crate::support::unit::route_decision(route);
+        Ok(())
+    }
 }
 
 /// A refusal of the native replay, in the engine's own terms. Calibration never refuses: an
@@ -1265,6 +1275,7 @@ mod compiled_tests {
             ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy,
             UtilityExpr,
         };
+        crate::evidence_unit!("capability", "graph_imputation.compiled_decision");
 
         let ctx = ExecutionContext::for_tests(19);
         let producer = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 40, false);

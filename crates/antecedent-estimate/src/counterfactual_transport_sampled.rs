@@ -1093,7 +1093,9 @@ pub fn estimate_sampled_counterfactual_transport_contrast(
         standard_error_withheld_reason,
         evidence_identity: evidence_identity(request, &tables, &mut work)?,
         sampled_units,
-        calibration: "not_measured",
+        calibration: antecedent_io_core::unit_calibration::capability(
+            "counterfactual.transport_sampled",
+        ),
     })
 }
 

@@ -22,6 +22,14 @@ impl SourceResolution {
         prepared: &crate::PreparedStudy,
         ctx: &ExecutionContext,
     ) -> Result<Self, SourceEvidenceError> {
+        crate::support::unit::require_program(
+            ctx,
+            &crate::support::unit::SupportKey::Unit(crate::support::UnitId::new(
+                "composition.source_evidence",
+            )),
+            "antecedent.source_evidence.SourceEvidence.resolve_with",
+        )
+        .map_err(|refusal| SourceEvidenceError { code: refusal.code(), detail: refusal.detail })?;
         let refuse =
             |detail| SourceEvidenceError { code: reason_code!("invalid_argument"), detail };
         if !evidence.is_native_source() {

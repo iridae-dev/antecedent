@@ -190,7 +190,7 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
         return fail("a Bayesian rollout section needs its posterior, a frequentist one none");
     }
     if (rollout.supported && !super::rollout_support::rollout_row_admits(&result.query, rollout))
-        || rollout.calibration != "not_measured"
+        || rollout.calibration != crate::unit_calibration::NOT_MEASURED
         || (!bayesian && result.standard_error.is_some())
         || result.interval_lower.is_some()
         || result.interval_upper.is_some()

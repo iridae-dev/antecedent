@@ -354,6 +354,15 @@ pub fn smoke() -> bool {
     !GATED.with(std::cell::Cell::get) && std::env::var(SMOKE_ENV).is_ok_and(|value| value == "1")
 }
 
+/// A fixed inner budget (draws, resamples, chain length, rows): `full` outside a
+/// [`smoke`] run, `floor.min(full)` inside one. `floor` must keep every count a
+/// support rule thresholds at or above its threshold, so a smoke run decides the
+/// same units on the same code paths, only cheaply.
+#[must_use]
+pub fn smoke_budget(full: usize, floor: usize) -> usize {
+    if smoke() { floor.min(full) } else { full }
+}
+
 /// Run `body` with the gate in force whatever [`SMOKE_ENV`] says: a test of the gate's own
 /// decision on a synthetic tally asserts that decision in every run.
 pub fn gated<R>(body: impl FnOnce() -> R) -> R {
@@ -1287,6 +1296,25 @@ impl CoverageTally {
         self
     }
 
+    /// Declare an evidence unit the record measures, for an execution that reports none (a
+    /// kernel below the facade, or a route whose result carries no unit): `kind` is `matrix`,
+    /// `construction`, `graphless` or `capability`, and `id` the unit's record id. Above the
+    /// facade the unit must be one the test executed (`scripts/evidence_links.py`).
+    ///
+    /// # Panics
+    ///
+    /// On a tally without a record.
+    #[must_use]
+    pub fn measures(mut self, kind: &str, id: &str) -> Self {
+        let name = self.name.clone();
+        self.record
+            .as_mut()
+            .unwrap_or_else(|| panic!("{name}: a declared unit needs a record"))
+            .units
+            .insert(format!("{kind}\t{id}"));
+        self
+    }
+
     /// A tally scored on the same replicates at a second level (the runtime's
     /// reported level when the gate asserts another). It is never asserted
     /// against the gate band as a pass/fail of the cargo test, but
@@ -1343,12 +1371,15 @@ impl CoverageTally {
         if let Some(unit) = &construction.unit {
             record.units.insert(unit.clone());
         }
+        // The unit is what one replicate's execution decided, not part of the construction:
+        // a data-dependent row admits some replicates and not others.
+        let keyed = Construction { unit: None, ..construction.clone() };
         match &record.construction {
             Some(seen) => assert_eq!(
-                seen, construction,
+                *seen, keyed,
                 "{name}: replicates were keyed under different constructions"
             ),
-            None => record.construction = Some(construction.clone()),
+            None => record.construction = Some(keyed),
         }
         match &record.validation {
             Some(previous) => assert_eq!(

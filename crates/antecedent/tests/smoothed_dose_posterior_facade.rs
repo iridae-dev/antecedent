@@ -23,8 +23,8 @@
 mod dgp;
 
 use antecedent::analysis::bayesian_posterior_row::{
-    POSTERIOR_ROW_CALIBRATION, POSTERIOR_ROW_UNCERTAINTY, PosteriorRowArtifactError,
-    PosteriorRowConsumeLimits, ResidualPriorWire,
+    POSTERIOR_ROW_UNCERTAINTY, PosteriorRowArtifactError, PosteriorRowConsumeLimits,
+    ResidualPriorWire, posterior_row_calibration,
 };
 use antecedent::analysis::consume_smoothed_dose_posterior_artifact;
 use antecedent::{PreparedSmoothedDose, StudyBuilder};
@@ -152,7 +152,7 @@ fn posterior_covers_the_closed_form_smoothed_target_under_both_designs() {
         let result = posterior.result();
         assert_eq!(result.estimator, SMOOTHED_DOSE_POSTERIOR_ESTIMATOR);
         assert_eq!(result.uncertainty, POSTERIOR_ROW_UNCERTAINTY);
-        assert_eq!(result.calibration, POSTERIOR_ROW_CALIBRATION);
+        assert_eq!(result.calibration, posterior_row_calibration(&result.estimator));
         assert!(!result.supported);
         assert_eq!(result.coordinates, ["psi_h(1)", "psi_h(2)", "psi_h(3)"]);
         assert_eq!(result.vectors["grid"], GRID);

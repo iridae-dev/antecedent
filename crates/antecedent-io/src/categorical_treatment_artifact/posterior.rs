@@ -1,6 +1,6 @@
 //! Optional posterior wire forms for categorical treatment artifacts.
 
-use super::{CATEGORICAL_TREATMENT_CALIBRATION, MonotonicityDirectionWire};
+use super::MonotonicityDirectionWire;
 use antecedent_estimate::categorical_treatment_posterior::{
     CATEGORICAL_POSTERIOR_ESTIMAND, CATEGORICAL_POSTERIOR_LIKELIHOOD,
     CategoricalTreatmentPosterior, ContrastPosterior,
@@ -116,7 +116,10 @@ pub(super) fn posterior_section(
         declaration: *declaration,
         likelihood: CATEGORICAL_POSTERIOR_LIKELIHOOD.to_owned(),
         estimand: CATEGORICAL_POSTERIOR_ESTIMAND.to_owned(),
-        calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
+        calibration: antecedent_io_core::unit_calibration::capability(
+            "estimate.categorical_treatment.bayesian",
+        )
+        .to_owned(),
         supported: false,
         variance_shape: posterior.variance_shape_and_scale.0,
         variance_scale: posterior.variance_shape_and_scale.1,

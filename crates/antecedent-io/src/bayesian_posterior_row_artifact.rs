@@ -42,7 +42,7 @@ use crate::dose_grid_functional_artifact::DoseFunctionalWire;
 pub const POSTERIOR_ROW_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const POSTERIOR_ROW_ARTIFACT_FEATURE: &str = "bayesian_posterior_row_v1";
-pub use antecedent_io_core::{POSTERIOR_ROW_CALIBRATION, POSTERIOR_ROW_UNCERTAINTY};
+pub use antecedent_io_core::{POSTERIOR_ROW_UNCERTAINTY, posterior_row_calibration};
 
 /// Estimator id of the randomized-dose grid posterior.
 pub const DOSE_GRID_POSTERIOR_ESTIMATOR: &str = "bayesian.dose_grid";
@@ -643,7 +643,7 @@ impl PosteriorRowArtifactWire {
             return Err(unsupported("the result is not of the requested estimator"));
         }
         if result.uncertainty != POSTERIOR_ROW_UNCERTAINTY
-            || result.calibration != POSTERIOR_ROW_CALIBRATION
+            || result.calibration != posterior_row_calibration(&result.estimator)
             || result.supported
         {
             return Err(unsupported(

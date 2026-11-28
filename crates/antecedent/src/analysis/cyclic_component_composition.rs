@@ -24,6 +24,7 @@ use antecedent_model::nonlinear_equilibrium::{
 
 use super::{PreparedStudy, Study};
 use crate::analysis::cyclic::{CyclicPreparedState, gate_decision};
+use crate::analysis::program_handle::CompiledProgramHandle as _;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -2030,7 +2031,7 @@ impl CompiledBoundedComponentPosteriorDecision {
             inner,
             decision,
             lowered_program_identity: self.lowered.identity(),
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
 
@@ -2045,7 +2046,7 @@ impl CompiledBoundedComponentPosteriorDecision {
     ) -> Result<Vec<u8>, JointComponentPosteriorError> {
         let live = self.execute(ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
-            || result.calibration != "not_measured"
+            || result.calibration != self.unit_calibration()
             || result.inner.lowered_program_identity != live.inner.lowered_program_identity
             || result.inner.child.lowered_program_identity
                 != live.inner.child.lowered_program_identity
@@ -2250,7 +2251,11 @@ impl CompiledBoundedComponentPosteriorDecision {
     ) -> Result<BoundedComponentReliabilityCandidate, JointComponentPosteriorError> {
         let scope = self.reliability_scope()?;
         let result = self.execute(ctx)?;
-        Ok(BoundedComponentReliabilityCandidate { result, scope, calibration: "not_measured" })
+        Ok(BoundedComponentReliabilityCandidate {
+            result,
+            scope,
+            calibration: self.unit_calibration(),
+        })
     }
 }
 
@@ -2366,6 +2371,7 @@ mod tests {
         use antecedent_estimate::cyclic_likelihood::CyclicParameter;
         use antecedent_io::quantity_wire::ScientificQuantityWire;
         use antecedent_model::nonlinear_equilibrium::RegimeRow;
+        crate::evidence_unit!("capability", "cyclic.component_posterior_decisions");
         let mut components = request();
         components.noise_covariance = vec![0.04, 0.0, 0.0, 0.04];
         components.worlds = vec![
@@ -2661,6 +2667,7 @@ mod tests {
         use antecedent_estimate::cyclic_likelihood::CyclicParameter;
         use antecedent_io::quantity_wire::ScientificQuantityWire;
         use antecedent_model::nonlinear_equilibrium::RegimeRow;
+        crate::evidence_unit!("capability", "cyclic.component_posterior_decisions");
         let original = request();
         let mut traffic = original.components[1].clone();
         traffic.interface.produces[0].name = "traffic".into();

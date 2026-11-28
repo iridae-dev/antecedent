@@ -28,8 +28,13 @@ use super::refusal::{PredictiveAssessmentError, detail, invalid, unsupported};
 
 /// The label every diagnostic carries.
 pub const DIAGNOSTIC_LABEL: &str = "diagnostic";
-/// The calibration status of every diagnostic of this route: not measured.
-pub const DIAGNOSTIC_CALIBRATION: &str = "not_measured";
+/// The calibration state of the calibration-diagnostics unit.
+#[must_use]
+pub fn diagnostic_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability(
+        "predictive_assessment.calibration_diagnostics",
+    )
+}
 /// Most PIT or reliability bins: a resolution bound, since each is a count over the cases.
 pub const MAX_BINS: usize = 100_000;
 /// Most interval levels: each is one quantile pass over the cases.
@@ -328,7 +333,7 @@ pub(crate) fn mean_predictive_sd(laws: &[ForecastLaw]) -> Option<f64> {
 pub struct CalibrationDiagnostics {
     /// Always [`DIAGNOSTIC_LABEL`].
     pub label: &'static str,
-    /// Always [`DIAGNOSTIC_CALIBRATION`].
+    /// Always [`diagnostic_calibration`].
     pub calibration: &'static str,
     /// PIT histogram, when every law is a law of an ordered outcome.
     pub pit: Option<PitDiagnostic>,
@@ -383,7 +388,7 @@ pub(crate) fn diagnose(
 ) -> CalibrationDiagnostics {
     CalibrationDiagnostics {
         label: DIAGNOSTIC_LABEL,
-        calibration: DIAGNOSTIC_CALIBRATION,
+        calibration: diagnostic_calibration(),
         pit: pit_diagnostic(laws, outcomes, pit_bins),
         reliability: reliability_diagnostic(laws, outcomes, reliability_bins),
         coverage: if levels.is_empty() {
@@ -414,7 +419,7 @@ pub fn pit_available_for(kind: LawKind) -> bool {
 pub struct DistributionDrift {
     /// Always [`DIAGNOSTIC_LABEL`].
     pub label: &'static str,
-    /// Always [`DIAGNOSTIC_CALIBRATION`]: no significance level is attached.
+    /// Always [`diagnostic_calibration`]: no significance level is attached.
     pub calibration: &'static str,
     /// Name of the route: `distribution_drift`.
     pub route: &'static str,
@@ -504,7 +509,7 @@ pub fn distribution_drift(
     }
     Ok(DistributionDrift {
         label: DIAGNOSTIC_LABEL,
-        calibration: DIAGNOSTIC_CALIBRATION,
+        calibration: diagnostic_calibration(),
         route: "distribution_drift",
         reference_cases: a.len(),
         comparison_cases: b.len(),

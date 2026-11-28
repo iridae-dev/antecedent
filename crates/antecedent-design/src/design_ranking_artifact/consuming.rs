@@ -3,14 +3,14 @@
 use super::{
     AdjacentRank, BTreeMap, BTreeSet, Baseline, ConsumeExpectation, ConsumedCandidate,
     ConsumedDesignRanking, CostToUtilityMap, DESIGN_RANKING_ARTIFACT_KIND,
-    DESIGN_RANKING_ARTIFACT_VERSION, DESIGN_RANKING_CALIBRATION, DecisionWire,
-    DeclaredObservations, DesignRankingArtifactError, DesignRankingArtifactWire,
-    DesignRankingBasis, DesignRankingReadLimits, EvsiCandidateWire, EvsiRankRow, LawWire,
-    ObservationOverlap, PriorWire, ProviderObjectIdentity, RankingError, RankingRecord, Result,
-    ScientificQuantity, SearchReceipt, SignalLimits, SignalReceipt, SignalRequest,
-    SignalTrustLabel, SignalUpdateMode, UtilityWire, baseline, close, declared_overlap,
-    evsi_bound_ok, is_blank, is_native, parse_method, parse_mode, parse_trust, rank_basis,
-    rank_rows, recompute, rectangular,
+    DESIGN_RANKING_ARTIFACT_VERSION, DecisionWire, DeclaredObservations,
+    DesignRankingArtifactError, DesignRankingArtifactWire, DesignRankingBasis,
+    DesignRankingReadLimits, EvsiCandidateWire, EvsiRankRow, LawWire, ObservationOverlap,
+    PriorWire, ProviderObjectIdentity, RankingError, RankingRecord, Result, ScientificQuantity,
+    SearchReceipt, SignalLimits, SignalReceipt, SignalRequest, SignalTrustLabel, SignalUpdateMode,
+    UtilityWire, baseline, close, declared_overlap, design_ranking_calibration, evsi_bound_ok,
+    is_blank, is_native, parse_method, parse_mode, parse_trust, rank_basis, rank_rows, recompute,
+    rectangular,
 };
 
 fn check_bounds(wire: &DesignRankingArtifactWire, limits: &DesignRankingReadLimits) -> Result<()> {
@@ -511,7 +511,7 @@ pub fn consume_wire_with_limits(
     {
         return Err(DesignRankingArtifactError::ExpectedIdentityMismatch);
     }
-    if wire.calibration != DESIGN_RANKING_CALIBRATION {
+    if wire.calibration != design_ranking_calibration() {
         return Err(DesignRankingArtifactError::InvalidWire("calibration label"));
     }
     if !(wire.mc_error_tolerance.is_finite()
@@ -589,7 +589,7 @@ pub fn consume_wire_with_limits(
         ranking,
         identity: digest,
         candidates: consumed,
-        calibration: DESIGN_RANKING_CALIBRATION,
+        calibration: design_ranking_calibration(),
         provenance_chain,
     })
 }

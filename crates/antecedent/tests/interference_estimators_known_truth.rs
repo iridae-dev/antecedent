@@ -20,11 +20,12 @@
 //!   contrast is the difference of two independent Dirichlet(1, ..., 1) weighted means of the
 //!   arm totals, so its mean is the contrast and its variance is
 //!   `(Sum x^2 / m - mean^2) / (m + 1)` per arm; the draws are a Monte Carlo sample of that
-//!   posterior and are held to six standard errors of the mean. With the three clusters per
-//!   arm of the Neyman fixture the posterior is the Student-t reference law of few clusters,
-//!   centred at 2 with scale `sqrt(4) = 2` and Welch-Satterthwaite degrees of freedom
-//!   `4^2 / (3^2 / 2 + 1^2 / 2) = 3.2`; the draws are that law's quantile grid, so their mean
-//!   is 2 and their central 95% interval is `2 -+ 2 t(0.975; 3.2)`;
+//!   posterior and are held to six standard errors of the mean. With the Neyman fixture
+//!   replicated three times (nine clusters per arm, treated totals 3, 6, 9 and control totals
+//!   3, 6, 3 each thrice) the posterior is the Student-t reference law of few clusters,
+//!   centred at 2 with scale `sqrt(6.75 / 9 + 2.25 / 9) = 1` and Welch-Satterthwaite degrees
+//!   of freedom `1^2 / (0.75^2 / 8 + 0.25^2 / 8) = 12.8`; the draws are that law's quantile
+//!   grid, so their mean is 2 and their central 95% interval is `2 -+ t(0.975; 12.8)`;
 //! * saturation: outcomes are a deterministic function `1 + 2 own + 3 f + 4 own f` of the
 //!   exposure `(own, f)`, so the Hajek contrast is the difference of that function at the two
 //!   levels, and the Horvitz-Thompson contrast is rebuilt from the exact level probabilities
@@ -52,6 +53,7 @@ use retained::run_retained;
 
 use std::sync::Arc;
 
+use antecedent::support::UnitRef;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, InterferenceSpec, RefuteSuite,
     Study, StudyBuilder, StudyResult,
@@ -343,8 +345,6 @@ fn cluster_design() -> Design {
 }
 
 struct ClusterTruth {
-    treated: Vec<f64>,
-    control: Vec<f64>,
     horvitz_thompson: f64,
     hajek: f64,
     variance: f64,
@@ -397,7 +397,7 @@ fn cluster_truth() -> ClusterTruth {
     assert!((horvitz_thompson - 2.0).abs() < 1e-12);
     assert!((variance - 4.0).abs() < 1e-12);
     assert!((hajek - 3.5).abs() < 1e-12);
-    ClusterTruth { treated, control, horvitz_thompson, hajek, variance }
+    ClusterTruth { horvitz_thompson, hajek, variance }
 }
 
 /// Mean and variance, over the 20 equally likely allocations of 3 of 6 clusters, of the
@@ -609,22 +609,94 @@ fn cluster_bayesian_bootstrap_matches_the_dirichlet_posterior_moments_on_every_c
     });
 }
 
+/// Copies of the Neyman fixture in the few-cluster reference design: nine clusters per arm, at
+/// the reference posterior row's floor and below the fifty of the Dirichlet law.
+const REFERENCE_REPLICAS: usize = 3;
+
+const REFERENCE_ROW: &str = "interference:cluster_randomization_total:\
+                             cluster_student_reference_posterior:\
+                             exposure_contrast_pointwise_95_posterior_quantiles";
+
+fn reference_cluster_ids() -> Vec<u32> {
+    (0..REFERENCE_REPLICAS)
+        .flat_map(|replica| CLUSTER_IDS.iter().map(move |&cluster| cluster + 6 * replica as u32))
+        .collect()
+}
+
+fn reference_cluster_outcomes() -> Vec<f64> {
+    (0..REFERENCE_REPLICAS).flat_map(|_| CLUSTER_Y).collect()
+}
+
+fn reference_cluster_design() -> Design {
+    let ids = reference_cluster_ids();
+    let assignment: Vec<bool> =
+        ids.iter().map(|&cluster| CLUSTER_TREATED[cluster as usize % 6]).collect();
+    Design::new(
+        reference_cluster_outcomes(),
+        &within_cluster_edges(&ids),
+        assignment,
+        contrast_query(
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from(ids),
+                treated_clusters: 3 * REFERENCE_REPLICAS,
+            },
+            ExposureMapping::NeighborFraction,
+            (0.0, 0.0),
+            (1.0, 1.0),
+        ),
+    )
+}
+
+/// `(contrast, conservative variance, Welch-Satterthwaite degrees of freedom)` of the replicated
+/// fixture from their definitions: scaled cluster totals `total * K / n`, the difference of arm
+/// means, the sum of the two `s^2 / m` terms, and `(v_1 + v_0)^2 / (v_1^2 / (m - 1) + v_0^2 /
+/// (m - 1))`.
+fn reference_cluster_truth() -> (f64, f64, f64) {
+    let (ids, outcomes) = (reference_cluster_ids(), reference_cluster_outcomes());
+    let k = 6 * REFERENCE_REPLICAS;
+    let mut totals = vec![0.0_f64; k];
+    for (unit, &cluster) in ids.iter().enumerate() {
+        totals[cluster as usize] += outcomes[unit];
+    }
+    let scale = k as f64 / ids.len() as f64;
+    let scaled = |treated: bool| -> Vec<f64> {
+        (0..k).filter(|&c| CLUSTER_TREATED[c % 6] == treated).map(|c| totals[c] * scale).collect()
+    };
+    let (treated, control) = (scaled(true), scaled(false));
+    assert_eq!((treated.len(), control.len()), (9, 9));
+    for (got, want) in treated.iter().zip([3.0_f64, 6.0, 9.0].repeat(REFERENCE_REPLICAS)) {
+        assert!((got - want).abs() < 1e-12);
+    }
+    for (got, want) in control.iter().zip([3.0_f64, 6.0, 3.0].repeat(REFERENCE_REPLICAS)) {
+        assert!((got - want).abs() < 1e-12);
+    }
+    let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+    let horvitz_thompson = mean(&treated) - mean(&control);
+    let arm = |totals: &[f64]| sample_variance(totals) / totals.len() as f64;
+    let (treated_variance, control_variance) = (arm(&treated), arm(&control));
+    let variance = treated_variance + control_variance;
+    let df = variance.powi(2)
+        / (treated_variance.powi(2) / (treated.len() - 1) as f64
+            + control_variance.powi(2) / (control.len() - 1) as f64);
+    // The hand-counted values stated in the module documentation.
+    assert!((horvitz_thompson - 2.0).abs() < 1e-12);
+    assert!((treated_variance - 0.75).abs() < 1e-12);
+    assert!((control_variance - 0.25).abs() < 1e-12);
+    assert!((df - 12.8).abs() < 1e-12);
+    (horvitz_thompson, variance, df)
+}
+
 #[test]
 fn cluster_bayesian_bootstrap_of_few_clusters_is_the_student_reference_law_on_every_coordinate() {
     on_large_stack(|| {
         const DRAWS: usize = 20_000;
-        let truth = cluster_truth();
-        let design = cluster_design();
-        // Three clusters per arm is below the fifty at which the Dirichlet weights carry the
+        // Nine clusters per arm is below the fifty at which the Dirichlet weights carry the
         // spread of an arm mean, so the posterior is the Student-t reference law: centred at the
-        // design-based contrast, scale the cluster Neyman standard error sqrt(9/3 + 3/3) = 2,
-        // Welch-Satterthwaite degrees of freedom 4^2 / (3^2 / 2 + 1^2 / 2) = 3.2.
-        let arm = |totals: &[f64]| sample_variance(totals) / totals.len() as f64;
-        let (treated, control) = (arm(&truth.treated), arm(&truth.control));
-        assert!((treated + control - truth.variance).abs() < 1e-12);
-        let scale = truth.variance.sqrt();
-        let df = truth.variance.powi(2) / (treated.powi(2) / 2.0 + control.powi(2) / 2.0);
-        assert!((df - 3.2).abs() < 1e-12);
+        // design-based contrast, scale the cluster Neyman standard error, Welch-Satterthwaite
+        // degrees of freedom.
+        let (horvitz_thompson, variance, df) = reference_cluster_truth();
+        let design = reference_cluster_design();
+        let scale = variance.sqrt();
         let half = scale * antecedent_stats::student_t_ppf(0.975, df);
         // The draws are the law's symmetric quantile grid, so their mean is its centre; draws
         // resampled across structures are held to six standard errors of the mean.
@@ -633,32 +705,29 @@ fn cluster_bayesian_bootstrap_of_few_clusters_is_the_student_reference_law_on_ev
             &design,
             &InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(DRAWS)),
             EstimatorId::InterferenceClusterBayesianBootstrap,
-            truth.horvitz_thompson,
+            horvitz_thompson,
             mean_tolerance,
             9_102,
             &|result: &StudyResult, suite: RefuteSuite, label: &str| {
                 let posterior = result.posterior.as_ref().expect("a contrast posterior");
                 assert_eq!(posterior.draws.n_draws, DRAWS, "{label}");
                 let column = posterior.effect_column().unwrap();
-                near(
-                    posterior.summaries.mean[column],
-                    truth.horvitz_thompson,
-                    mean_tolerance,
-                    label,
-                );
+                near(posterior.summaries.mean[column], horvitz_thompson, mean_tolerance, label);
                 // The central 95% interval is the design-based contrast plus and minus the
                 // Student-t critical value times the standard error, to within 1%.
-                near(
-                    posterior.summaries.q025[column],
-                    truth.horvitz_thompson - half,
-                    0.01 * half,
-                    label,
+                near(posterior.summaries.q025[column], horvitz_thompson - half, 0.01 * half, label);
+                near(posterior.summaries.q975[column], horvitz_thompson + half, 0.01 * half, label);
+                assert!(
+                    result.diagnostics.iter().any(|diagnostic| {
+                        diagnostic.code.as_ref()
+                            == antecedent_io::graphless_support::DESIGN_POSTERIOR_ROW_CODE
+                    }),
+                    "{label}: the fit states its support row"
                 );
-                near(
-                    posterior.summaries.q975[column],
-                    truth.horvitz_thompson + half,
-                    0.01 * half,
-                    label,
+                assert_eq!(
+                    result.unit().map(UnitRef::record_id).as_deref(),
+                    Some(REFERENCE_ROW),
+                    "{label}"
                 );
                 let found = ids(result);
                 if suite == RefuteSuite::None {
@@ -667,7 +736,11 @@ fn cluster_bayesian_bootstrap_of_few_clusters_is_the_student_reference_law_on_ev
                     // The model-based route reports no design-based estimate, so only the
                     // realized cluster allocation is checked.
                     assert_eq!(found, ["interference.assignment_calibration"], "{label}");
-                    assert_cluster_calibration(result, label);
+                    assert_treated_cluster_calibration(
+                        result,
+                        (3 * REFERENCE_REPLICAS) as f64,
+                        label,
+                    );
                 }
             },
         );

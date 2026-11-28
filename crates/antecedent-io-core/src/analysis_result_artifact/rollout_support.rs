@@ -19,18 +19,28 @@ use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 /// rows on each side, the analysed rows, the first-stage estimate over its standard error
 /// (infinite for a first stage without error) and the replicates or draws behind the interval.
 #[must_use]
+pub fn local_design_row_admits(selected_bandwidth: bool, section: &QuasiRolloutWire) -> bool {
+    local_design_row(selected_bandwidth, section).is_some_and(|row| row.admitted)
+}
+
+/// [`local_design_row_admits`] with the row it decided under; `None` when the section's design
+/// or interval procedure has no row.
+#[must_use]
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     reason = "a count diagnostic is checked finite and non-negative before it is read as a count"
 )]
-pub fn local_design_row_admits(selected_bandwidth: bool, section: &QuasiRolloutWire) -> bool {
+pub fn local_design_row(
+    selected_bandwidth: bool,
+    section: &QuasiRolloutWire,
+) -> Option<RolloutRowDecision> {
     let (design, polynomial) = match section.design.as_str() {
         "fuzzy_rd" => ("fuzzy_jump", "local_quadratic_cubic"),
         "regression_kink" => ("regression_kink", "local_quartic_slope"),
         "temporal_fuzzy_rd" => ("temporal_fuzzy_jump", "local_quadratic_cubic"),
         "temporal_regression_kink" => ("temporal_regression_kink", "local_quartic_slope"),
-        _ => return false,
+        _ => return None,
     };
     let (procedure, inference_claim) = match (section.uncertainty.as_str(), selected_bandwidth) {
         ("rbc_hc0_delta_normal_at_selected_bandwidth", true) => {
@@ -45,7 +55,7 @@ pub fn local_design_row_admits(selected_bandwidth: bool, section: &QuasiRolloutW
         ("bayesian_within_side_block_bootstrap_credible_interval", false) => {
             ("rbc_prewhitened_block_bayesian_bootstrap", "pointwise_95_posterior_quantiles")
         }
-        _ => return false,
+        _ => return None,
     };
     let method = format!("{polynomial}_{procedure}");
     let count = |name: &str| {
@@ -69,7 +79,7 @@ pub fn local_design_row_admits(selected_bandwidth: bool, section: &QuasiRolloutW
             _ => 0.0,
         };
     let published = section.effects.first().is_some_and(|effect| effect.interval.is_some());
-    crate::graphless_support::graphless_admits_resampled(
+    let admitted = crate::graphless_support::graphless_admits_resampled(
         crate::graphless_support::GraphlessSupportKey {
             family: "local_polynomial_ratio",
             design,
@@ -89,7 +99,14 @@ pub fn local_design_row_admits(selected_bandwidth: bool, section: &QuasiRolloutW
             first_stage_t,
             interval_resamples: section.replicates_ok as usize,
         },
-    )
+    );
+    Some(RolloutRowDecision {
+        family: "local_polynomial_ratio",
+        design,
+        method,
+        inference_claim,
+        admitted,
+    })
 }
 
 /// A named count diagnostic of a section; zero when absent or not a count.
@@ -254,23 +271,23 @@ pub fn did_rollout_row(
                 method: &method,
                 inference_claim,
             },
-        crate::graphless_support::GraphlessAssignmentSupport {
-            assignment_unit: "cluster",
-            treated,
-            control: never_treated,
-            interval_95_published: published,
-            rows,
-            blocks: clusters,
-            min_probability,
-            reported_intervals: usize::from(published),
-            covariates: spec.covariates,
-            ..Default::default()
-        },
-        crate::graphless_support::GraphlessResampleSupport {
-            interval_resamples: section.replicates_ok as usize,
-            ..Default::default()
-        },
-    );
+            crate::graphless_support::GraphlessAssignmentSupport {
+                assignment_unit: "cluster",
+                treated,
+                control: never_treated,
+                interval_95_published: published,
+                rows,
+                blocks: clusters,
+                min_probability,
+                reported_intervals: usize::from(published),
+                covariates: spec.covariates,
+                ..Default::default()
+            },
+            crate::graphless_support::GraphlessResampleSupport {
+                interval_resamples: section.replicates_ok as usize,
+                ..Default::default()
+            },
+        );
     Some(RolloutRowDecision {
         family: "difference_in_differences",
         design,

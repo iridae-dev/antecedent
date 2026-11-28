@@ -13,11 +13,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_io::array_fit_artifact::{
-    ARRAY_FIT_ARTIFACT_FEATURE, ARRAY_FIT_ARTIFACT_VERSION, ARRAY_FIT_CALIBRATION,
-    ARRAY_FIT_SUPPORT, ArrayFitArtifactWire, ArrayFitConsumeLimits, ArrayFitError,
-    ArrayFitRequestWire, ArrayFitResultWire, ID_BAYESIAN_PROPENSITY,
-    ID_BAYESIAN_TEMPORAL_PROPENSITY, ID_TEMPORAL_PROPENSITY, NamedValueWire, PenalizedScoreWire,
-    PropensityDesignWire, PropensityPosteriorWire, PropensityScorePosteriorWire,
+    ARRAY_FIT_ARTIFACT_FEATURE, ARRAY_FIT_ARTIFACT_VERSION, ARRAY_FIT_SUPPORT,
+    ArrayFitArtifactWire, ArrayFitConsumeLimits, ArrayFitError, ArrayFitRequestWire,
+    ArrayFitResultWire, ID_BAYESIAN_PROPENSITY, ID_BAYESIAN_TEMPORAL_PROPENSITY,
+    ID_TEMPORAL_PROPENSITY, NamedValueWire, PenalizedScoreWire, PropensityDesignWire,
+    PropensityPosteriorWire, PropensityScorePosteriorWire, array_fit_calibration,
 };
 
 use antecedent_core::{

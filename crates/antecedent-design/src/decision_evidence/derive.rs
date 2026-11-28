@@ -785,7 +785,9 @@ pub(super) fn derive_uncalibrated(
             unresolved,
             standing,
             support: "none",
-            calibration: "not_measured",
+            calibration: antecedent_io_core::unit_calibration::capability(
+                "decision.experimental_margin.interval_candidates",
+            ),
             interval_statement: match evidence.design.assignment_design.as_str() {
                 "matched_pairs" => {
                     "first-order delta method through the paired-cluster covariance, with a Student reference using pairs minus one degrees of freedom; calibration is not_measured and no component support is inherited"

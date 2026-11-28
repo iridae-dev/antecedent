@@ -86,7 +86,8 @@ fn measure(
             },
         },
         0.95,
-    );
+    )
+    .measures("capability", "recalculation.temporal");
     let results = map_replicates(n_sim(), |rep| {
         let seed = grid_seed(0x317b_0000 + rep);
         let context = ExecutionContext::for_tests(seed);

@@ -67,7 +67,8 @@ fn measure(test: &'static str, expected_id: &str) {
             interval: interval_name,
         },
         0.95,
-    );
+    )
+    .measures("capability", "temporal.dependent_interval");
     let results = map_replicates(n_sim(), |rep| {
         let seed = grid_seed(0x45ab_0000 + rep);
         dependent_unit_interval(

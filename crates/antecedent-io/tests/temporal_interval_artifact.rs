@@ -11,9 +11,9 @@ use std::collections::BTreeSet;
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::temporal_dependent_interval::{
-    DependentIntervalConfig, INTERVAL_CALIBRATION_STATUS, INTERVAL_CLAIM, IntervalMethod,
-    ObservedStateSequence, SequenceHistory, TemporalEstimator, TemporalUnitPanel, UnitHistories,
-    dependent_unit_interval,
+    DependentIntervalConfig, INTERVAL_CLAIM, IntervalMethod, ObservedStateSequence,
+    SequenceHistory, TemporalEstimator, TemporalUnitPanel, UnitHistories, dependent_unit_interval,
+    interval_calibration_status,
 };
 use antecedent_estimate::temporal_initial_state::{
     InitialStateLaw, InitialStatePopulation, InitialStateSpec, MarginalizedQuery,
@@ -135,7 +135,7 @@ fn dependent_interval_artifact_replays_the_whole_resampling() {
     assert_eq!(replayed, interval);
     assert_eq!(decoded.result.replicates.len(), 40);
     assert_eq!(decoded.result.calibration, "not_measured");
-    assert_eq!(decoded.result.calibration, INTERVAL_CALIBRATION_STATUS);
+    assert_eq!(decoded.result.calibration, interval_calibration_status());
     assert_eq!(decoded.result.claim, INTERVAL_CLAIM);
     assert_eq!(decoded.result.units, 24);
     assert_eq!(decoded.result.snapshot_id, SNAPSHOT);

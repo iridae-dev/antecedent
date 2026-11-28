@@ -88,8 +88,11 @@ use super::selective_discovery::discovery_rows_source;
 
 const BINDING_TAG: &str = "antecedent.sample_split_analysis.binding.v1";
 
-/// The standing of whole-method calibration for a split analysis: recorded, not measured.
-pub const WHOLE_METHOD_CALIBRATION: &str = "not_measured";
+/// The standing of whole-method calibration for a split analysis: the state of its unit.
+#[must_use]
+pub fn whole_method_calibration() -> &'static str {
+    crate::support::capability_calibration("discovery.sample_split_analysis")
+}
 
 /// A split, the discovery run on its discovery part, and the receipt tying them together.
 #[derive(Debug)]
@@ -124,10 +127,10 @@ impl AnalysisBinding {
         true
     }
 
-    /// Standing of the whole-method calibration: always [`WHOLE_METHOD_CALIBRATION`].
+    /// Standing of the whole-method calibration: [`whole_method_calibration`].
     #[must_use]
-    pub const fn whole_method_calibration(&self) -> &'static str {
-        WHOLE_METHOD_CALIBRATION
+    pub fn whole_method_calibration(&self) -> &'static str {
+        whole_method_calibration()
     }
 }
 
@@ -424,7 +427,7 @@ pub struct SplitEffectInterval {
     /// Degrees of freedom of the Student quantile: the effective sample size of the rows used
     /// (the row count when unweighted) less the regression's coefficients.
     pub degrees_of_freedom: f64,
-    /// Standing of the whole-method calibration: always [`WHOLE_METHOD_CALIBRATION`]. The
+    /// Standing of the whole-method calibration: [`whole_method_calibration`]. The
     /// design that measures it is `tests/sample_split_weighted_effect_calibration.rs`.
     pub calibration: &'static str,
 }
@@ -472,7 +475,7 @@ impl SplitAnalysisEffect {
             lower: self.effect - quantile * self.standard_error,
             upper: self.effect + quantile * self.standard_error,
             degrees_of_freedom,
-            calibration: WHOLE_METHOD_CALIBRATION,
+            calibration: whole_method_calibration(),
         })
     }
 }

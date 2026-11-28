@@ -476,7 +476,8 @@ fn score(
     runs: &[Option<Scored>],
     gated: bool,
 ) -> (CoverageTally, CoverageTally, CoverageTally) {
-    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut tally = CoverageTally::for_record(key, LEVEL)
+        .measures("capability", "discovery.sample_split_effect");
     let mut reported = CoverageTally::new(format!("{} reported", key.test), LEVEL);
     let mut recovery = CoverageTally::new(format!("{} recovered", key.test), LEVEL);
     for run in runs {

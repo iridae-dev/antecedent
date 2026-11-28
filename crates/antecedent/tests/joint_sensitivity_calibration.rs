@@ -389,7 +389,8 @@ fn z_joint_sensitivity_zero_box() {
             interval: INTERVAL,
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "sensitivity.joint_uncertainty");
     measure(&mut tally, 0.0, n);
     tally.assert();
 }
@@ -405,7 +406,8 @@ fn z_joint_sensitivity_positive_box() {
             interval: INTERVAL,
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "sensitivity.joint_uncertainty");
     measure(&mut tally, 0.05, n);
     tally.assert_one_sided(CoverageSide::Upper, UPPER_TARGET);
 }

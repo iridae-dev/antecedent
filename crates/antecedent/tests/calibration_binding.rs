@@ -26,7 +26,7 @@ use antecedent_estimate::{
 };
 use antecedent_graph::{Dag, DenseNodeId};
 
-use common::calibration::gaussian;
+use common::calibration::{Construction, gaussian};
 use common::calibration_bind::constructions;
 use common::estimator_level::{CASES, case_for};
 
@@ -339,7 +339,9 @@ fn estimator_level_records_key_the_facade_construction() {
         let reported = constructions(&contract, &result);
         let expected = case_for(case.test).construction();
         assert!(
-            reported.iter().any(|(construction, _, _)| *construction == expected),
+            reported.iter().any(|(construction, _, _)| {
+                Construction { unit: None, ..construction.clone() } == expected
+            }),
             "{}: the facade reports {:#?}, not the construction the record claims {expected:#?}",
             case.test,
             reported.iter().map(|(c, _, _)| c).collect::<Vec<_>>()

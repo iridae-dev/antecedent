@@ -276,6 +276,12 @@ impl CompositeSession {
         providers: &mut BTreeMap<Branch, &mut dyn ExternalMeanProvider>,
         ctx: &ExecutionContext,
     ) -> Result<CompositeOutcome, CompositeError> {
+        super::recalc_receipt::require_recalc_unit(
+            Some(ctx),
+            "recalculation.composite",
+            "antecedent.recalc_composite.CompositeSession.execute",
+        )
+        .map_err(CompositeError::Native)?;
         let (ids, cap) = self.inputs(request)?;
         let previous = self.previous.clone();
         let plan = RecalcPlan::plan(&previous, &ids, &cap);

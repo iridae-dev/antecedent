@@ -23,7 +23,7 @@ use super::request::{
 use super::result::{
     AnalyticCharacteristics, FamilyCharacteristics, PlanningResult, SequentialCharacteristics,
 };
-use super::{PLANNING_CALIBRATION, RELAX_TARGET};
+use super::{RELAX_TARGET, planning_calibration};
 
 /// Largest size scanned for the design's smallest feasible size.
 const MINIMUM_SCAN: u64 = 100_000;
@@ -1557,7 +1557,7 @@ pub fn plan_analytic(request: &PlanningRequest) -> Result<PlanningResult, Planni
         },
         simulation: None,
         assumptions: planner.assumption_labels(),
-        calibration: PLANNING_CALIBRATION,
+        calibration: planning_calibration(),
     })
 }
 

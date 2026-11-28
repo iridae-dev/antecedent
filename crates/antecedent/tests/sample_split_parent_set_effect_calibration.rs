@@ -456,7 +456,8 @@ fn gated(test: &'static str, design: Design) {
         }
     };
     let key = RecordKey { test, dgp, interval: INTERVAL };
-    let tally = CoverageTally::for_record(key, LEVEL);
+    let tally = CoverageTally::for_record(key, LEVEL)
+        .measures("capability", "discovery.sample_split_parent_set_effect");
     let mut tally =
         if protocol_version() == 1 { tally } else { tally.labelled("discovery_fraction_0_75") };
     for scored in runs.iter().flatten() {
@@ -507,7 +508,8 @@ fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
             eprintln!("{test}: no replicate reported an interval; no record is emitted");
             return;
         }
-        let mut tally = CoverageTally::for_record(key, LEVEL);
+        let mut tally = CoverageTally::for_record(key, LEVEL)
+            .measures("capability", "discovery.sample_split_parent_set_effect");
         for scored in runs.iter().flatten() {
             let mut construction = scored.construction.0.clone();
             let head = construction.functional.split_once(".topology_").unwrap().0;
@@ -547,8 +549,9 @@ fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
         posterior_draws: None,
         unidentified_mass: 0.0,
     };
-    let mut tally =
-        CoverageTally::for_record(key, LEVEL).labelled("discovery_fraction_0_75.whole_procedure");
+    let mut tally = CoverageTally::for_record(key, LEVEL)
+        .labelled("discovery_fraction_0_75.whole_procedure")
+        .measures("capability", "discovery.sample_split_parent_set_effect");
     for run in &runs {
         tally.bind_validation(&construction, requested, "not_applicable");
         match run {

@@ -44,8 +44,11 @@ use serde::{Deserialize, Serialize};
 pub const MECHANISM_DISCREPANCY_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const MECHANISM_DISCREPANCY_ARTIFACT_FEATURE: &str = "mechanism_discrepancy_v1";
-/// Calibration coordinate of this test: Type I error and power were not measured.
-pub const MECHANISM_DISCREPANCY_CALIBRATION: &str = "not_measured";
+/// The calibration state of the mechanism-discrepancy unit: Type I error and power.
+#[must_use]
+pub fn mechanism_discrepancy_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("sensitivity.mechanism_discrepancy")
+}
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
@@ -676,7 +679,7 @@ fn check_semantics(
     }
     crate::artifact_codec::require_markers::<E>(&[
         (meta.inference_claim == MECHANISM_DISCREPANCY_INFERENCE_CLAIM, "inference claim"),
-        (meta.calibration == MECHANISM_DISCREPANCY_CALIBRATION, "calibration"),
+        (meta.calibration == mechanism_discrepancy_calibration(), "calibration"),
         (
             meta.caveats == [MECHANISM_DISCREPANCY_CAVEAT, MECHANISM_DISCREPANCY_POWER_CAVEAT],
             "caveats",
@@ -711,7 +714,7 @@ impl MechanismDiscrepancyArtifact {
             feature: MECHANISM_DISCREPANCY_ARTIFACT_FEATURE.to_owned(),
             null: MECHANISM_DISCREPANCY_NULL.to_owned(),
             inference_claim: MECHANISM_DISCREPANCY_INFERENCE_CLAIM.to_owned(),
-            calibration: MECHANISM_DISCREPANCY_CALIBRATION.to_owned(),
+            calibration: mechanism_discrepancy_calibration().to_owned(),
             alpha: request.alpha,
             power: request.power,
             compare_intercept: request.compare_intercept,

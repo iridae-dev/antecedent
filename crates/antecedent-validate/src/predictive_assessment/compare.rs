@@ -192,7 +192,7 @@ pub(crate) fn difference(
         pairing: "paired_on_shared_observations",
         fit_overlap,
         label: super::calibration::DIAGNOSTIC_LABEL,
-        calibration: super::calibration::DIAGNOSTIC_CALIBRATION,
+        calibration: super::calibration::diagnostic_calibration(),
         interval: "not_reported",
     })
 }

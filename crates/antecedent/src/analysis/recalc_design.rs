@@ -454,6 +454,11 @@ pub fn execute_design_with_receipt(
     r: &DesignRequest,
     ctx: &ExecutionContext,
 ) -> Result<RecalcOutcome, DesignRunError> {
+    super::recalc_receipt::require_recalc_unit(
+        Some(ctx),
+        "recalculation.design_specific",
+        "antecedent.recalc_design.DesignSession.execute",
+    )?;
     r.validate()?;
     let requested = r.identities(ctx);
     let plan = session.plan(r, ctx);

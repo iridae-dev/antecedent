@@ -119,8 +119,14 @@ pub struct StudyRank {
     pub net_value: f64,
     /// Whether the order against the next candidate is not established by the method.
     pub rank_uncertain: bool,
-    /// Calibration of this study-value estimate; always `not_measured`.
+    /// The calibration state of the study-ranking unit ([`study_rank_calibration`]).
     pub calibration: &'static str,
+}
+
+/// The calibration state of the choice study-ranking unit.
+#[must_use]
+pub fn study_rank_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("design.evsi")
 }
 
 /// Visit count vectors in lexicographic order with one heap buffer and no recursive stack.
@@ -376,7 +382,7 @@ pub fn rank_studies_with_context(
             method,
             net_value: evsi - c.cost,
             rank_uncertain: false,
-            calibration: "not_measured",
+            calibration: study_rank_calibration(),
         });
     }
     rows.sort_by(|a, b| b.net_value.total_cmp(&a.net_value));
@@ -707,7 +713,7 @@ pub fn rank_hierarchical_studies(
                 },
                 net_value: evsi - candidate.cost,
                 rank_uncertain: false,
-                calibration: "not_measured",
+                calibration: study_rank_calibration(),
             }
         })
         .collect();

@@ -18,9 +18,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::bayesian_posterior_row_artifact::{
-    POSTERIOR_ROW_ARTIFACT_VERSION, POSTERIOR_ROW_CALIBRATION, POSTERIOR_ROW_UNCERTAINTY,
-    PosteriorRowArtifactError, PosteriorRowConsumeLimits, PosteriorRowResultWire,
-    ResidualPriorWire, from_estimation,
+    POSTERIOR_ROW_ARTIFACT_VERSION, POSTERIOR_ROW_UNCERTAINTY, PosteriorRowArtifactError,
+    PosteriorRowConsumeLimits, PosteriorRowResultWire, ResidualPriorWire, from_estimation,
+    posterior_row_calibration,
 };
 use crate::learned_continuous_artifact::CertificateRecord;
 use crate::smoothed_dose_artifact::SmoothedDoseQueryWire;
@@ -371,7 +371,7 @@ impl SmoothedDosePosteriorArtifactWire {
         let width = result.coordinates.len();
         if result.estimator != SMOOTHED_DOSE_POSTERIOR_ESTIMATOR
             || result.uncertainty != POSTERIOR_ROW_UNCERTAINTY
-            || result.calibration != POSTERIOR_ROW_CALIBRATION
+            || result.calibration != posterior_row_calibration(&result.estimator)
             || result.supported
         {
             return Err(unsupported("this row publishes an unsupported posterior"));

@@ -65,9 +65,9 @@ pub use assess::{
 };
 pub use bayesian::PredictiveReplicates;
 pub use calibration::{
-    CalibrationDiagnostics, CoverageDiagnostic, DIAGNOSTIC_CALIBRATION, DIAGNOSTIC_LABEL,
-    DistributionDrift, MAX_BINS, MAX_INTERVAL_LEVELS, PSI_PSEUDOCOUNT, PitDiagnostic,
-    ReliabilityBin, ReliabilityDiagnostic, distribution_drift, pit_available_for,
+    CalibrationDiagnostics, CoverageDiagnostic, DIAGNOSTIC_LABEL, DistributionDrift, MAX_BINS,
+    MAX_INTERVAL_LEVELS, PSI_PSEUDOCOUNT, PitDiagnostic, ReliabilityBin, ReliabilityDiagnostic,
+    diagnostic_calibration, distribution_drift, pit_available_for,
 };
 pub use compare::{ScoreDifference, variance_of_mean};
 pub use design::{DependenceDeclaration, ValidationDesign, dependence_label};

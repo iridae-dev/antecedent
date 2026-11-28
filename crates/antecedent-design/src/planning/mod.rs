@@ -125,9 +125,11 @@ pub const PLANNING_NEXT_ATTEMPTS: [NextAttempt; 8] = [
     RELAX_TARGET,
 ];
 
-/// Calibration status of every planned characteristic: the simulation
-/// procedures are not yet measured against a coverage record.
-pub const PLANNING_CALIBRATION: &str = "not_measured";
+/// The calibration state of the experiment-planning unit: its simulation procedures against a coverage record.
+#[must_use]
+pub fn planning_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("design.experiment_planning")
+}
 
 #[cfg(test)]
 mod tests;

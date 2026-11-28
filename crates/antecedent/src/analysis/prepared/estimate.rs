@@ -125,7 +125,9 @@ impl PreparedStudy {
             .as_ref()
             .map(|s| s.rebind(data).map(Arc::new))
             .transpose()?;
-        self.estimate_with_shared(data, shared, ctx)
+        let mut result = self.estimate_with_shared(data, shared, ctx)?;
+        self.analysis.decide_declared_capabilities(&mut result, ctx)?;
+        Ok(result)
     }
 
     /// Execute a declaration-only, precompiled Bayesian DAG atom as part of an

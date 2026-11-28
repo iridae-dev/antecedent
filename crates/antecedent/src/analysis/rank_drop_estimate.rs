@@ -120,6 +120,13 @@ pub fn estimate_with_rank_drop(
     estimator: EstimatorId,
     ctx: &ExecutionContext,
 ) -> Result<RankDropEstimate, CausalError> {
+    crate::support::unit::require_program(
+        ctx,
+        &crate::support::unit::SupportKey::Unit(crate::support::UnitId::new(
+            "estimate.preflight_rank_drop",
+        )),
+        "antecedent.estimate_with_rank_drop",
+    )?;
     let projection_invariance = match estimator {
         EstimatorId::LinearAdjustmentAte => "exact",
         EstimatorId::Aipw => "unpenalized_logistic_no_separation",

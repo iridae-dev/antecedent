@@ -3,7 +3,7 @@
 //! Format version 1, kind marker `array_fit_replay_v1`. The request carries the design the
 //! product was fitted on; the stored result is the posterior summary of that nuisance, labelled
 //! with its target, the meaning of its uncertainty and the premises declared. It is unsupported
-//! with calibration `not_measured`, and a consumer refuses any other value.
+//! with its unit's calibration state, and a consumer refuses any other value.
 //!
 //! The product is a posterior of the treatment model only. Its scores are in-sample summaries,
 //! not out-of-fold effect scores, so this artifact is a different kind from the cross-fitted
@@ -35,8 +35,11 @@ pub const ARRAY_FIT_ARTIFACT_VERSION: u32 = 1;
 pub const ARRAY_FIT_ARTIFACT_FEATURE: &str = "array_fit_replay_v1";
 /// Support state of this product.
 pub const ARRAY_FIT_SUPPORT: &str = "unsupported";
-/// Calibration state of this product.
-pub const ARRAY_FIT_CALIBRATION: &str = "not_measured";
+/// The calibration state of the unit named by the product's estimator id.
+#[must_use]
+pub fn array_fit_calibration(estimator_id: &str) -> &'static str {
+    antecedent_io_core::unit_calibration::capability(estimator_id)
+}
 
 /// Nuisance posterior of a static logistic propensity.
 pub const ID_BAYESIAN_PROPENSITY: &str = "bayesian.propensity.coefficient_posterior";
@@ -237,7 +240,7 @@ pub struct ArrayFitResultWire {
     pub uncertainty: String,
     /// Always `unsupported`.
     pub support: String,
-    /// Always `not_measured`.
+    /// The calibration state of the estimator's unit ([`array_fit_calibration`]).
     pub calibration: String,
     /// Named reals, in a fixed order.
     pub values: Vec<NamedValueWire>,
@@ -355,7 +358,7 @@ fn finish(
         target: meta.target.to_owned(),
         uncertainty: meta.uncertainty.to_owned(),
         support: ARRAY_FIT_SUPPORT.to_owned(),
-        calibration: ARRAY_FIT_CALIBRATION.to_owned(),
+        calibration: array_fit_calibration(meta.id).to_owned(),
         values,
         draws,
         assumptions,
@@ -612,7 +615,7 @@ impl ArrayFitArtifactWire {
             return Err(unsupported("required features"));
         }
         if self.result.support != ARRAY_FIT_SUPPORT
-            || self.result.calibration != ARRAY_FIT_CALIBRATION
+            || self.result.calibration != array_fit_calibration(self.request.estimator_id())
         {
             return Err(unsupported("this family is unsupported and its calibration not_measured"));
         }

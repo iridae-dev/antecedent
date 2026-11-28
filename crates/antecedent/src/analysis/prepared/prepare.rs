@@ -73,6 +73,7 @@ impl Study {
     /// Panics only if an internal route invariant that preparation validates
     /// is violated while sealing the execution plan.
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
+        self.require_declared_capabilities(ctx)?;
         antecedent_estimate::prepare::with_preparation_budget(
             crate::planner::PhysicalExecutionPlan::preparation_budget(ctx),
             || self.prepare_metered(ctx, true, None, None),

@@ -1368,6 +1368,8 @@ impl CompiledAdaptivePolicySearch {
         if ADAPTIVE_POLICY_SEARCH_GATE_LIVE {
             crate::analysis::program_handle::gate_program(&scoped, self)
                 .map_err(CausalError::from)?;
+        } else {
+            let _ = self.support();
         }
         self.search.execute(source, &scoped).map_err(TerminalError::Kernel)
     }

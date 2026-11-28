@@ -200,6 +200,7 @@ fn supported_split(p1: &mut reference::Provider, p2: &mut reference::Provider) {
 
 #[test]
 fn the_selected_action_and_candidate_order_follow_the_hand_derived_utilities() {
+    antecedent::evidence_unit!("capability", "design.conditional_study_ranking");
     let (mut session, mut request, mut p1, mut p2) = fixture();
     request.input_order = vec!["external.0".into(), "external.1".into(), "native".into()];
     supported_split(&mut p1, &mut p2);

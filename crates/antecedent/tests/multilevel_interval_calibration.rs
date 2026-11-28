@@ -24,9 +24,9 @@
 mod common;
 
 use antecedent::analysis::multi_level_treatment::{
-    AdjustmentColumn, MULTI_LEVEL_INTERVAL_NOT_MEASURED, MULTI_LEVEL_TREATMENT_CALIBRATION,
-    MultiLevelReportWire, MultiLevelSpecWire, MultiLevelTargetWire, MultiLevelTreatment,
-    MultiLevelTreatmentRequest, multi_level_interval_basis, multi_level_normal_interval,
+    AdjustmentColumn, MULTI_LEVEL_INTERVAL_NOT_MEASURED, MultiLevelReportWire, MultiLevelSpecWire,
+    MultiLevelTargetWire, MultiLevelTreatment, MultiLevelTreatmentRequest,
+    multi_level_interval_basis, multi_level_normal_interval, multi_level_treatment_calibration,
 };
 use antecedent::result::{REPORTED_SE_INTERVAL_LEVEL, reported_se_interval_z};
 use antecedent_core::{ExecutionContext, StreamDomain};
@@ -170,7 +170,7 @@ fn a_published_interval_is_the_estimate_plus_or_minus_z_standard_errors_or_withh
             "{}",
             report.interval_status
         );
-        assert_eq!(report.calibration, MULTI_LEVEL_TREATMENT_CALIBRATION);
+        assert_eq!(report.calibration, multi_level_treatment_calibration());
         assert!(report.interval_reason.is_some());
     }
 }
@@ -200,7 +200,7 @@ fn the_pairwise_target_reports_its_interval_as_not_measured() {
     assert_eq!(report.adjustment_basis, "declared");
     assert!(report.interval.is_some());
     assert_eq!(report.interval_status, MULTI_LEVEL_INTERVAL_NOT_MEASURED);
-    assert_eq!(report.calibration, MULTI_LEVEL_TREATMENT_CALIBRATION);
+    assert_eq!(report.calibration, multi_level_treatment_calibration());
 }
 
 #[test]
@@ -214,7 +214,8 @@ fn multilevel_generalized_propensity_interval() {
             interval: INTERVAL,
         },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "estimate.generalized_propensity_aipw");
     for row in map_replicates(n_sim(), |rep| replicate(n, grid_seed(BASE_SEED + rep))) {
         let Some((interval, rows)) = row else {
             tally.skip();

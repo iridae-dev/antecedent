@@ -75,6 +75,16 @@ fn refuse(detail: &'static str) -> ConditionalRankingError {
     };
     ConditionalRankingError { code, detail }
 }
+/// The support gate of the conditional-study-ranking unit at its entry point `entry`.
+fn require_unit(entry: &'static str) -> Result<(), ConditionalRankingError> {
+    crate::support::unit::require_program_unscoped(
+        &crate::support::unit::SupportKey::Unit(crate::support::UnitId::new(
+            "design.conditional_study_ranking",
+        )),
+        entry,
+    )
+    .map_err(|refusal| ConditionalRankingError { code: refusal.code(), detail: refusal.detail })
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Action {
@@ -368,6 +378,7 @@ impl ConditionalStudyRanking {
         policy: ConditionalStudyPolicy,
         limits: ConditionalRankingLimits,
     ) -> Result<Self, ConditionalRankingError> {
+        require_unit("antecedent.recalc_composite.CompositeSession.rank_studies")?;
         let source = source(session)?;
         let entries = rank(&policy, &source, limits)?;
         let publication = session.publication().ok_or_else(|| {
@@ -504,6 +515,7 @@ impl ConditionalStudyRanking {
         expected_identity: Option<&str>,
         limits: ConditionalRankingLimits,
     ) -> Result<Self, ConditionalRankingError> {
+        require_unit("antecedent.recalc_composite.ConditionalStudyRanking.consume")?;
         let payload = retained_payload(bytes, expected_identity, limits)?;
         let receipt = RecalcReceiptArtifact::from_bytes(&payload.historical_receipt, None)
             .map_err(|_| {

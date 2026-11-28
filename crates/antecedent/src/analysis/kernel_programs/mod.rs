@@ -21,7 +21,7 @@ use antecedent_core::{
     PhysicalOperator, ScoreFrequentist, ScoreModel,
 };
 
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program, gate_program_when};
 use crate::error::CausalError;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
@@ -274,6 +274,11 @@ impl<I> KernelProgram<I> {
     /// [`NotSupported`] in a release build when the unit is not supported.
     pub(crate) fn gate(&self, ctx: &ExecutionContext) -> Result<(), NotSupported> {
         gate_program(ctx, self)
+    }
+
+    /// [`Self::gate`] when `gate` is set; the route's decision is recorded either way.
+    pub(crate) fn gate_when(&self, gate: bool, ctx: &ExecutionContext) -> Result<(), NotSupported> {
+        gate_program_when(gate, ctx, self)
     }
 
     /// The plan view of the compiled program.

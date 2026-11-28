@@ -18,8 +18,8 @@ use antecedent_estimate::vector_treatment::{
 };
 use antecedent_io::vector_treatment_artifact::{
     AdjustmentColumnRequest, ContrastWire, TreatmentRequest, VECTOR_TREATMENT_ARTIFACT_VERSION,
-    VECTOR_TREATMENT_CALIBRATION, VectorTreatmentArtifact, VectorTreatmentArtifactError,
-    VectorTreatmentRequest, decode_parts, encode_parts,
+    VectorTreatmentArtifact, VectorTreatmentArtifactError, VectorTreatmentRequest, decode_parts,
+    encode_parts, vector_treatment_calibration,
 };
 use antecedent_kernels::erfc;
 
@@ -136,7 +136,7 @@ fn vector_artifact_joint_wald_and_holm_match_closed_forms() {
 #[test]
 fn vector_artifact_calibration_is_not_measured_and_says_so() {
     let report = export(&request()).0.report();
-    assert_eq!(report.calibration, VECTOR_TREATMENT_CALIBRATION);
+    assert_eq!(report.calibration, vector_treatment_calibration());
     assert_eq!(report.calibration, "not_measured");
     assert_eq!(report.inference_claim, "asymptotic_wald_calibration_not_measured");
     assert_eq!(report.version, VECTOR_TREATMENT_ARTIFACT_VERSION);

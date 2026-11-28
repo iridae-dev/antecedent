@@ -19,9 +19,9 @@
 
 pub use antecedent_io::bayesian_posterior_row_artifact::{
     DOSE_GRID_POSTERIOR_ESTIMATOR, DoseGridPosteriorWire, POSTERIOR_ROW_ARTIFACT_FEATURE,
-    POSTERIOR_ROW_ARTIFACT_VERSION, POSTERIOR_ROW_CALIBRATION, POSTERIOR_ROW_UNCERTAINTY,
-    PosteriorRowArtifactError, PosteriorRowArtifactWire, PosteriorRowConsumeLimits,
-    PosteriorRowRequestWire, PosteriorRowResultWire, ResidualPriorWire,
+    POSTERIOR_ROW_ARTIFACT_VERSION, POSTERIOR_ROW_UNCERTAINTY, PosteriorRowArtifactError,
+    PosteriorRowArtifactWire, PosteriorRowConsumeLimits, PosteriorRowRequestWire,
+    PosteriorRowResultWire, ResidualPriorWire, posterior_row_calibration,
 };
 
 use crate::error::CausalError;

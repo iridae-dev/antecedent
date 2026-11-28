@@ -20,9 +20,10 @@ use antecedent_estimate::categorical_treatment::{
 };
 use antecedent_estimate::vector_treatment::{NamedColumn, VectorCovariance};
 use antecedent_io::categorical_treatment_artifact::{
-    CATEGORICAL_TREATMENT_ARTIFACT_VERSION, CATEGORICAL_TREATMENT_CALIBRATION, CategoricalSpecWire,
-    CategoricalTreatmentArtifact, CategoricalTreatmentArtifactError, CategoricalTreatmentRequest,
-    CovarianceKindWire, LevelScaleWire, MonotonicityDirectionWire, decode_parts, encode_parts,
+    CATEGORICAL_TREATMENT_ARTIFACT_VERSION, CategoricalSpecWire, CategoricalTreatmentArtifact,
+    CategoricalTreatmentArtifactError, CategoricalTreatmentRequest, CovarianceKindWire,
+    LevelScaleWire, MonotonicityDirectionWire, categorical_treatment_calibration, decode_parts,
+    encode_parts,
 };
 use antecedent_io::vector_treatment_artifact::AdjustmentColumnRequest;
 use antecedent_kernels::erfc;
@@ -220,7 +221,7 @@ fn categorical_artifact_monotonicity_result_and_null_are_stored_and_replayed() {
 #[test]
 fn categorical_artifact_calibration_is_not_measured_and_says_so() {
     let report = export(&abc_request()).0.report();
-    assert_eq!(report.calibration, CATEGORICAL_TREATMENT_CALIBRATION);
+    assert_eq!(report.calibration, categorical_treatment_calibration());
     assert_eq!(report.calibration, "not_measured");
     assert_eq!(report.result.calibration, "not_measured");
     assert_eq!(report.inference_claim, "asymptotic_wald_calibration_not_measured");

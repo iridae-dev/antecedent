@@ -48,7 +48,7 @@ use super::counterfactual_transport::{
     PreparedCounterfactualTransport, consume_counterfactual_transport_artifact,
     prepare_counterfactual_transport,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
@@ -546,10 +546,8 @@ impl CompiledTemporalPathTransport {
         ctx: &ExecutionContext,
     ) -> Result<TemporalPathTransportResult, TemporalPathTransportError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)
-                .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+            .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
         let active = self.active.evaluate(&self.data, &scoped)?;
         let baseline = self.baseline.evaluate(&self.data, &scoped)?;
         let contrast = active.probability() - baseline.probability();
@@ -1029,10 +1027,8 @@ impl CompiledSampledTemporalPathTransport {
         ctx: &ExecutionContext,
     ) -> Result<SampledTemporalPathTransportResult, TemporalPathTransportError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)
-                .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+            .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
         let estimate = estimate_sampled_counterfactual_transport_contrast(
             self.active.derivation(),
             self.baseline.derivation(),
@@ -1614,10 +1610,8 @@ impl CompiledContinuousChainTransport {
             return Err(TemporalPathTransportError::Invalid("continuous chain seed changed"));
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)
-                .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+            .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
         let arms: Vec<Vec<_>> = [false, true]
             .iter()
             .map(|arm| self.request.source.iter().filter(|row| row.treated == *arm).collect())
@@ -1669,7 +1663,7 @@ impl CompiledContinuousChainTransport {
             baseline,
             contrast,
             interval,
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
             lowered_program_identity: self.lowered.identity(),
         })
     }

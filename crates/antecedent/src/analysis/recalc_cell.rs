@@ -376,6 +376,11 @@ pub fn freeze_crossfit_scores(
     input_rows: u64,
     retarget: RetargetSupport,
 ) -> Result<FrozenScoreTable, RecalcRunError> {
+    super::recalc_receipt::require_recalc_unit(
+        None,
+        "recalculation.frozen_scores_artifact",
+        "antecedent.recalc_cell.freeze_crossfit_scores",
+    )?;
     let table = session.score_table().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
     freeze(table, session.identities(), input_rows, retarget)
 }
@@ -456,6 +461,11 @@ impl CellSession {
     /// [`RecalcRunError::NoLiveState`] without live scores; `Request` for an unsupported route
     /// or scores the artifact format rejects.
     pub fn export_scores(&self) -> Result<FrozenScoreTable, RecalcRunError> {
+        super::recalc_receipt::require_recalc_unit(
+            None,
+            "recalculation.frozen_scores_artifact",
+            "antecedent.recalc_cell.CellSession.export_frozen_scores",
+        )?;
         let live = self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
         freeze(&live.table, &self.previous, self.input_rows, self.retarget)
     }

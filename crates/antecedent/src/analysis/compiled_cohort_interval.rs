@@ -29,7 +29,7 @@ use super::cohort_decision::{
 use super::compiled_measured_interval::{
     MeasuredIntervalProgram, MeasuredIntervalRun, frequentist,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -160,12 +160,12 @@ impl CompiledCohortInterval {
     /// support gate once it is on.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<MeasuredIntervalRun, IoError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(|refusal| IoError::Refused {
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+            IoError::Refused {
                 code: refusal.code(),
                 message: format!("{}: {refusal}", refusal.detail),
-            })?;
-        }
+            }
+        })?;
         let measured = measure_cohort_interval(&self.native, &self.source, self.level, &scoped)?;
         Ok(MeasuredIntervalRun {
             measured,

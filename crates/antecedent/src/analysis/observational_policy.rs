@@ -55,8 +55,11 @@ use crate::planner::statistical::{
 use crate::support::unit::{SupportKey, UnitId, require_program};
 use crate::support::units_generated;
 
-/// Calibration standing of the reported standard errors.
-pub const OBSERVATIONAL_POLICY_CALIBRATION: &str = "not_measured";
+/// Calibration standing of the reported standard errors: the state of the policy-value unit.
+#[must_use]
+pub fn observational_policy_calibration() -> &'static str {
+    crate::support::unit_calibration(&crate::support::UnitRef::Capability(POLICY_UNIT))
+}
 
 /// A declared causally sufficient DAG for the policy's treatment and outcome.
 /// The information set names columns available when the policy acts. Every
@@ -493,7 +496,7 @@ impl ObservationalPolicyValue {
             row_index: estimate.row_index.iter().map(|id| id.get()).collect(),
             policy_actions: estimate.policy_actions,
             scores: estimate.scores,
-            calibration: OBSERVATIONAL_POLICY_CALIBRATION.into(),
+            calibration: observational_policy_calibration().into(),
         })
     }
 }

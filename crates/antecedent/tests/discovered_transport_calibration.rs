@@ -346,7 +346,8 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
     )
     .labelled(
         "fci_cutoff_0_05_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set",
-    );
+    )
+    .measures("capability", "transport.cpdag_class_envelope");
     for (rep, outcome) in map_replicates(n_sim(), |rep| {
         let seed = rep.wrapping_mul(1_000_003);
         let source = study(n, false, seed);
@@ -501,7 +502,8 @@ fn discovered_temporal_transport_contrast_complete_procedure_coverage() {
         },
         REPORTED_LEVEL,
     )
-    .labelled("full_allowed_edge_holm_including_contemporaneous_v1");
+    .labelled("full_allowed_edge_holm_including_contemporaneous_v1")
+    .measures("capability", "transport.cpdag_class_envelope");
     for outcome in map_replicates(n_sim(), |rep| {
         let seed = rep.wrapping_mul(1_000_003);
         let (source, source_table) = series(steps, false, seed);
@@ -599,7 +601,8 @@ fn discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverag
         },
         REPORTED_LEVEL,
     )
-    .labelled("full_allowed_edge_holm_including_contemporaneous_v1");
+    .labelled("full_allowed_edge_holm_including_contemporaneous_v1")
+    .measures("capability", "transport.cpdag_class_envelope");
     for outcome in map_replicates(n_sim(), |rep| {
         let seed = rep.wrapping_mul(1_000_003);
         let (source, source_table) = series_two_lags(steps, false, seed);

@@ -93,7 +93,8 @@ fn record(design: Design, test: &'static str, dgp_name: &'static str) {
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp: dgp_name, interval: INTERVAL },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "transport.learned_continuous_trial");
     let rows = map_replicates(n_sim(), |rep| execute(design, sizes, rep));
     for row in rows {
         match row {

@@ -88,6 +88,7 @@ fn gate_release_support<H: CompiledProgramHandle>(
     handle: &H,
 ) -> Result<(), SamplingAssumptionUnionError> {
     if !RELEASE_SUPPORT_GATE_LIVE {
+        let _ = handle.support();
         return Ok(());
     }
     gate_program(ctx, handle).map_err(|error| {
@@ -461,7 +462,7 @@ impl CompiledSamplingAssumptionUnion {
             union_lower,
             union_upper,
             level: self.request.level,
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
         })
@@ -855,7 +856,7 @@ impl CompiledIidSamplingAssumptionUnion {
             union_lower,
             union_upper,
             level: self.request.level,
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
         })
@@ -1255,7 +1256,7 @@ impl CompiledClusterSamplingAssumptionUnion {
             union_lower,
             union_upper,
             level: self.request.level,
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
         })
@@ -1686,7 +1687,7 @@ impl CompiledStratifiedClusterSamplingAssumptionUnion {
             union_lower,
             union_upper,
             level: self.request.level,
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
         })
@@ -2068,7 +2069,7 @@ impl CompiledMovingBlockSamplingAssumptionUnion {
             union_lower,
             union_upper,
             level: self.request.level,
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
         })
@@ -2497,7 +2498,7 @@ impl CompiledStratifiedMovingBlockSamplingAssumptionUnion {
             union_lower,
             union_upper,
             level: self.request.level,
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
         })
@@ -2926,7 +2927,7 @@ impl CompiledPanelBlockSamplingAssumptionUnion {
             union_lower,
             union_upper,
             level: self.request.level,
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
         })

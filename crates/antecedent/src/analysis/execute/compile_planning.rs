@@ -91,7 +91,11 @@ impl PlanningPlan {
     /// unit is not supported; a development build records what it would refuse and runs. A plan
     /// attached to a study runs under the study's route and unit, not this one.
     fn gate_release_support(&self, ctx: &ExecutionContext) -> Result<(), CausalError> {
-        if !RELEASE_SUPPORT_GATE_LIVE || self.lowered.route() != PLANNING_ROUTE {
+        if self.lowered.route() != PLANNING_ROUTE {
+            return Ok(());
+        }
+        if !RELEASE_SUPPORT_GATE_LIVE {
+            let _ = self.support();
             return Ok(());
         }
         gate_program(ctx, self).map_err(CausalError::from)

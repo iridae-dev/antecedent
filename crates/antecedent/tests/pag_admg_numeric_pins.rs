@@ -422,21 +422,40 @@ fn admg_frontdoor_response_pins_against_distribution() {
         outcome: y,
         treatment: ContinuousDomain::new(t, GridSpec::Values(Arc::from([0.0, 1.0]))),
     });
-    let curve_result = Study::tabular(data.clone())
-        .graph(admg.clone())
-        .query(CausalQuery::Response(curve))
-        .identifier(IdentifierId::GeneralId)
-        .estimator(EstimatorId::FunctionalEffect)
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ctx)
-        .unwrap();
-    let means = surface_means(&curve_result);
-    assert_eq!(means.len(), 2);
-    assert!((means[0] - dist_means[0]).abs() < 1e-9);
-    assert!((means[1] - dist_means[1]).abs() < 1e-9);
+    for accepted in [false, true] {
+        for bayesian in [false, true] {
+            let mut builder = Study::tabular(data.clone());
+            builder = if accepted {
+                builder.graph(AcceptedGraph::from(admg.clone()))
+            } else {
+                builder.graph(admg.clone())
+            };
+            let curve_result = builder
+                .query(CausalQuery::Response(curve.clone()))
+                .identifier(IdentifierId::GeneralId)
+                .estimator(EstimatorId::FunctionalEffect)
+                .inference(if bayesian {
+                    InferenceMode::Bayesian(antecedent::BayesianConfig::conjugate().n_draws(64))
+                } else {
+                    InferenceMode::Frequentist
+                })
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ctx)
+                .unwrap();
+            let means = surface_means(&curve_result);
+            let bound = if bayesian { 0.015 } else { 1e-9 };
+            assert_eq!(means.len(), 2);
+            for (mean, dist_mean) in means.iter().zip(&dist_means) {
+                assert!(
+                    (mean - dist_mean).abs() < bound,
+                    "curve mean {mean} != dist {dist_mean} accepted={accepted} bayesian={bayesian}"
+                );
+            }
+        }
+    }
 }
 
 /// Exact 2048-row population table of the napkin SCM `W -> Z -> X -> Y`, `W <-> X` (latent

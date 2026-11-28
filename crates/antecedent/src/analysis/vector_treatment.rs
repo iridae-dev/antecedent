@@ -31,9 +31,9 @@ pub use antecedent_estimate::vector_treatment::{
 };
 pub use antecedent_io::vector_treatment_artifact::{
     AdjustmentColumnRequest, CoefficientWire, ContrastResultWire, ContrastWire, TreatmentRequest,
-    VECTOR_TREATMENT_ARTIFACT_VERSION, VECTOR_TREATMENT_CALIBRATION, VECTOR_TREATMENT_HC_ROW_CAP,
-    VectorResultWire, VectorTreatmentArtifact, VectorTreatmentArtifactError,
-    VectorTreatmentIdentity, VectorTreatmentReportWire, VectorTreatmentRequest, WaldWire,
+    VECTOR_TREATMENT_ARTIFACT_VERSION, VECTOR_TREATMENT_HC_ROW_CAP, VectorResultWire,
+    VectorTreatmentArtifact, VectorTreatmentArtifactError, VectorTreatmentIdentity,
+    VectorTreatmentReportWire, VectorTreatmentRequest, WaldWire, vector_treatment_calibration,
 };
 
 use antecedent_core::ExecutionContext;

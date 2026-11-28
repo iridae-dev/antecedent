@@ -83,7 +83,8 @@ fn measure(test: &'static str, scale: ReportingScale, functional: &str, truth: f
             interval: "delta_method_wald",
         },
         LEVEL,
-    );
+    )
+    .measures("capability", "estimate.descriptive_comparison");
     let runs = map_replicates(n_sim(), |rep| interval(scale, n, grid_seed(SEED_BASE + rep)));
     for run in runs {
         let Some(band) = run else {

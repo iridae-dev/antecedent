@@ -32,7 +32,7 @@ use antecedent_identify::{TransportIdentification, TransportIdentifier};
 
 use super::compiled_point_program::PointProgram;
 use super::declared_learners::{LearnerFactories, calibration_label};
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use super::supplied_identity::{Declaration, SetOf, Wire, encoded};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -93,7 +93,7 @@ pub struct TrialAipwLearnersRun {
     pub lowered_program_identity: SemanticDigest,
     /// Always `point_only`: caller learners run no bootstrap.
     pub claim: &'static str,
-    /// Always `not_measured`.
+    /// Calibration state of the route's evidence unit.
     pub calibration: &'static str,
     /// The calibration label of the declared learners (`learners=caller_factory:<digest of the
     /// declared identity>`): a record measured with other learners, the library's among them,
@@ -235,9 +235,7 @@ impl CompiledTrialAipwLearners {
     /// budget, fit or overlap refusal, cancellation, or the support gate once it is on.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<TrialAipwLearnersRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
         let request = &self.request;
         let estimate = antecedent_estimate::estimate_trial_aipw_with_factories(
             &self.identification,
@@ -251,7 +249,7 @@ impl CompiledTrialAipwLearners {
             estimate,
             lowered_program_identity: self.lowered.identity(),
             claim: "point_only",
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
             calibration_label: calibration_label(Some(&request.learners)).unwrap_or_default(),
         })
     }

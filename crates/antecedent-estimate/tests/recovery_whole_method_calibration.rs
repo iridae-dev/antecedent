@@ -253,7 +253,8 @@ fn measure(test: &'static str, expected_id: &str) {
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp: "binary_confounded_missingness_scm", interval: "bootstrap_bca" },
         0.95,
-    );
+    )
+    .measures("capability", "recovery.sampled_observation");
     let results = map_replicates(n_sim(), |rep| {
         let seed = grid_seed(0x46ab_0000 + rep);
         let ctx = ExecutionContext::for_tests(seed);

@@ -178,6 +178,7 @@ fn nonlinear_mediation_natural_effects_percentile_bootstrap_interval() {
             },
             calibration::REPORTED_LEVEL,
         )
+        .measures("capability", "estimate.nonlinear_mediation")
         .labelled(label)
     };
     let mut tallies = [new_tally("direct"), new_tally("indirect"), new_tally("total")];

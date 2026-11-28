@@ -58,15 +58,19 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSumma
 use antecedent_graph::{DenseNodeId, Pag};
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
-    Construction, CoverageSide, CoverageTally, RecordKey, ScopeFacts, map_replicates, n_sim,
-    stream_seed, uniform,
+    Construction, CoverageSide, CoverageTally, RecordKey, ScopeFacts, grid_for, grid_n,
+    map_replicates, n_sim, smoke_budget, stream_seed, uniform,
 };
 use common::calibration_bind::constructions;
-use grid_cell::SIBLING_REPLICATES;
+use grid_cell::sibling_replicates;
 use serde_json::Value;
 
 /// Posterior draws of a Bayesian execution.
 const DRAWS: usize = 400;
+
+fn grid_rows(base: usize) -> usize {
+    smoke_budget(grid_n(base), grid_for(base).n_at(0, base))
+}
 
 /// Estimator every coordinate of this file executes.
 const FUNCTIONAL: &str = "functional.effect";
@@ -240,7 +244,9 @@ impl Mode {
     fn inference(self) -> InferenceMode {
         match self {
             Self::Frequentist => InferenceMode::Frequentist,
-            Self::Bayesian => InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(DRAWS)),
+            Self::Bayesian => {
+                InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(smoke_budget(DRAWS, 40)))
+            }
         }
     }
 
@@ -285,7 +291,7 @@ type SetRun = (Option<(f64, f64)>, Option<(Construction, ScopeFacts, &'static st
 /// `suite`; the first of [`SUITES`] is the base and the others are its siblings.
 ///
 /// The base is scored on every replicate; every sibling is executed on the first
-/// [`SIBLING_REPLICATES`] replicates, must publish the base interval bit for bit, and gets its own
+/// [`sibling_replicates`] replicates, must publish the base interval bit for bit, and gets its own
 /// record bound from its own executions' match key and validation mode. A replicate whose
 /// candidates agreed publishes no set and is scored as a miss.
 fn measure_coordinate(
@@ -322,7 +328,7 @@ fn measure_coordinate(
     let bits = |interval: Option<(f64, f64)>| interval.map(|(lo, hi)| (lo.to_bits(), hi.to_bits()));
     let runs = map_replicates(n_sim(), |rep| {
         let base = execute(rep, 0);
-        let siblings: Vec<SetRun> = if rep < u64::from(SIBLING_REPLICATES) {
+        let siblings: Vec<SetRun> = if rep < u64::from(sibling_replicates()) {
             (1..SUITES.len())
                 .map(|variant| {
                     let sibling = execute(rep, variant);
@@ -462,7 +468,7 @@ fn med_pag_posterior(test: &'static str, family: u64, mode: Mode) {
         mode,
         truth,
         |seed, suite| {
-            Study::tabular(population.sample(common::calibration::grid_n(MED_PAG_BASE_N), seed))
+            Study::tabular(population.sample(grid_rows(MED_PAG_BASE_N), seed))
                 .query(query.clone())
                 .inference(mode.inference())
                 .refute(suite)
@@ -545,7 +551,7 @@ fn nested_counterfactual_effect_pag_graph_posterior_bayesian_coverage() {
         Mode::Bayesian,
         truth,
         |seed, suite| {
-            Study::tabular(population.sample(common::calibration::grid_n(CW_WIDE_N), seed))
+            Study::tabular(population.sample(grid_rows(CW_WIDE_N), seed))
                 .query(query.clone())
                 .inference(Mode::Bayesian.inference())
                 .refute(suite)
@@ -646,20 +652,17 @@ fn tw_pag_posterior(test: &'static str, family: u64, mode: Mode) {
         mode,
         tw_truth(),
         |seed, suite| {
-            Study::series(tw_mediation_series(
-                common::calibration::grid_n(TW_MEDIATION_BASE_N),
-                seed,
-            ))
-            .graph_posterior(lagged_pag_posterior(
-                5,
-                &[(1, 3), (2, 3), (3, 4), (1, 4)],
-                &[(1, 0, 1)],
-            ))
-            .query(query.clone())
-            .inference(mode.inference())
-            .refute(suite)
-            .build()
-            .unwrap_or_else(|e| panic!("{test} {suite:?}: {e}"))
+            Study::series(tw_mediation_series(grid_rows(TW_MEDIATION_BASE_N), seed))
+                .graph_posterior(lagged_pag_posterior(
+                    5,
+                    &[(1, 3), (2, 3), (3, 4), (1, 4)],
+                    &[(1, 0, 1)],
+                ))
+                .query(query.clone())
+                .inference(mode.inference())
+                .refute(suite)
+                .build()
+                .unwrap_or_else(|e| panic!("{test} {suite:?}: {e}"))
         },
     );
 }

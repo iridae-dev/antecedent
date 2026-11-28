@@ -150,7 +150,8 @@ fn cyclic_posterior_population_outcome_l95() {
     let mut tally = CoverageTally::for_record(
         RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },
         REPORTED_LEVEL,
-    );
+    )
+    .measures("capability", "cyclic.action_world_decisions");
     for result in map_replicates(n_sim(), |rep| replicate(0xC1C1_7001 + rep, n)) {
         if let Some((interval, truth, basis)) = result {
             let construction = Construction {

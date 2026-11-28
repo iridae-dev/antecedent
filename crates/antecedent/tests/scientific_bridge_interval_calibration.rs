@@ -352,7 +352,8 @@ fn run(
     boundary: bool,
 ) {
     let mut tally =
-        CoverageTally::for_record(RecordKey { test, dgp, interval: interval_method }, LEVEL);
+        CoverageTally::for_record(RecordKey { test, dgp, interval: interval_method }, LEVEL)
+            .measures("capability", "scientific_bridge.interval");
     let scored = map_replicates(n_sim(), |r| replicate(stream_seed(grid_seed(base), r)));
     for outcome in scored {
         match outcome {

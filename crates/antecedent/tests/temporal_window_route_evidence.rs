@@ -369,16 +369,8 @@ fn temporal_admg_window_validation_reports_the_known_refits_and_detects_a_plante
     let mut statuses = Vec::new();
     for structure in ["explicit", "accepted"] {
         for kind in KINDS {
-            // The accepted structure reads the same plan, and the Bayesian form refits the same
-            // window table: one contrast pins each of those cells.
-            if structure == "accepted" && kind != "pulse" {
-                continue;
-            }
             let want = contrast_truth(kind);
             for (inference, tolerance) in inferences() {
-                if matches!(inference, InferenceMode::Bayesian(_)) && kind != "pulse" {
-                    continue;
-                }
                 for (suite, expected) in [
                     (RefuteSuite::Cheap, vec!["window.stretch_80", "window.placebo_treatment"]),
                     (
@@ -665,9 +657,6 @@ fn temporal_admg_window_posterior_validation_mixes_the_per_atom_window_suite() {
         let truth = contrast_truth(kind);
         let expected_mixture = 0.6 * truth / 1.0;
         for (inference, tolerance) in inferences() {
-            if matches!(inference, InferenceMode::Bayesian(_)) && kind != "pulse" {
-                continue;
-            }
             let none = posterior_study(
                 &clean,
                 atom_posterior(&[0.6, 0.4], &[generating_atom(), no_effect_atom()], 3),

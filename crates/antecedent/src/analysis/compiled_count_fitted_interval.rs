@@ -27,7 +27,7 @@ use super::count_fitted_observation::{
     CountFittedIntervalArtifactWire, CountFittedObservation, ROUTE, refusal_of,
 };
 use super::observation_query::ObservationQueryRefusal;
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -180,14 +180,12 @@ impl CompiledCountFittedInterval {
         ctx: &ExecutionContext,
     ) -> Result<MeasuredIntervalRun, ObservationQueryRefusal> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self).map_err(|refusal| {
-                refusal_of(&antecedent_io::IoError::Refused {
-                    code: refusal.code(),
-                    message: format!("{}: {refusal}", refusal.detail),
-                })
-            })?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+            refusal_of(&antecedent_io::IoError::Refused {
+                code: refusal.code(),
+                message: format!("{}: {refusal}", refusal.detail),
+            })
+        })?;
         let measured = self.observation.measured_interval_at(self.level, &scoped)?;
         Ok(MeasuredIntervalRun {
             measured,

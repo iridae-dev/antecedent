@@ -109,8 +109,11 @@ use crate::width::lossless_u64;
 pub const CATEGORICAL_TREATMENT_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const CATEGORICAL_TREATMENT_ARTIFACT_FEATURE: &str = "categorical_treatment_v1";
-/// Calibration coordinate: Type I error, coverage and power were not measured.
-pub const CATEGORICAL_TREATMENT_CALIBRATION: &str = "not_measured";
+/// The calibration state of the categorical-treatment unit: Type I error, coverage and power.
+#[must_use]
+pub fn categorical_treatment_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("estimate.categorical_treatment")
+}
 /// Most bytes an artifact may occupy: the largest export budget, enforced on consumption.
 pub const MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 /// Most rows a legacy robust-covariance `rows` replay artifact may carry. Sealing no longer
@@ -372,10 +375,10 @@ impl CategoricalResultWire {
                 statistic: m.statistic,
                 p_value: m.p_value,
                 conservative: m.conservative,
-                calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
+                calibration: categorical_treatment_calibration().to_owned(),
             }),
             covariance_kind: fit.covariance_kind.into(),
-            calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
+            calibration: categorical_treatment_calibration().to_owned(),
         })
     }
 }
@@ -1290,7 +1293,7 @@ impl CategoricalTreatmentArtifact {
             null: CATEGORICAL_OMNIBUS_NULL.to_owned(),
             monotonicity_null: computed.result.monotonicity.as_ref().map(|m| m.null.clone()),
             inference_claim: CATEGORICAL_INFERENCE_CLAIM.to_owned(),
-            calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
+            calibration: categorical_treatment_calibration().to_owned(),
             replay: replay.tag().to_owned(),
             row_snapshot: decl.row_snapshot.clone(),
             n_rows: lossless_u64(decl.n_rows),
@@ -1540,7 +1543,7 @@ impl CategoricalTreatmentArtifact {
         }
         crate::artifact_codec::require_markers::<CategoricalTreatmentArtifactError>(&[
             (meta.inference_claim == CATEGORICAL_INFERENCE_CLAIM, "inference claim"),
-            (meta.calibration == CATEGORICAL_TREATMENT_CALIBRATION, "calibration"),
+            (meta.calibration == categorical_treatment_calibration(), "calibration"),
             (meta.caveats == standing_caveats(), "caveats"),
         ])?;
         let decl = Decl::from_meta(&meta)?;

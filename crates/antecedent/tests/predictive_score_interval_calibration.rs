@@ -291,7 +291,8 @@ fn run(
     let mut tally = CoverageTally::for_record(
         RecordKey { test, dgp, interval: interval_method(design) },
         LEVEL,
-    );
+    )
+    .measures("capability", "predictive_assessment.score_interval");
     // The first grids keep the seeds they were measured with; larger grids draw their own.
     let size_salt = if n_base == base_cases(design) { 0 } else { (n_base as u64) << 24 };
     let base = 0x5c00_0000_u64 + size_salt + (design as u64) * 0x1000 + (kind as u64) * 0x100;

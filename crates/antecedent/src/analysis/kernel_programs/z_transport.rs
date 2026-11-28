@@ -234,9 +234,9 @@ impl CompiledZTransport {
     }
 
     fn gate(&self, ctx: &ExecutionContext) -> Result<(), IoError> {
-        if GATE_ON_UNIT_SUPPORT {
-            self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
-        }
+        self.program
+            .gate_when(GATE_ON_UNIT_SUPPORT, ctx)
+            .map_err(|refusal| io_refusal(&refusal))?;
         Ok(())
     }
 

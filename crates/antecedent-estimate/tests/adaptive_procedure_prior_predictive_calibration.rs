@@ -122,7 +122,8 @@ fn thompson_to_stopping(truth: [f64; 2], n: usize, stop_probability: f64, seed: 
 fn prior_predictive_design(test: &'static str, dgp: &'static str, stop_probability: f64) {
     let n = grid_n(200);
     let mut tally =
-        CoverageTally::for_record(RecordKey { test, dgp, interval: "posterior_quantile" }, 0.95);
+        CoverageTally::for_record(RecordKey { test, dgp, interval: "posterior_quantile" }, 0.95)
+            .measures("capability", "adaptive_inference.unsupported_guarantees");
     let results = map_replicates(n_sim(), |replicate| {
         let seed = calibration::grid_seed(0x7b_0000 + replicate);
         // The truth stream is its own tagged stream: it never shares a coordinate with the

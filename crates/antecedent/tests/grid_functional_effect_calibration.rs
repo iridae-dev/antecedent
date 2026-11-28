@@ -55,21 +55,30 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSumma
 use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Pag, TemporalAdmg, TemporalPag};
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
-    Construction, CoverageSide, CoverageTally, RecordKey, ScopeFacts, map_replicates, n_sim,
-    stream_seed, uniform,
+    Construction, CoverageSide, CoverageTally, RecordKey, ScopeFacts, grid_for, grid_n,
+    map_replicates, n_sim, smoke_budget, stream_seed, uniform,
 };
 use common::calibration_bind::constructions;
 use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, posterior_pair, scalar_normal_pair, scalar_reported_se,
 };
 use grid_cell::{
-    Cell, IntervalPair, SIBLING_REPLICATES, Target, measure, measure_from_unrecorded_base,
-    sharing_base,
+    Cell, IntervalPair, Target, measure, measure_from_unrecorded_base, sharing_base,
+    sibling_replicates,
 };
 use serde_json::Value;
 
 /// Posterior draws of a Bayesian execution.
 const DRAWS: usize = 400;
+
+fn grid_rows(base: usize) -> usize {
+    smoke_budget(grid_n(base), grid_for(base).n_at(0, base))
+}
+
+fn omitted_bootstrap() -> u32 {
+    let full = usize::try_from(StudyBuilder::OMITTED_BOOTSTRAP).unwrap();
+    u32::try_from(smoke_budget(full, 50)).unwrap()
+}
 
 /// Estimator every coordinate of this file executes, unless a design names another
 /// estimator its cell lists.
@@ -300,7 +309,9 @@ impl Mode {
     fn inference(self) -> InferenceMode {
         match self {
             Self::Frequentist => InferenceMode::Frequentist,
-            Self::Bayesian => InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(DRAWS)),
+            Self::Bayesian => {
+                InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(smoke_budget(DRAWS, 40)))
+            }
         }
     }
 
@@ -460,7 +471,7 @@ type SetRun = (Option<(f64, f64)>, Option<(Construction, ScopeFacts, &'static st
 /// Measure the identified set of `coordinate` against `truth` over `n_sim()` replicates.
 ///
 /// The driver of `common/grid_cell.rs` at one level: `variants[0]` is scored on every
-/// replicate; every sibling is executed on the first [`SIBLING_REPLICATES`] replicates, must
+/// replicate; every sibling is executed on the first [`sibling_replicates`] replicates, must
 /// publish the base interval bit for bit, and gets its own record bound from its own
 /// executions' match key and validation mode. A replicate whose candidates agreed publishes no
 /// set and is scored as a miss.
@@ -498,7 +509,7 @@ fn measure_identified_set(
     let bits = |interval: Option<(f64, f64)>| interval.map(|(lo, hi)| (lo.to_bits(), hi.to_bits()));
     let runs = map_replicates(n_sim(), |rep| {
         let base = execute(rep, 0);
-        let siblings: Vec<SetRun> = if rep < u64::from(SIBLING_REPLICATES) {
+        let siblings: Vec<SetRun> = if rep < u64::from(sibling_replicates()) {
             (1..coordinate.variants.len())
                 .map(|variant| {
                     let sibling = execute(rep, variant);
@@ -836,7 +847,7 @@ fn ps_coverage(test: &'static str, family: u64, class: &str, mode: Mode, variant
         (Mode::Frequentist, "TemporalAdmg") => "circular_block_se",
         _ => mode.interval(),
     };
-    let n = common::calibration::grid_n(design.base_n);
+    let n = grid_rows(design.base_n);
     let design = &design;
     measure_coordinate(
         &Coordinate { test, dgp: design.dgp, family, estimator: FUNCTIONAL, interval, variants },
@@ -1196,7 +1207,7 @@ fn med_study(
     seed: u64,
     (via, suite): Variant,
 ) -> Study {
-    let data = population.sample(common::calibration::grid_n(base_n), seed);
+    let data = population.sample(grid_rows(base_n), seed);
     let query = antecedent_core::MediationQuery::binary(
         v(population.index("t")),
         v(population.index("y")),
@@ -1684,13 +1695,13 @@ fn cw_measure(
 
 /// One execution of `design` on `grid_n(design.base_n)` rows drawn with `seed`.
 fn cw_study(test: &str, design: &CwDesign, mode: Mode, seed: u64, (via, suite): Variant) -> Study {
-    let n = common::calibration::grid_n(design.base_n);
+    let n = grid_rows(design.base_n);
     let builder = Study::tabular(design.population.sample(n, seed))
         .query(design.query.clone())
         .inference(mode.inference())
         .refute(suite);
     let builder = match mode {
-        Mode::Frequentist => builder.bootstrap_replicates(StudyBuilder::OMITTED_BOOTSTRAP),
+        Mode::Frequentist => builder.bootstrap_replicates(omitted_bootstrap()),
         Mode::Bayesian => builder,
     };
     design
@@ -2245,7 +2256,7 @@ fn ae_measure(
         },
         &Target::scalar(design.truth),
         |seed, (via, suite)| {
-            let data = (design.data)(common::calibration::grid_n(design.base_n), seed);
+            let data = (design.data)(grid_rows(design.base_n), seed);
             let builder = design
                 .structure
                 .attach(Study::tabular(data), via)
@@ -2684,7 +2695,7 @@ struct RsSpec {
 impl RsSpec {
     /// The replicate's rows at this run's grid point.
     fn sample(&self, seed: u64) -> TabularData {
-        let n = common::calibration::grid_n(self.base_n);
+        let n = grid_rows(self.base_n);
         match &self.population {
             Some(population) => population.sample(n, seed),
             None => rs_adjustable_data(n, seed),
@@ -2904,9 +2915,7 @@ fn rs_study(
     let builder = match (spec.law, mode) {
         // A Response query resamples only when a replicate count is requested; the
         // general-ID band is the plug-in bootstrap SE at the default count.
-        (RsLaw::FrontDoor, Mode::Frequentist) => {
-            builder.bootstrap_replicates(StudyBuilder::OMITTED_BOOTSTRAP)
-        }
+        (RsLaw::FrontDoor, Mode::Frequentist) => builder.bootstrap_replicates(omitted_bootstrap()),
         (RsLaw::FrontDoor, Mode::Bayesian) => builder.bootstrap_replicates(0),
         (RsLaw::Adjustable, _) => builder.bootstrap_replicates(0).response_options(
             antecedent_estimate::ContinuousResponseOptions {
@@ -3569,9 +3578,9 @@ impl TwDesign {
     /// The replicate's series, which depends on `seed` only.
     fn series(self, seed: u64) -> antecedent_data::TimeSeriesData {
         if self.is_contrast() {
-            tw_contrast_series(common::calibration::grid_n(TW_CONTRAST_BASE_N), seed)
+            tw_contrast_series(grid_rows(TW_CONTRAST_BASE_N), seed)
         } else {
-            tw_mediation_series(common::calibration::grid_n(TW_MEDIATION_BASE_N), seed)
+            tw_mediation_series(grid_rows(TW_MEDIATION_BASE_N), seed)
         }
     }
 

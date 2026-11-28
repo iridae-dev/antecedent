@@ -15,10 +15,10 @@ use crate::signal::{
 };
 
 use super::{
-    CostMapWire, DESIGN_RANKING_ARTIFACT_KIND, DESIGN_RANKING_ARTIFACT_VERSION,
-    DESIGN_RANKING_CALIBRATION, DecisionWire, DesignRankingArtifactError,
-    DesignRankingArtifactWire, EvsiCandidateWire, LawWire, PriorWire, ProviderWire, RankConfigWire,
-    Result, SearchWire, SignalRequestWire, UtilityWire,
+    CostMapWire, DESIGN_RANKING_ARTIFACT_KIND, DESIGN_RANKING_ARTIFACT_VERSION, DecisionWire,
+    DesignRankingArtifactError, DesignRankingArtifactWire, EvsiCandidateWire, LawWire, PriorWire,
+    ProviderWire, RankConfigWire, Result, SearchWire, SignalRequestWire, UtilityWire,
+    design_ranking_calibration,
 };
 
 /// Inputs of a ranking evaluation, retained by [`seal`].
@@ -277,7 +277,7 @@ fn seal_with_laws<A: Clone>(
     let mut wire = DesignRankingArtifactWire {
         version: DESIGN_RANKING_ARTIFACT_VERSION,
         kind: DESIGN_RANKING_ARTIFACT_KIND.to_owned(),
-        calibration: DESIGN_RANKING_CALIBRATION.to_owned(),
+        calibration: design_ranking_calibration().to_owned(),
         basis: ranking.basis.as_str().to_owned(),
         decision,
         cost_map: report.cost_map.as_ref().map(|m| CostMapWire {

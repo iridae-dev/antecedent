@@ -40,7 +40,7 @@ use antecedent_io::dose_grid_functional_artifact::{
 };
 
 use super::dose_grid_functional::DoseGridFunctional;
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, gate_program_when};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -470,9 +470,7 @@ impl CompiledDoseGridBiasAware {
     /// cancellation, or the support gate once it is on.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<DoseGridBiasAwareRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
         let fit = estimate_dose_grid_bias_aware_declared(
             &self.request.row_request(),
             &self.request.row_declaration(),
@@ -490,9 +488,7 @@ impl CompiledDoseGridBiasAware {
     /// [`Self::execute`] with the kernel's own refusal, for the sealed row.
     fn evaluate(&self, ctx: &ExecutionContext) -> Result<DoseGridBiasAwareRun, EstimationError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
-        }
+        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
         let fit = estimate_dose_grid_bias_aware_declared(
             &self.request.row_request(),
             &self.request.row_declaration(),

@@ -518,6 +518,11 @@ pub fn execute_dr_with_receipt(
     request: &DrRequest,
     ctx: &ExecutionContext,
 ) -> Result<RecalcOutcome, RecalcRunError> {
+    super::recalc_receipt::require_recalc_unit(
+        Some(ctx),
+        "recalculation.doubly_robust",
+        "antecedent.recalc_dr.DrSession.execute",
+    )?;
     request.validate()?;
     let requested = request.identities(ctx);
     let plan = session.plan_ids(&requested, request);

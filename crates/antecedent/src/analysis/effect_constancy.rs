@@ -24,10 +24,10 @@ pub use antecedent_estimate::effect_constancy::{
     POWER_CAVEAT, PartitionDependence, PartitionSupport,
 };
 pub use antecedent_io::effect_constancy_artifact::{
-    ContrastWire, DependenceWire, EFFECT_CONSTANCY_ARTIFACT_VERSION, EFFECT_CONSTANCY_CALIBRATION,
-    EffectConstancyArtifact, EffectConstancyArtifactError, EffectConstancyIdentity,
-    EffectConstancyReportWire, EffectConstancyRequestWire, EffectEstimandWire, FamilyWire,
-    PartitionReportWire, PartitionWire, ResultWire,
+    ContrastWire, DependenceWire, EFFECT_CONSTANCY_ARTIFACT_VERSION, EffectConstancyArtifact,
+    EffectConstancyArtifactError, EffectConstancyIdentity, EffectConstancyReportWire,
+    EffectConstancyRequestWire, EffectEstimandWire, FamilyWire, PartitionReportWire, PartitionWire,
+    ResultWire, effect_constancy_calibration,
 };
 
 use crate::error::CausalError;

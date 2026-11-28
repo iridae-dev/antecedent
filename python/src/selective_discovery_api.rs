@@ -20,8 +20,8 @@ use antecedent::analysis::per_population_discovery::{
     request_selection_targets_from_differences,
 };
 use antecedent::analysis::sample_split_analysis::{
-    AnalysisBinding, SplitDiscovery, SplitRule, WHOLE_METHOD_CALIBRATION, discover_on_split,
-    split_evidence_sources,
+    AnalysisBinding, SplitDiscovery, SplitRule, discover_on_split, split_evidence_sources,
+    whole_method_calibration,
 };
 use antecedent::analysis::sample_split_effect::{SplitEffect, estimate_effect_on_split};
 use antecedent::analysis::sample_split_parent_set_effect::{

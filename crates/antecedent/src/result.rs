@@ -1378,6 +1378,13 @@ impl StudyResult {
         self.extras.unit.as_ref()
     }
 
+    /// The calibration state of [`Self::unit`]: what the coverage records whose tests executed
+    /// it measured. [`crate::support::NOT_MEASURED`] for a result with no unit.
+    #[must_use]
+    pub fn calibration_state(&self) -> &'static str {
+        self.unit().map_or(crate::support::NOT_MEASURED, crate::support::unit_calibration)
+    }
+
     /// Stamp the status `status` the unit `unit` decided.
     pub(crate) fn stamp_support(
         &mut self,
@@ -1391,6 +1398,31 @@ impl StudyResult {
     /// Stamp a supported status decided by the unit `unit`.
     pub(crate) fn stamp_supported(&mut self, unit: crate::support::UnitRef) {
         self.stamp_support(Some(crate::support::CellStatus::Supported), Some(unit));
+    }
+
+    /// Decide this result under the capability unit `capability`, whose entry point `entry`
+    /// produced it by running another unit's route. The capability's decision replaces the
+    /// route's, unless the route's unit refused.
+    ///
+    /// Release: an unsupported capability refuses. Development: it is recorded in what a
+    /// release build would refuse, and the result carries `not_supported`.
+    pub(crate) fn decide_capability(
+        &mut self,
+        ctx: &antecedent_core::ExecutionContext,
+        capability: &'static str,
+        entry: &'static str,
+    ) -> Result<(), crate::CausalError> {
+        if self.extras.unit.is_some()
+            && self.support_status == Some(crate::support::CellStatus::NotSupported)
+        {
+            return Ok(());
+        }
+        let decision = crate::support::unit::decide(&crate::support::unit::SupportKey::Unit(
+            crate::support::UnitId::new(capability),
+        ));
+        crate::support::unit::require_decided(ctx, &decision, entry)?;
+        self.stamp_support(Some(decision.status), Some(decision.unit));
+        Ok(())
     }
 
     /// Refuse support to the construction `key` this result ran in place of its cell's route:
@@ -1449,6 +1481,18 @@ impl StudyResult {
                 self.support_status() != Some(crate::support::CellStatus::NotSupported)
             });
         crate::support::trace_route(program.route(), returned);
+        #[cfg(feature = "evidence-trace")]
+        crate::support::trace_output(&format!(
+            "{:016x}{:?}{:?}",
+            self.effect().to_bits(),
+            self.estimate.as_effect().map(|estimate| estimate.uncertainty),
+            self.extras.interval,
+        ));
+        if let Some(unit) = returned {
+            let method =
+                self.extras.interval.as_ref().map_or("none", |binding| binding.method.as_str());
+            crate::support::trace_interval(unit, method);
+        }
         Ok(())
     }
 

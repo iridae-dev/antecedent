@@ -283,7 +283,8 @@ fn measure(
             },
         },
         LEVEL,
-    );
+    )
+    .measures("capability", "evidence_ledger.pooled_interval");
     let replicates = map_replicates(n_sim(), |r| replicate(design, studies, n, seed, r));
     let mut ratios = Vec::with_capacity(replicates.len());
     for outcome in replicates {

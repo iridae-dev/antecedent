@@ -33,6 +33,7 @@ use super::propagation_chain_decision::{
     ChainDecisionResult, compile_action_world_chain_decision, consume_chain_decision,
 };
 use crate::analysis::cyclic::gate_decision;
+use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceRole, EvidenceSourceRef, FunctionalKind,
@@ -135,7 +136,7 @@ pub struct CyclicTargetFeedbackResult {
     pub decision: ChainDecisionResult,
     /// Identity of the lowered program that produced this result.
     pub lowered_program_identity: SemanticDigest,
-    /// Calibration status of the result; always `"not_measured"`.
+    /// Calibration state of the route's evidence unit.
     pub calibration: &'static str,
 }
 
@@ -358,9 +359,7 @@ pub fn compile_cyclic_target_feedback_decision(
     Ok(plan)
 }
 
-impl crate::analysis::program_handle::CompiledProgramHandle
-    for CompiledCyclicTargetFeedbackDecision
-{
+impl CompiledProgramHandle for CompiledCyclicTargetFeedbackDecision {
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered
     }
@@ -376,7 +375,7 @@ impl CompiledCyclicTargetFeedbackDecision {
     /// Plan view of the lowered program at the compiled stage.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Fit the cyclic posterior, standardize over the target frame and score the decision.
@@ -469,7 +468,7 @@ impl CompiledCyclicTargetFeedbackDecision {
             posterior,
             decision,
             lowered_program_identity: self.lowered.identity(),
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
 
@@ -529,7 +528,7 @@ impl CompiledCyclicTargetFeedbackDecision {
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, CyclicTargetFeedbackError> {
         let live = self.execute(ctx)?;
-        if result.calibration != "not_measured"
+        if result.calibration != self.unit_calibration()
             || result.lowered_program_identity != live.lowered_program_identity
             || result.posterior != live.posterior
             || result.decision.decision != live.decision.decision
@@ -808,6 +807,7 @@ pub(crate) mod tests {
 
     #[test]
     fn paired_target_worlds_refit_and_replay() {
+        crate::evidence_unit!("capability", "cyclic.action_world_decisions");
         let ctx = ExecutionContext::for_tests(47);
         let (request, contract) = fixture();
         let plan = compile_cyclic_target_feedback_decision(request, contract, &ctx).unwrap();

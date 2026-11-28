@@ -9,6 +9,7 @@ use super::graph_imputation_transport_decision::{
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
 };
+use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
@@ -19,6 +20,8 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
+use crate::support::capability_calibration;
+use crate::support::units_generated::GRAPH_IMPUTATION_COMPILED_DECISION;
 use antecedent_contract::{ClaimKind, DataClassification, QuantityRole, ScientificQuantity};
 use antecedent_core::graph_imputation_contract::GraphImputationSource;
 use antecedent_core::{
@@ -314,7 +317,7 @@ pub fn compile_graph_imputation_mar_transport_with_cluster(
     })
 }
 
-impl crate::analysis::program_handle::CompiledProgramHandle for CompiledMarTransportDecision {
+impl CompiledProgramHandle for CompiledMarTransportDecision {
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered
     }
@@ -329,7 +332,7 @@ impl CompiledMarTransportDecision {
     /// Inspect without executing.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
+        CompiledProgramHandle::plan_view(self)
     }
     /// Refit source graphs and integrate over the weighted complete target rows.
     ///
@@ -360,7 +363,7 @@ impl CompiledMarTransportDecision {
             producer: reading,
             decision,
             lowered_program_identity: self.lowered.identity(),
-            calibration: "not_measured",
+            calibration: self.unit_calibration(),
         })
     }
     /// Export the raw source and raw target after independent execution.
@@ -379,7 +382,7 @@ impl CompiledMarTransportDecision {
     ) -> Result<Vec<u8>, MarTransportError> {
         let live = self.execute(ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
-            || result.calibration != "not_measured"
+            || result.calibration != self.unit_calibration()
             || result.producer.receipt != live.producer.receipt
             || result.producer.draws != live.producer.draws
             || result.decision.decision != live.decision.decision
@@ -404,7 +407,7 @@ impl CompiledMarTransportDecision {
             chain: chain.export(&live.decision, artifact_id)?,
             receipt: live.producer.receipt,
             program: *self.lowered.identity().as_bytes(),
-            calibration: "not_measured".into(),
+            calibration: self.unit_calibration().into(),
             bootstrap: self.bootstrap,
         })?;
         if bytes.len() > MAX_BYTES {
@@ -434,7 +437,7 @@ pub fn consume_graph_imputation_mar_transport_decision(
     if wire.version != 2
         || wire.feature != FEATURE
         || wire.program != *expected.as_bytes()
-        || wire.calibration != "not_measured"
+        || wire.calibration != capability_calibration(GRAPH_IMPUTATION_COMPILED_DECISION.as_str())
     {
         return Err(MarTransportError::Invalid("artifact feature or program differs"));
     }

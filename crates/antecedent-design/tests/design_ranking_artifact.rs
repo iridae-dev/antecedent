@@ -22,9 +22,9 @@ use antecedent_contract::{
 };
 use antecedent_core::CancellationToken;
 use antecedent_design::design_ranking_artifact::{
-    ConsumeExpectation, ConsumedCandidate, DESIGN_RANKING_CALIBRATION, DesignRankingArtifactError,
-    DesignRankingArtifactWire, EvsiCandidateWire, LawWire, MAX_RANKING_CANDIDATES, ReplayKind,
-    SealInputs, consume, consume_wire, seal,
+    ConsumeExpectation, ConsumedCandidate, DesignRankingArtifactError, DesignRankingArtifactWire,
+    EvsiCandidateWire, LawWire, MAX_RANKING_CANDIDATES, ReplayKind, SealInputs, consume,
+    consume_wire, design_ranking_calibration, seal,
 };
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiError, EvsiReport, EvsiRequest, StudyCostSpec,
@@ -242,7 +242,7 @@ fn candidate_mut<'a>(
 #[test]
 fn round_trip_retains_net_values_three_twentieths_and_one_fortieth() {
     let wire = seal_guess(frozen_candidates());
-    assert_eq!(wire.calibration, DESIGN_RANKING_CALIBRATION);
+    assert_eq!(wire.calibration, design_ranking_calibration());
     assert_eq!(wire.calibration, "not_measured");
     let bytes = wire.to_bytes("ranking-1").unwrap();
     let consumed = consume(&bytes, &retained(&wire)).unwrap();

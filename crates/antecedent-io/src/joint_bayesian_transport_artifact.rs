@@ -58,8 +58,12 @@ use serde::{Deserialize, Serialize};
 pub const JOINT_BAYESIAN_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const JOINT_BAYESIAN_ARTIFACT_FEATURE: &str = "joint_bayesian_transport_conjugate_v1";
-/// The unchanged standing of the original candidate artifact format.
-pub const JOINT_BAYESIAN_CALIBRATION: &str = "not_measured";
+/// The calibration state of the joint Bayesian transport unit, as the original candidate format
+/// states it.
+#[must_use]
+pub fn joint_bayesian_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("transport.joint_bayesian")
+}
 
 /// Why a joint Bayesian transport artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -427,7 +431,7 @@ impl JointResultWire {
     fn from_fit(fit: &JointTransportFit) -> Self {
         let d = &fit.diagnostics;
         let calibration = match d.calibration {
-            JointTransportCalibration::NotMeasured => JOINT_BAYESIAN_CALIBRATION,
+            JointTransportCalibration::NotMeasured => joint_bayesian_calibration(),
         };
         Self {
             parameter_names: fit.parameter_names.clone(),
@@ -619,7 +623,7 @@ impl JointBayesianArtifactWire {
                 covariates: target.covariates.clone(),
             },
             result: JointResultWire::from_fit(&fit),
-            calibration: JOINT_BAYESIAN_CALIBRATION.into(),
+            calibration: joint_bayesian_calibration().into(),
             premises_digest: String::new(),
             data_digest: String::new(),
         };
@@ -687,8 +691,8 @@ impl JointBayesianArtifactWire {
         if wire.required_features != [JOINT_BAYESIAN_ARTIFACT_FEATURE] {
             return Err(unsupported("required features").into());
         }
-        if wire.calibration != JOINT_BAYESIAN_CALIBRATION
-            || wire.result.diagnostics.calibration != JOINT_BAYESIAN_CALIBRATION
+        if wire.calibration != joint_bayesian_calibration()
+            || wire.result.diagnostics.calibration != joint_bayesian_calibration()
         {
             return Err(unsupported("calibration is not_measured").into());
         }

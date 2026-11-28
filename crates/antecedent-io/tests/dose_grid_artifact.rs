@@ -16,9 +16,9 @@
 use antecedent_io::IoError;
 use antecedent_io::dose_grid_functional_artifact::{
     DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_BIAS_AWARE, DOSE_GRID_BAND_CLOSED,
-    DOSE_GRID_BIAS_AWARE_FEATURE, DOSE_GRID_CALIBRATION, DOSE_GRID_DECLARED_ROWS_FEATURE,
-    DOSE_GRID_INFERENCE_CLAIM, DoseBiasAwareRequestWire, DoseClaimsWire, DoseFunctionalWire,
-    DoseGridArtifactError, DoseGridArtifactWire, DoseGridConsumeLimits, DoseGridRequestWire,
+    DOSE_GRID_BIAS_AWARE_FEATURE, DOSE_GRID_DECLARED_ROWS_FEATURE, DOSE_GRID_INFERENCE_CLAIM,
+    DoseBiasAwareRequestWire, DoseClaimsWire, DoseFunctionalWire, DoseGridArtifactError,
+    DoseGridArtifactWire, DoseGridConsumeLimits, DoseGridRequestWire, dose_grid_calibration,
     dose_support_table,
 };
 
@@ -100,7 +100,7 @@ fn artifact_level_round_trips_and_matches_closed_form() {
         assert!((point.value - truth).abs() < 1e-6, "{} vs {truth}", point.value);
         assert!((truth - truth_level(point.dose)).abs() < 1e-12);
         assert_eq!(point.support, "supported");
-        assert_eq!(point.calibration, DOSE_GRID_CALIBRATION);
+        assert_eq!(point.calibration, dose_grid_calibration());
         assert!(!point.smoothing_bias_included);
     }
     assert!(consumed.result.derivatives.is_empty() && consumed.result.contrast.is_none());
@@ -138,7 +138,7 @@ fn artifact_records_support_not_measured_calibration_and_no_band() {
         assert!(row.local_ess >= wire.request.minimum_local_ess);
     }
     assert_eq!(wire.result.support_status, "supported");
-    assert_eq!(wire.result.calibration, DOSE_GRID_CALIBRATION);
+    assert_eq!(wire.result.calibration, dose_grid_calibration());
     assert_eq!(wire.result.simultaneous_band, DOSE_GRID_BAND_CLOSED);
     assert_eq!(wire.result.inference_claim, DOSE_GRID_INFERENCE_CLAIM);
     assert!(!wire.result.smoothing_bias_included);

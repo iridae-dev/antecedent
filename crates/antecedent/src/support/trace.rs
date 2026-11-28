@@ -91,6 +91,37 @@ fn write_route(path: &std::path::Path, route: &str, unit: Option<&UnitRef>) {
     write_line(path, &line);
 }
 
+/// Record that a result decided by `unit` reported its interval with `method` (`none` for no
+/// interval), so a unit stating it reports none is checked against what it returned.
+pub(crate) fn interval_reported(unit: &UnitRef, method: &str) {
+    #[cfg(feature = "evidence-trace")]
+    if let Some(path) = std::env::var_os(TRACE_ENV) {
+        write_line(
+            std::path::Path::new(&path),
+            &format!("interval\t{}\t{}\t{}\t{method}", origin(), unit.kind(), unit.record_id()),
+        );
+    }
+    #[cfg(not(feature = "evidence-trace"))]
+    let _ = (unit, method);
+}
+
+/// Record the observed values of a result handed to the test, `values` rendered exactly, as a
+/// digest that a bit-identical re-run reproduces (`scripts/scientific_records.py run --carry`).
+#[cfg(feature = "evidence-trace")]
+pub(crate) fn output_produced(values: &str) {
+    if let Some(path) = std::env::var_os(TRACE_ENV) {
+        write_output(std::path::Path::new(&path), values);
+    }
+}
+
+#[cfg(feature = "evidence-trace")]
+fn write_output(path: &std::path::Path, values: &str) {
+    let digest = values.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
+    });
+    write_line(path, &format!("output\t{}\t{digest:016x}", origin()));
+}
+
 /// Declare, for a test that executes several units, a unit `kind`/`id` its assertions are
 /// about. Reached through [`crate::evidence_unit!`].
 #[doc(hidden)]
@@ -201,6 +232,23 @@ mod tests {
         );
         assert_eq!(lines[1][3..], ["SomeRoute", "-", "-", "capability", "refused.unit"]);
         assert_eq!(lines[2][3..], ["SomeRoute", "capability", "refused.unit"]);
+    }
+
+    #[test]
+    fn an_output_line_is_a_digest_of_the_exact_values() {
+        let path = std::env::temp_dir()
+            .join(format!("antecedent-evidence-output-{}.tsv", std::process::id()));
+        write_output(&path, "0.5");
+        write_output(&path, "0.5");
+        write_output(&path, "0.50000000000000011");
+        let trace = std::fs::read_to_string(&path).expect("the trace was written");
+        let _ = std::fs::remove_file(&path);
+        let lines: Vec<Vec<&str>> = trace.lines().map(|line| line.split('\t').collect()).collect();
+        assert_eq!(lines[0][0], "output");
+        assert!(lines[0][2].ends_with("an_output_line_is_a_digest_of_the_exact_values"));
+        assert_eq!(lines[0][3].len(), 16);
+        assert_eq!(lines[0][3], lines[1][3]);
+        assert_ne!(lines[0][3], lines[2][3]);
     }
 
     #[test]

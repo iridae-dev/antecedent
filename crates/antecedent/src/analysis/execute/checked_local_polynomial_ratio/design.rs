@@ -57,13 +57,16 @@ fn local_design_state_support(result: &mut StudyResult, selected_bandwidth: bool
         return;
     };
     let section = antecedent_io::analysis_result_artifact::QuasiRolloutWire::from(&**rollout);
-    if !antecedent_io::analysis_result_artifact::rollout_support::local_design_row_admits(
-        selected_bandwidth,
-        &section,
-    ) {
+    let Some(unit) = crate::support::rollout_row_unit(
+        antecedent_io::analysis_result_artifact::rollout_support::local_design_row(
+            selected_bandwidth,
+            &section,
+        ),
+    ) else {
         return;
-    }
+    };
     rollout.supported = true;
+    result.extras.unit = Some(unit);
     result.diagnostics.retain(|diagnostic| {
         !matches!(
             diagnostic.code.as_ref(),

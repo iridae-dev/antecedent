@@ -87,18 +87,20 @@ const NO_VALIDATION: &str = "not_applicable";
 /// runtime reports for the scored interval method.
 fn measure(
     cell: Cell,
+    capability: Option<&str>,
     targets: &[Target],
     run: impl Fn(u64, usize) -> (Study, StudyResult) + Sync,
     score: impl Fn(&StudyResult) -> Vec<IntervalPair> + Sync,
 ) {
     let fixed: Vec<f64> = targets.iter().map(|target| target.truth).collect();
-    measure_sample_truths(cell, targets, |_| fixed.clone(), run, score);
+    measure_sample_truths(cell, capability, targets, |_| fixed.clone(), run, score);
 }
 
 /// [`measure`] for a functional whose true value depends on the replicate's sample:
 /// `truths(replicate)` gives one truth per target, in `targets` order.
 fn measure_sample_truths(
     cell: Cell,
+    capability: Option<&str>,
     targets: &[Target],
     truths: impl Fn(u64) -> Vec<f64> + Sync,
     run: impl Fn(u64, usize) -> (Study, StudyResult) + Sync,
@@ -129,6 +131,9 @@ fn measure_sample_truths(
             let mut tally = CoverageTally::for_record(key, level);
             if let Some(label) = &target.label {
                 tally = tally.labelled(label.clone());
+            }
+            if let Some(capability) = capability {
+                tally = tally.measures("capability", capability);
             }
             for (construction, scope, intervals, truth) in &runs {
                 tally.bind_validation(construction, *scope, NO_VALIDATION);
@@ -386,6 +391,7 @@ fn attribute_change_frequentist(test: &'static str, family: u64, rooted: bool) {
     };
     measure(
         cell,
+        None,
         &Target::scalar(COMPARISON - BASELINE),
         |rep, _| {
             let seed = stream_seed(family, rep);
@@ -420,6 +426,7 @@ fn attribute_change_bayesian(test: &'static str, family: u64, rooted: bool) {
     ];
     measure(
         cell,
+        None,
         &targets,
         |rep, _| {
             let seed = stream_seed(family, rep);
@@ -503,6 +510,7 @@ fn attribute_whole_table_bayesian(
     let columns: Vec<usize> = (0..width).collect();
     measure_sample_truths(
         cell,
+        None,
         &targets,
         |rep| {
             let [x, _] = pair_columns(grid_n(ROWS), stream_seed(family, rep), |_| CENTER);
@@ -821,6 +829,7 @@ fn policy_value_bayesian(
     ];
     measure(
         cell,
+        None,
         &targets,
         |rep, _| {
             let seed = stream_seed(family, rep);
@@ -875,6 +884,7 @@ fn policy_value_frequentist(
     };
     measure(
         cell,
+        None,
         &Target::scalar(effect),
         |rep, _| {
             let seed = stream_seed(family, rep);
@@ -949,6 +959,7 @@ fn attribute_temporal_dag_frequentist_block_bootstrap_coverage() {
     };
     measure(
         cell,
+        Some("gcm.attribute.mechanism_refit"),
         &Target::scalar(COMPARISON - BASELINE),
         |rep, _| {
             let seed = stream_seed(0xF17_000E, rep);
@@ -979,6 +990,7 @@ fn attribute_temporal_dag_bayesian_block_weights_coverage() {
     let targets = vec![Target::labelled("total_change", COMPARISON - BASELINE)];
     measure(
         cell,
+        Some("gcm.attribute.mechanism_refit"),
         &targets,
         |rep, _| {
             let seed = stream_seed(0xF17_000F, rep);
@@ -1020,6 +1032,7 @@ fn simulate_temporal_rollout_bayesian_block_weights_coverage() {
     ];
     measure(
         cell,
+        Some("gcm.simulate.mechanism_refit"),
         &targets,
         |rep, _| {
             let seed = stream_seed(0xF17_0010, rep);

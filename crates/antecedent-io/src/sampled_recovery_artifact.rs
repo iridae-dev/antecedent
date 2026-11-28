@@ -45,9 +45,10 @@ use antecedent_estimate::recovery_sampled::{
     SampledBcaReceipt, SampledIntervalMethod, SampledJackknifeRecord, SampledReplicateRecord,
 };
 use antecedent_estimate::{
-    ObservationPattern, ObservationRow, SAMPLED_RECOVERY_CALIBRATION, SAMPLED_RECOVERY_MAX_ROWS,
-    SampledEffectInterval, SampledObservationInput, SampledRecoveryConfig, SampledRecoveryDetail,
-    SampledRecoveryError, SampledRecoveryReceipt, SampledRecoveryResult, replay_sampled_recovery,
+    ObservationPattern, ObservationRow, SAMPLED_RECOVERY_MAX_ROWS, SampledEffectInterval,
+    SampledObservationInput, SampledRecoveryConfig, SampledRecoveryDetail, SampledRecoveryError,
+    SampledRecoveryReceipt, SampledRecoveryResult, replay_sampled_recovery,
+    sampled_recovery_calibration,
 };
 use antecedent_graph::{Admg, NodeRef};
 use antecedent_identify::{
@@ -227,7 +228,7 @@ impl SampledIntervalWire {
     }
 
     fn to_interval(&self) -> Result<SampledEffectInterval, SampledRecoveryArtifactError> {
-        if self.calibration != SAMPLED_RECOVERY_CALIBRATION {
+        if self.calibration != sampled_recovery_calibration() {
             return Err(SampledRecoveryArtifactError::UnsupportedSemantics(
                 "interval calibration is not_measured",
             ));
@@ -236,7 +237,7 @@ impl SampledIntervalWire {
             level: self.level,
             lower: self.lower,
             upper: self.upper,
-            calibration: SAMPLED_RECOVERY_CALIBRATION,
+            calibration: sampled_recovery_calibration(),
         })
     }
 }
@@ -652,7 +653,7 @@ impl SampledRecoveryArtifactWire {
                 .collect(),
             result: SampledResultWire::from_result(input.result),
             receipt: SampledReceiptWire::from_receipt(&input.result.receipt),
-            calibration: SAMPLED_RECOVERY_CALIBRATION.into(),
+            calibration: sampled_recovery_calibration().into(),
             premises_digest: String::new(),
             data_digest: String::new(),
         };
@@ -743,9 +744,9 @@ impl SampledRecoveryArtifactWire {
                 ));
             }
         }
-        if self.calibration != SAMPLED_RECOVERY_CALIBRATION
-            || self.result.interval.calibration != SAMPLED_RECOVERY_CALIBRATION
-            || self.receipt.interval.calibration != SAMPLED_RECOVERY_CALIBRATION
+        if self.calibration != sampled_recovery_calibration()
+            || self.result.interval.calibration != sampled_recovery_calibration()
+            || self.receipt.interval.calibration != sampled_recovery_calibration()
         {
             return Err(unsupported("interval calibration is not_measured"));
         }

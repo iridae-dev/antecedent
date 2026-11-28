@@ -79,8 +79,11 @@ use sealing::{provider_wire, request_wire};
 pub const DESIGN_RANKING_ARTIFACT_VERSION: u32 = 1;
 /// Artifact kind.
 pub const DESIGN_RANKING_ARTIFACT_KIND: &str = "design_ranking_v1";
-/// Calibration label: Monte Carlo error coverage and rank guarantees are not measured.
-pub const DESIGN_RANKING_CALIBRATION: &str = "not_measured";
+/// The calibration state of the design-ranking artifact unit: Monte Carlo error coverage and rank guarantees.
+#[must_use]
+pub fn design_ranking_calibration() -> &'static str {
+    antecedent_io_core::unit_calibration::capability("design.ranking_artifact")
+}
 /// Identity of the reported ranking within
 /// [`DesignRankingArtifactWire::provenance_chain`].
 pub const DESIGN_RANKING_CLAIM_LINK_ID: &str = "design_ranking_result";

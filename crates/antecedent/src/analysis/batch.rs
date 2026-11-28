@@ -1487,6 +1487,19 @@ impl PreparedBatch {
         request: &BatchRetargetRequest,
         ctx: &ExecutionContext,
     ) -> Result<BatchRetargetReport, BatchRetargetError> {
+        crate::support::unit::require_program(
+            ctx,
+            &crate::support::unit::SupportKey::Unit(crate::support::UnitId::new(
+                "estimate.batch_retarget_covariance",
+            )),
+            "antecedent.PreparedBatch.retarget",
+        )
+        .map_err(|refusal| BatchRetargetError {
+            code: refusal.code(),
+            detail: refusal.detail,
+            message: refusal.message().to_owned(),
+            subject: None,
+        })?;
         retarget_family(
             &self.plans,
             &self.queries,
