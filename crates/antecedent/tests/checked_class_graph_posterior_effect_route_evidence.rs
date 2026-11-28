@@ -268,8 +268,7 @@ fn frequentist_pag_graph_posterior_effect_body() {
 }
 
 fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("checked-class-graph-posterior-evidence".into())
+    antecedent::support::caller_thread()
         .stack_size(4 * 1024 * 1024)
         .spawn(run)
         .unwrap()

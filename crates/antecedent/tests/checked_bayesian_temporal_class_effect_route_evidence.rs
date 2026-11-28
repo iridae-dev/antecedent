@@ -242,13 +242,15 @@ fn in_parallel<T: Sync>(cases: &[T], run: impl Fn(&T) + Sync) {
     std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers)
             .map(|_| {
-                scope.spawn(|| {
-                    while let Some(case) =
-                        cases.get(next.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
-                    {
-                        run(case);
-                    }
-                })
+                antecedent::support::caller_thread()
+                    .spawn_scoped(scope, || {
+                        while let Some(case) =
+                            cases.get(next.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+                        {
+                            run(case);
+                        }
+                    })
+                    .unwrap()
             })
             .collect();
         let mut first = None;

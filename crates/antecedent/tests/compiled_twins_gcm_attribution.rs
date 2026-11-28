@@ -87,9 +87,8 @@ fn opt_bits(value: Option<f64>) -> Option<u64> {
     value.map(f64::to_bits)
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -349,7 +348,7 @@ fn detection_bits(detections: &[MechanismChangeDetection]) -> Vec<DetectionKey> 
 
 #[test]
 fn distribution_change_equals_the_compiled_sampled_change_route() {
-    on_large_stack("twin-distribution-change", || {
+    on_large_stack(|| {
         let (data, graph) = two_period();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let options = DistributionChangeOptions {
@@ -377,7 +376,7 @@ fn distribution_change_equals_the_compiled_sampled_change_route() {
 
 #[test]
 fn distribution_change_robust_equals_the_compiled_robust_change_route() {
-    on_large_stack("twin-robust-change", || {
+    on_large_stack(|| {
         let (data, graph) = two_period();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let options = RobustChangeOptions { max_rows: 1000, n_samples: 200, seed: 5 };
@@ -397,7 +396,7 @@ fn distribution_change_robust_equals_the_compiled_robust_change_route() {
 
 #[test]
 fn root_cause_rank_equals_the_compiled_root_causes_route() {
-    on_large_stack("twin-root-causes", || {
+    on_large_stack(|| {
         let (data, graph) = two_period();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let options = DistributionChangeOptions {
@@ -432,7 +431,7 @@ fn root_cause_rank_equals_the_compiled_root_causes_route() {
 
 #[test]
 fn path_decompose_equals_the_compiled_paths_route() {
-    on_large_stack("twin-paths", || {
+    on_large_stack(|| {
         let (data, graph) = chain();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let direct = path_decompose(&fitted.model, &[v(0)], v(2), 16, 4, &ctx()).unwrap();
@@ -454,7 +453,7 @@ fn path_decompose_equals_the_compiled_paths_route() {
 
 #[test]
 fn feature_relevance_equals_the_compiled_feature_relevance_route() {
-    on_large_stack("twin-feature-relevance", || {
+    on_large_stack(|| {
         let (data, graph) = chain();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let options = FeatureRelevanceOptions { delta: 1.0, n_samples: 200, max_features: 4 };
@@ -482,7 +481,7 @@ fn feature_relevance_equals_the_compiled_feature_relevance_route() {
 
 #[test]
 fn score_anomalies_equals_the_compiled_anomaly_route() {
-    on_large_stack("twin-anomaly", || {
+    on_large_stack(|| {
         let (data, graph) = chain();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let query = AnomalyAttributionQuery::new([v(2)], 40)
@@ -501,7 +500,7 @@ fn score_anomalies_equals_the_compiled_anomaly_route() {
 
 #[test]
 fn unit_change_equals_the_compiled_unit_change_route() {
-    on_large_stack("twin-unit-change", || {
+    on_large_stack(|| {
         let (data, graph) = two_period();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let query = UnitChangeQuery::new(v(1), 20).with_unit_rows((0..20).collect::<Vec<usize>>());
@@ -517,7 +516,7 @@ fn unit_change_equals_the_compiled_unit_change_route() {
 
 #[test]
 fn structure_change_equals_the_compiled_structure_change_route() {
-    on_large_stack("twin-structure-change", || {
+    on_large_stack(|| {
         let (data, graph) = two_period();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let comparison: Arc<[(VariableId, VariableId)]> = Arc::from([]);
@@ -553,7 +552,7 @@ fn structure_change_equals_the_compiled_structure_change_route() {
 
 #[test]
 fn intrinsic_influence_equals_the_compiled_intrinsic_influence_route() {
-    on_large_stack("twin-intrinsic-influence", || {
+    on_large_stack(|| {
         let (data, graph) = chain();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let query = IntrinsicInfluenceQuery::new(v(2))
@@ -599,7 +598,7 @@ fn intrinsic_influence_equals_the_compiled_intrinsic_influence_route() {
 
 #[test]
 fn detect_mechanism_changes_equals_the_compiled_mechanism_change_route() {
-    on_large_stack("twin-mechanism-change", || {
+    on_large_stack(|| {
         let (data, graph) = two_period();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let query = MechanismChangeQuery::new(
@@ -633,7 +632,7 @@ fn detect_mechanism_changes_equals_the_compiled_mechanism_change_route() {
 
 #[test]
 fn change_attribution_run_equals_the_compiled_sampled_change_route() {
-    on_large_stack("twin-change-builder", || {
+    on_large_stack(|| {
         let (data, graph) = two_period();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let direct = ChangeAttribution::new()
@@ -661,7 +660,7 @@ fn change_attribution_run_equals_the_compiled_sampled_change_route() {
 
 #[test]
 fn change_attribution_run_structure_equals_the_compiled_structure_change_route() {
-    on_large_stack("twin-structure-builder", || {
+    on_large_stack(|| {
         let (data, graph) = two_period();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let comparison: Arc<[(VariableId, VariableId)]> = Arc::from([]);

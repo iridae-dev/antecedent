@@ -144,7 +144,12 @@ fn configuration_rebind_preserves_causal_proof_and_errors_are_transactional_body
 
 // Original checked Study preparation also uses this established debug-test stack size.
 fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new().stack_size(8 * 1024 * 1024).spawn(run).unwrap().join().unwrap();
+    antecedent::support::caller_thread()
+        .stack_size(8 * 1024 * 1024)
+        .spawn(run)
+        .unwrap()
+        .join()
+        .unwrap();
 }
 #[test]
 fn quadratic_basis_matches_independent_nig_contrast_and_refuses_external_prior() {

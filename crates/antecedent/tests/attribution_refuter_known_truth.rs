@@ -62,8 +62,7 @@ fn report<'a>(result: &'a StudyResult, refuter: &str) -> &'a antecedent_validate
 }
 
 fn on_large_stack(body: fn()) {
-    std::thread::Builder::new()
-        .name("attribution-refuter-known-truth".into())
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(body)
         .expect("spawn evidence thread")

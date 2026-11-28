@@ -2626,13 +2626,15 @@ pub(crate) fn parallel_map<T: Sync, R: Send>(cases: &[T], run: impl Fn(&T) -> R 
     std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers)
             .map(|_| {
-                scope.spawn(|| {
-                    loop {
-                        let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                        let Some(case) = cases.get(index) else { break };
-                        *slots[index].lock().unwrap() = Some(run(case));
-                    }
-                })
+                antecedent::support::caller_thread()
+                    .spawn_scoped(scope, || {
+                        loop {
+                            let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            let Some(case) = cases.get(index) else { break };
+                            *slots[index].lock().unwrap() = Some(run(case));
+                        }
+                    })
+                    .unwrap()
             })
             .collect();
         let mut first = None;

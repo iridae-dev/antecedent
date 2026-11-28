@@ -713,11 +713,17 @@ fn trace_record(id: &str, units: &std::collections::BTreeSet<String>) {
     let Ok(path) = std::env::var(TRACE_ENV) else {
         return;
     };
-    let binary = std::env::current_exe()
+    let stem = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.file_stem().map(|stem| stem.to_string_lossy().into_owned()))
-        .map(|stem| stem.rsplit_once('-').map_or(stem.clone(), |(name, _)| name.to_owned()))
         .unwrap_or_default();
+    // Cargo's `-<16 hex>` suffix, as `antecedent::support::binary_name` strips it.
+    let binary = match stem.rsplit_once('-') {
+        Some((name, hash)) if hash.len() == 16 && hash.bytes().all(|b| b.is_ascii_hexdigit()) => {
+            name.to_owned()
+        }
+        _ => stem.clone(),
+    };
     let test = std::thread::current().name().unwrap_or("").to_owned();
     let mut line = format!("record\t{binary}\t{test}\t{id}");
     for unit in units {
@@ -985,6 +991,8 @@ struct RecordState {
     posterior_draws_min: Option<u32>,
     unidentified_mass_max: f64,
     bound: u32,
+    #[serde(default)]
+    units: std::collections::BTreeSet<String>,
 }
 
 /// The first run's tally states ([`PRIOR_TALLIES_ENV`]), by key.
@@ -1138,6 +1146,7 @@ impl CoverageTally {
                 record.posterior_draws_min = prior.posterior_draws_min;
                 record.unidentified_mass_max = prior.unidentified_mass_max;
                 record.bound = prior.bound;
+                record.units.extend(prior.units.iter().cloned());
             }
             (None, None) => {}
             (mine, prior) => panic!(
@@ -1173,6 +1182,7 @@ impl CoverageTally {
                 posterior_draws_min: record.posterior_draws_min,
                 unidentified_mass_max: record.unidentified_mass_max,
                 bound: record.bound,
+                units: record.units.clone(),
             }),
         }
     }

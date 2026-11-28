@@ -84,8 +84,7 @@ fn ctx(seed: u64) -> ExecutionContext {
 }
 
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("composition-chain".into())
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(body)
         .unwrap()

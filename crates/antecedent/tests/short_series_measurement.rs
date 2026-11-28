@@ -422,22 +422,25 @@ fn run_cells(designs: &[Design]) -> Vec<Cell> {
     let threads = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
     std::thread::scope(|scope| {
         for _ in 0..threads {
-            scope.spawn(|| {
-                while let Some(&(d, r, n)) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
-                    let design = &designs[d];
-                    let rho = RHOS[r];
-                    let base = design.seed + r as u64 * 100_000_000 + n as u64 * 10_000 + offset;
-                    let mut reps = Vec::new();
-                    let mut skipped = 0;
-                    for rep in 0..n_sim() {
-                        match (design.fit)(rho, n, base + u64::from(rep)) {
-                            Some(r) => reps.push(r),
-                            None => skipped += 1,
+            antecedent::support::caller_thread()
+                .spawn_scoped(scope, || {
+                    while let Some(&(d, r, n)) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
+                        let design = &designs[d];
+                        let rho = RHOS[r];
+                        let base =
+                            design.seed + r as u64 * 100_000_000 + n as u64 * 10_000 + offset;
+                        let mut reps = Vec::new();
+                        let mut skipped = 0;
+                        for rep in 0..n_sim() {
+                            match (design.fit)(rho, n, base + u64::from(rep)) {
+                                Some(r) => reps.push(r),
+                                None => skipped += 1,
+                            }
                         }
+                        cells.lock().unwrap().push(Cell { design: d, rho, n, reps, skipped });
                     }
-                    cells.lock().unwrap().push(Cell { design: d, rho, n, reps, skipped });
-                }
-            });
+                })
+                .unwrap();
         }
     });
     let mut cells = cells.into_inner().unwrap();

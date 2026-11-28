@@ -200,8 +200,7 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
 /// Debug builds of the shared prepared dispatcher carry frames close to the
 /// default test-thread stack, so the evidence body runs on its own thread.
 fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("checked-route-evidence".into())
+    antecedent::support::caller_thread()
         .stack_size(8 * 1024 * 1024)
         .spawn(run)
         .expect("spawn evidence thread")

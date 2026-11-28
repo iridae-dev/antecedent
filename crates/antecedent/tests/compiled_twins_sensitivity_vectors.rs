@@ -62,8 +62,7 @@ fn v(raw: u32) -> VariableId {
 }
 
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("sensitivity-vectors".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(body)
         .unwrap()

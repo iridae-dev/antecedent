@@ -49,8 +49,7 @@ use antecedent_prob::InferenceDiagnostics;
 use serde_json::Value as Json;
 
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("compiled-twins-class-identifiers".into())
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(body)
         .expect("spawn twin thread")

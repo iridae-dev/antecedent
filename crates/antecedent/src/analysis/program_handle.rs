@@ -17,8 +17,7 @@ use antecedent_io::method_provenance::MethodProvenanceWire;
 
 use crate::planner::lowered::LoweredProgram;
 use crate::planner::{PlanStage, PlanView};
-use crate::support::unit::{SupportKey, UnitDecision, require_program, route_decision};
-use crate::support::units_generated::unit_of;
+use crate::support::unit::{UnitDecision, require_decided, route_decision};
 
 /// What a route with no bound unit is missing, in a refusal.
 const NO_UNIT: &str = "support_unit";
@@ -70,8 +69,17 @@ where
     H: CompiledProgramHandle + ?Sized,
 {
     let route = handle.lowered().route();
-    match unit_of(route) {
-        Some(unit) => require_program(ctx, &SupportKey::Unit(unit), route),
+    let decision = route_decision(route);
+    let result = match &decision {
+        Some(decision) => require_decided(ctx, decision, route),
         None => antecedent_core::support_gate::require_supported(ctx, route, &[NO_UNIT]),
-    }
+    };
+    let returned = decision
+        .as_ref()
+        .filter(|decision| {
+            result.is_ok() && decision.status == crate::support::CellStatus::Supported
+        })
+        .map(|decision| &decision.unit);
+    crate::support::trace_route(route, returned);
+    result
 }

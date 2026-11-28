@@ -921,7 +921,7 @@ impl CheckedPanelDidOperation {
                 && resampled_quantity.is_some()
                 && summary.replicates_ok == summary.requested
         }) && pick(&self.query.clusters, &keep).iter().collect::<BTreeSet<_>>().len() == subjects
-            && crate::support::admits_resampled(
+            && let Some(unit) = crate::support::admitted_resampled_unit(
                 crate::support::GraphlessSupportKey {
                     family: "difference_in_differences",
                     design: "augmented_panel",
@@ -947,6 +947,9 @@ impl CheckedPanelDidOperation {
         {
             // The row is stated in a coded diagnostic the artifact check recomputes; the
             // section's own support status stays absent, as on every augmented panel.
+            if result.extras.unit.is_none() {
+                result.extras.unit = Some(unit);
+            }
             result.diagnostics.push(Diagnostic::new(
                 antecedent_io::graphless_support::AUGMENTED_DID_ROW_CODE,
                 DiagnosticKind::Scientific,

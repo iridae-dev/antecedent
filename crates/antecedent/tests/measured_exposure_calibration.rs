@@ -116,7 +116,7 @@ fn replicate(
     // build.
     let estimator = estimator.to_owned();
     let dependence = dependence.to_owned();
-    std::thread::Builder::new()
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(move || {
             let planted = plant(scenario, n, seed);

@@ -71,17 +71,21 @@ class Store:
 
     def __init__(self, root: Path):
         self.root = root
-        self.shards: dict[str, tuple[int, dict[str, bytes]]] = {}
+        # prefix -> (inode, bytes read, objects): a shard `compact` replaced is read afresh.
+        self.shards: dict[str, tuple[int, int, dict[str, bytes]]] = {}
 
     def _path(self, prefix: str) -> Path:
         return self.root / OBJECTS / f"{prefix}.txt"
 
     def _objects(self, prefix: str, handle=None) -> dict[str, bytes]:
         path = self._path(prefix)
-        size, objects = self.shards.get(prefix, (0, {}))
-        current = os.fstat(handle.fileno()).st_size if handle else (
-            path.stat().st_size if path.is_file() else 0)
-        if current < size:
+        inode, size, objects = self.shards.get(prefix, (0, 0, {}))
+        try:
+            stat = os.fstat(handle.fileno()) if handle else path.stat()
+        except FileNotFoundError:
+            return {}
+        current = stat.st_size
+        if stat.st_ino != inode or current < size:
             size, objects = 0, {}
         if current > size:
             with open(path, "rb") as file:
@@ -93,14 +97,14 @@ class Store:
                 tail = tail[: tail.rfind(b"\n") + 1]
             objects = {**objects, **parse(tail, path.name)}
             size += len(tail)
-            self.shards[prefix] = (size, objects)
+            self.shards[prefix] = (stat.st_ino, size, objects)
         return objects
 
     def get(self, address: str) -> bytes:
         if not isinstance(address, str) or not HEX.fullmatch(address):
             raise CorruptObject(f"invalid object address {address!r}")
         cached = self.shards.get(address[:2])
-        data = cached[1].get(address) if cached else None
+        data = cached[2].get(address) if cached else None
         if data is None:
             data = self._objects(address[:2]).get(address)
         if data is None:
@@ -111,7 +115,7 @@ class Store:
         if not isinstance(address, str) or not HEX.fullmatch(address):
             return False
         cached = self.shards.get(address[:2])
-        return (cached is not None and address in cached[1]) or address in self._objects(address[:2])
+        return (cached is not None and address in cached[2]) or address in self._objects(address[:2])
 
     def addresses(self) -> set[str]:
         return {address for prefix in self.prefixes() for address in self._objects(prefix)}
@@ -119,6 +123,30 @@ class Store:
     def prefixes(self) -> list[str]:
         base = self.root / OBJECTS
         return sorted(p.stem for p in base.glob("??.txt")) if base.is_dir() else []
+
+    @contextlib.contextmanager
+    def _locked_shard(self, prefix: str, mode: str, *, create: bool):
+        """The shard open and exclusively locked, or `None` when it does not exist and `create`
+        is false. A writer that locked a shard `compact` then replaced or removed holds a dead
+        inode, so the lock is retaken until it is on the file at the path."""
+        path = self._path(prefix)
+        while True:
+            try:
+                handle = open(path, mode)
+            except FileNotFoundError:
+                if create:
+                    raise
+                yield None
+                return
+            with handle:
+                fcntl.flock(handle, fcntl.LOCK_EX)
+                try:
+                    current = os.stat(path).st_ino
+                except FileNotFoundError:
+                    current = None
+                if current == os.fstat(handle.fileno()).st_ino:
+                    yield handle
+                    return
 
     def put(self, objects: dict[str, bytes]) -> list[str]:
         """Store each `address -> bytes` not yet stored; the shards written, repo-relative."""
@@ -132,8 +160,7 @@ class Store:
         for prefix, wanted in sorted(by_prefix.items()):
             if all(self.has(address) for address in wanted):
                 continue
-            with open(self._path(prefix), "ab") as handle:
-                fcntl.flock(handle, fcntl.LOCK_EX)
+            with self._locked_shard(prefix, "ab", create=True) as handle:
                 stored = self._objects(prefix, handle)
                 new = b"".join(address.encode() + b" " + data + b"\n"
                                for address, data in sorted(wanted.items()) if address not in stored)
@@ -149,8 +176,9 @@ class Store:
         dropped: list[str] = []
         for prefix in self.prefixes():
             path = self._path(prefix)
-            with open(path, "rb+") as handle:
-                fcntl.flock(handle, fcntl.LOCK_EX)
+            with self._locked_shard(prefix, "rb+", create=False) as handle:
+                if handle is None:
+                    continue
                 objects = self._objects(prefix, handle)
                 kept = {a: d for a, d in objects.items() if a in keep}
                 dropped += sorted(set(objects) - set(kept))
@@ -162,7 +190,7 @@ class Store:
                 with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as file:
                     file.write(data)
                 os.replace(file.name, path)
-                self.shards[prefix] = (len(data), kept)
+                self.shards[prefix] = (os.stat(path).st_ino, len(data), kept)
         return dropped
 
 

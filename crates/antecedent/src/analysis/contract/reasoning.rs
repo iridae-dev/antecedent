@@ -29,7 +29,7 @@ pub(super) fn reasoning_view(
     search_capped: bool,
 ) -> ReasoningView {
     let support = SupportSlot::new(
-        study.support_status.map_or("off_axis", CellStatus::as_str),
+        study.support_status().map_or("off_axis", CellStatus::as_str),
         matrix_coordinate(study).map(Arc::from),
         SlotAvailability::unavailable("not_evaluated"),
     );

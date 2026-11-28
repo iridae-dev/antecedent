@@ -254,15 +254,17 @@ fn sequential_gcomp_recovers_the_multi_step_effect_for_bayesian_plain_and_condit
     let workers = std::thread::available_parallelism().map_or(1, usize::from).min(cases.len());
     std::thread::scope(|scope| {
         for _ in 0..workers {
-            scope.spawn(|| {
-                loop {
-                    let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    let Some(case) = cases.get(index) else { break };
-                    if let Some(failure) = run_case(case, &ctx) {
-                        failures.lock().unwrap().push(failure);
+            antecedent::support::caller_thread()
+                .spawn_scoped(scope, || {
+                    loop {
+                        let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(case) = cases.get(index) else { break };
+                        if let Some(failure) = run_case(case, &ctx) {
+                            failures.lock().unwrap().push(failure);
+                        }
                     }
-                }
-            });
+                })
+                .unwrap();
         }
     });
     let failures = failures.into_inner().unwrap();
@@ -354,48 +356,50 @@ fn sequential_gcomp_returns_the_modifier_averaged_effect_on_a_fixed_dag() {
     let workers = std::thread::available_parallelism().map_or(1, usize::from).min(cases.len());
     std::thread::scope(|scope| {
         for _ in 0..workers {
-            scope.spawn(|| {
-                loop {
-                    let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    let Some(&(is_bayesian, accepted, suite)) = cases.get(index) else { break };
-                    let (inference, disturbance, tolerance) = if is_bayesian {
-                        (bayesian(), 0.02, BAYESIAN_BOUND)
-                    } else {
-                        (InferenceMode::Frequentist, 0.0, FREQUENTIST_TOLERANCE)
-                    };
-                    let (data, expected) = modifier_series(disturbance);
-                    let label = format!("bayesian={is_bayesian} accepted={accepted} {suite:?}");
-                    let outcome = modifier_run(&data, accepted, true, &inference, suite, &ctx)
-                        .and_then(|value| {
-                            let plain = modifier_run(
-                                &data,
-                                accepted,
-                                false,
-                                &inference,
-                                RefuteSuite::None,
-                                &ctx,
-                            )?;
-                            Ok((value, plain))
-                        });
-                    match outcome {
-                        Ok((value, plain)) => {
-                            if (value - expected).abs() >= tolerance {
-                                failures.lock().unwrap().push(format!(
-                                    "{label}: {value} vs modifier-averaged {expected}"
-                                ));
-                            }
-                            if (value - plain).abs() <= 0.5 {
-                                failures.lock().unwrap().push(format!(
+            antecedent::support::caller_thread()
+                .spawn_scoped(scope, || {
+                    loop {
+                        let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(&(is_bayesian, accepted, suite)) = cases.get(index) else { break };
+                        let (inference, disturbance, tolerance) = if is_bayesian {
+                            (bayesian(), 0.02, BAYESIAN_BOUND)
+                        } else {
+                            (InferenceMode::Frequentist, 0.0, FREQUENTIST_TOLERANCE)
+                        };
+                        let (data, expected) = modifier_series(disturbance);
+                        let label = format!("bayesian={is_bayesian} accepted={accepted} {suite:?}");
+                        let outcome = modifier_run(&data, accepted, true, &inference, suite, &ctx)
+                            .and_then(|value| {
+                                let plain = modifier_run(
+                                    &data,
+                                    accepted,
+                                    false,
+                                    &inference,
+                                    RefuteSuite::None,
+                                    &ctx,
+                                )?;
+                                Ok((value, plain))
+                            });
+                        match outcome {
+                            Ok((value, plain)) => {
+                                if (value - expected).abs() >= tolerance {
+                                    failures.lock().unwrap().push(format!(
+                                        "{label}: {value} vs modifier-averaged {expected}"
+                                    ));
+                                }
+                                if (value - plain).abs() <= 0.5 {
+                                    failures.lock().unwrap().push(format!(
                                 "{label}: {value} does not differ from the plain sustained {plain}"
                             ));
+                                }
+                            }
+                            Err(error) => {
+                                failures.lock().unwrap().push(format!("{label}: REFUSED {error}"))
                             }
                         }
-                        Err(error) => {
-                            failures.lock().unwrap().push(format!("{label}: REFUSED {error}"))
-                        }
                     }
-                }
-            });
+                })
+                .unwrap();
         }
     });
     let failures = failures.into_inner().unwrap();

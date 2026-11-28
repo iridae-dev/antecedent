@@ -155,6 +155,7 @@ impl CheckedSurvivalOperation {
             intervals,
             difference_band,
             band_unavailable_reason,
+            band_unit,
         } = if let Some(learner) = &self.query.stratified_censoring {
             self.conditional_estimate(learner, rows, data, endpoint, assignment_counts, ctx)?
         } else {
@@ -210,6 +211,10 @@ impl CheckedSurvivalOperation {
             (difference_band, band_unavailable_reason),
         ));
         self.support_survival_intervals(&mut result, intervals.as_ref());
+        // A band-only result is decided by its band row.
+        if result.extras.unit.is_none() {
+            result.extras.unit = band_unit;
+        }
         result.rebind_interval(false);
         Ok(result)
     }
@@ -254,15 +259,17 @@ impl CheckedSurvivalOperation {
             learner.population_weights,
             learner.minimum_probability,
         );
+        let band_unit = fitted
+            .band
+            .as_ref()
+            .and_then(|band| self.band_support(key, assignment_counts, false, band.replicates_ok));
         Ok(SurvivalEstimateParts {
             summary: fitted.summary,
             minimum_censoring_survival: Some(fitted.minimum_censoring_survival),
             intervals: None,
-            difference_band: fitted.band.map(|band| {
-                let support = self.band_support(key, assignment_counts, false, band.replicates_ok);
-                result_band(band, support)
-            }),
+            difference_band: fitted.band.map(|band| result_band(band, band_unit.as_ref())),
             band_unavailable_reason: None,
+            band_unit,
         })
     }
 
@@ -294,7 +301,7 @@ impl CheckedSurvivalOperation {
         let (summary, minimum_censoring_survival, censoring_grid) =
             self.point_summary(data, &rows, endpoint)?;
         let intervals = self.bootstrap_intervals(&rows, censoring_grid.as_ref(), endpoint, ctx)?;
-        let (band, reason) =
+        let (band, reason, band_unit) =
             self.difference_band(&rows, censoring_grid.as_ref(), endpoint, assignment_counts, ctx);
         Ok(SurvivalEstimateParts {
             summary,
@@ -302,6 +309,7 @@ impl CheckedSurvivalOperation {
             intervals,
             difference_band: band,
             band_unavailable_reason: reason,
+            band_unit,
         })
     }
 
@@ -417,10 +425,14 @@ impl CheckedSurvivalOperation {
         endpoint: SurvivalEndpoint,
         assignment_counts: [usize; 2],
         ctx: &ExecutionContext,
-    ) -> (Option<crate::result::SurvivalDifferenceBand>, Option<Arc<str>>) {
+    ) -> (
+        Option<crate::result::SurvivalDifferenceBand>,
+        Option<Arc<str>>,
+        Option<crate::support::UnitRef>,
+    ) {
         let bootstrap_replicates = self.extra.0;
         if bootstrap_replicates == 0 {
-            (None, None)
+            (None, None, None)
         } else if rows.delayed_entry.is_some()
             && bootstrap_replicates < antecedent_stats::survival::SURVIVAL_BAND_MIN_REPLICATES
         {
@@ -429,6 +441,7 @@ impl CheckedSurvivalOperation {
                 Some(Arc::from(
                     "simultaneous survival band with delayed entry requires 399 valid draws",
                 )),
+                None,
             )
         } else if censoring_grid.is_some() && rows.delayed_entry.is_none() {
             (
@@ -436,6 +449,7 @@ impl CheckedSurvivalOperation {
                 Some(Arc::from(
                     "simultaneous survival band does not cover caller-supplied censoring weights",
                 )),
+                None,
             )
         } else {
             let known = censoring_grid.map(|(times, probabilities, floor)| KnownCensoring {
@@ -458,15 +472,15 @@ impl CheckedSurvivalOperation {
                         known.is_some(),
                         matches!(endpoint, SurvivalEndpoint::CumulativeIncidence { .. }),
                     );
-                    let band_support = self.band_support(
+                    let band_unit = self.band_support(
                         key,
                         assignment_counts,
                         known.is_some(),
                         band.replicates_ok,
                     );
-                    (Some(result_band(band, band_support)), None)
+                    (Some(result_band(band, band_unit.as_ref())), None, band_unit)
                 }
-                Err(reason) => (None, Some(Arc::from(reason))),
+                Err(reason) => (None, Some(Arc::from(reason)), None),
             }
         }
     }
@@ -477,10 +491,10 @@ impl CheckedSurvivalOperation {
         [control, treated]: [usize; 2],
         fixed_known: bool,
         replicates: u32,
-    ) -> Option<crate::support::CellStatus> {
+    ) -> Option<crate::support::UnitRef> {
         use antecedent_io::graphless_support::GraphlessResampleSupport;
-        key.is_some_and(|key| {
-            crate::support::admits_resampled(
+        key.and_then(|key| {
+            crate::support::admitted_resampled_unit(
                 key,
                 crate::support::GraphlessAssignmentSupport {
                     assignment_unit: "unit",
@@ -499,7 +513,6 @@ impl CheckedSurvivalOperation {
                 },
             )
         })
-        .then_some(crate::support::CellStatus::Supported)
     }
 
     /// Assembles the retained survival estimate from the point summary, bootstrap intervals, and band.
@@ -663,12 +676,15 @@ struct SurvivalEstimateParts {
     intervals: Option<SurvivalBootstrapIntervals>,
     difference_band: Option<crate::result::SurvivalDifferenceBand>,
     band_unavailable_reason: Option<Arc<str>>,
+    /// The band row's unit, when that row admits the band.
+    band_unit: Option<crate::support::UnitRef>,
 }
 
 fn result_band(
     band: antecedent_stats::survival::SurvivalDifferenceBand,
-    support_status: Option<crate::support::CellStatus>,
+    unit: Option<&crate::support::UnitRef>,
 ) -> crate::result::SurvivalDifferenceBand {
+    let support_status = unit.map(|_| crate::support::CellStatus::Supported);
     crate::result::SurvivalDifferenceBand {
         times: band.times.into(),
         difference: band.difference.into(),

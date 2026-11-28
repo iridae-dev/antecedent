@@ -32,7 +32,7 @@ const DRAWS: usize = 16;
 
 /// Graph-posterior estimation recurses deeply; run each body on a large stack.
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new().stack_size(64 << 20).spawn(body).unwrap().join().unwrap();
+    crate::support::caller_thread().stack_size(64 << 20).spawn(body).unwrap().join().unwrap();
 }
 
 fn summary(weights: &[f64], label: &str) -> SamplingSummary {

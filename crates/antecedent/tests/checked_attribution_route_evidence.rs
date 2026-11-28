@@ -36,8 +36,7 @@ fn change_data(second_shift: f64) -> TabularData {
 fn all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused() {
     // Debug builds of the shared prepared dispatcher carry frames close to the
     // default test-thread stack, so the evidence body runs on its own thread.
-    std::thread::Builder::new()
-        .name("checked-frequentist-attribution-evidence".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(frequentist_static_dag_attribution_plans_body)
         .expect("spawn evidence thread")
@@ -146,8 +145,7 @@ fn frequentist_static_dag_attribution_plans_body() {
 fn all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused() {
     // Debug builds of the shared prepared dispatcher carry frames close to the
     // default test-thread stack, so the evidence body runs on its own thread.
-    std::thread::Builder::new()
-        .name("checked-attribution-evidence".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(bayesian_static_dag_attribution_plans_body)
         .expect("spawn evidence thread")
@@ -248,8 +246,7 @@ fn bayesian_static_dag_attribution_plans_body() {
 fn accepted_dag_attribution_plans_are_sealed_for_both_inference_modes() {
     // Debug builds of the shared prepared dispatcher carry frames close to the
     // default test-thread stack, so the evidence body runs on its own thread.
-    std::thread::Builder::new()
-        .name("checked-accepted-attribution-evidence".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(accepted_dag_attribution_plans_body)
         .expect("spawn evidence thread")

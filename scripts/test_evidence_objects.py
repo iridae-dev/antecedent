@@ -57,6 +57,33 @@ class ObjectStoreTests(unittest.TestCase):
         self.assertEqual(store.compact(set(kept)), sorted(dropped))
         self.assertEqual(eo.Store(self.root).addresses(), set(kept))
 
+    def test_a_write_racing_a_compaction_lands_in_the_compacted_shard(self):
+        _, kept = self.roundtrip({"text": "k" * 2000})
+        (address,) = kept
+        prefix = address[:2]
+        late = {"text": "late", "pad": 0}
+        while True:
+            data = eo._canonical(late)
+            if eo.address_of(data).startswith(prefix):
+                break
+            late["pad"] += 1
+        writer, compactor = eo.Store(self.root), eo.Store(self.root)
+        self.assertTrue(writer.has(address))
+        real_flock = eo.fcntl.flock
+
+        def compact_first(handle, operation):
+            # The writer opened the old shard; the compaction replaces it before the lock.
+            eo.fcntl.flock = real_flock
+            compactor.compact({address})
+            real_flock(handle, operation)
+
+        eo.fcntl.flock = compact_first
+        try:
+            writer.put({eo.address_of(data): data})
+        finally:
+            eo.fcntl.flock = real_flock
+        self.assertEqual(eo.Store(self.root).addresses(), {address, eo.address_of(data)})
+
     def test_a_committed_shard_may_only_grow_by_valid_lines(self):
         def git(*args):
             subprocess.run(["git", *args], cwd=self.root, check=True, capture_output=True)

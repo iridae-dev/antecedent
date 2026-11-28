@@ -278,7 +278,12 @@ fn original_mapped_prior_construction_failure_and_reuse_have_separate_attempt_co
         assert!(unchanged.report.is_empty());
     };
     // The checked builder's preexisting aggregate stack frame is large.
-    std::thread::Builder::new().stack_size(16 * 1024 * 1024).spawn(run).unwrap().join().unwrap();
+    antecedent::support::caller_thread()
+        .stack_size(16 * 1024 * 1024)
+        .spawn(run)
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[path = "common/external_callback_fixture.rs"]

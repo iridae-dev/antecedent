@@ -147,8 +147,8 @@ impl CheckedIvBoundsOperation {
                 .map_err(CausalError::from)?,
             None => estimator.estimate(&prepared, ctx).map_err(CausalError::from)?,
         };
-        let supported =
-            crate::analysis::design_section_rows::bounds_endpoint_row(&self.query, &estimate);
+        let row = crate::analysis::design_section_rows::bounds_endpoint_row(&self.query, &estimate);
+        let supported = row.is_some();
         let estimator_id = estimator_for(self.extra.bayesian.is_some());
         let n_draws = estimate
             .posterior
@@ -178,7 +178,7 @@ impl CheckedIvBoundsOperation {
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
-        result.support_status = None;
+        result.stamp_support(None, row);
         result.payload = crate::result::ResultPayload::IvBounds(Box::new(estimate));
         Ok(result)
     }

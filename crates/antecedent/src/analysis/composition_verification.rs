@@ -799,7 +799,7 @@ mod flagship_mixed_tests {
     /// Replays measure per-thread work counters, so they run on the test's own
     /// thread with a larger stack rather than on the thread `execute` spawns.
     fn on_large_stack(run: impl FnOnce() + Send + 'static) {
-        std::thread::Builder::new()
+        crate::support::caller_thread()
             .stack_size(8 * 1024 * 1024)
             .spawn(run)
             .expect("spawn the workflow test")
@@ -1166,7 +1166,7 @@ mod flagship_mixed_tests {
 
     #[test]
     fn execute_runs_from_a_default_sized_test_thread() {
-        let trials = std::thread::Builder::new()
+        let trials = crate::support::caller_thread()
             .stack_size(2 * 1024 * 1024)
             .spawn(|| independent().cluster_trials())
             .expect("spawn the workflow test")

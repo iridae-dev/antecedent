@@ -41,9 +41,8 @@ fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(0x5EED_0031)
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -104,7 +103,7 @@ fn posterior_of(execution: &CompiledExecution) -> GraphPosterior {
 
 #[test]
 fn a_declared_prior_is_the_query_the_engine_and_the_hand_reweighting() {
-    on_large_stack("structure-prior", || {
+    on_large_stack(|| {
         let data = chain_table(300, 5);
         let params = declared();
         let spec = DiscoverySpec::exact_dag_posterior(params.clone());
@@ -205,7 +204,7 @@ fn the_search_variants_that_take_a_prior_each_carry_it() {
 
 #[test]
 fn a_pooled_posterior_is_the_hand_mixture_of_the_per_imputation_exact_posteriors() {
-    on_large_stack("pooled-imputations", || {
+    on_large_stack(|| {
         let params = BayesianDiscoverParams::default();
         let posteriors: Vec<GraphPosterior> = [11_u64, 12, 13]
             .iter()
@@ -262,7 +261,7 @@ fn a_pooled_posterior_is_the_hand_mixture_of_the_per_imputation_exact_posteriors
 
 #[test]
 fn pooled_exact_marginals_are_the_means_of_the_per_imputation_marginals() {
-    on_large_stack("pooled-marginals", || {
+    on_large_stack(|| {
         let params = BayesianDiscoverParams::default();
         let tables: Vec<TabularData> =
             [21_u64, 22].iter().map(|&seed| chain_table(150, seed)).collect();
@@ -307,7 +306,7 @@ fn pooled_exact_marginals_are_the_means_of_the_per_imputation_marginals() {
 /// draw sets, graph by graph, and the per-imputation diagnostics are kept.
 #[test]
 fn pooled_sampled_posteriors_are_the_mixture_of_the_per_imputation_draw_sets() {
-    on_large_stack("pooled-samplers", || {
+    on_large_stack(|| {
         let params = BayesianDiscoverParams::default();
         let schedule = antecedent::discovery::GraphMcmcSchedule {
             n_chains: 4,
@@ -383,7 +382,7 @@ fn lag1_series(n: usize, seed: u64) -> TimeSeriesData {
 /// windows (or a template beside a static posterior) are refused.
 #[test]
 fn a_pooled_dbn_posterior_is_the_hand_mixture_keyed_by_atom_and_lag_mask() {
-    on_large_stack("pooled-dbn", || {
+    on_large_stack(|| {
         let params = BayesianDiscoverParams::default();
         let schedule = antecedent::discovery::GraphMcmcSchedule::default();
         let vars = vec![v(0), v(1)];

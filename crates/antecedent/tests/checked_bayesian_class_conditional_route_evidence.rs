@@ -330,8 +330,7 @@ fn partially_identified_bayesian_class_conditional_effect_is_not_sealed() {
 
 /// Class envelopes execute through deep prepare/estimate frames in debug builds.
 fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("checked-bayesian-class-evidence".into())
+    antecedent::support::caller_thread()
         .stack_size(8 * 1024 * 1024)
         .spawn(run)
         .unwrap()

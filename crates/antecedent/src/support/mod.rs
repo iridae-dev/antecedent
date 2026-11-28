@@ -50,7 +50,7 @@ pub(crate) mod units_generated;
 
 pub(crate) use trace::executed as trace_executed;
 pub(crate) use trace::route_ran as trace_route;
-pub use trace::{TRACE_ENV, declare_unit};
+pub use trace::{TRACE_ENV, binary_name, caller_thread, declare_unit};
 pub use unit::{UnitId, UnitRef};
 
 #[cfg(test)]
@@ -124,6 +124,36 @@ pub(crate) fn admits_resampled(
         if admitted { &CellStatus::Supported } else { &CellStatus::NotSupported },
     );
     admitted
+}
+
+/// [`admits_resampled`] answering with the admitting row's unit, for a result to stamp.
+#[must_use]
+pub(crate) fn admitted_resampled_unit(
+    key: GraphlessSupportKey<'_>,
+    observed: GraphlessAssignmentSupport,
+    resampled: antecedent_io::graphless_support::GraphlessResampleSupport,
+) -> Option<UnitRef> {
+    admits_resampled(key, observed, resampled).then(|| graphless_unit(key))
+}
+
+/// The graphless row a rollout section was decided under, recorded in the evidence trace as a
+/// decision about that row; the row's unit when it admits the section.
+#[must_use]
+pub(crate) fn rollout_row_unit(
+    decision: Option<antecedent_io::analysis_result_artifact::rollout_support::RolloutRowDecision>,
+) -> Option<UnitRef> {
+    let decision = decision?;
+    let unit = graphless_unit(GraphlessSupportKey {
+        family: decision.family,
+        design: decision.design,
+        method: &decision.method,
+        inference_claim: decision.inference_claim,
+    });
+    trace::executed(
+        &unit,
+        if decision.admitted { &CellStatus::Supported } else { &CellStatus::NotSupported },
+    );
+    decision.admitted.then_some(unit)
 }
 
 /// The unit a graphless support key names.

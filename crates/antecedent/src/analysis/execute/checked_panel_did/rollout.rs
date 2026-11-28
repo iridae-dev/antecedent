@@ -205,13 +205,16 @@ impl super::CheckedPanelDidOperation {
             return;
         };
         let section = antecedent_io::analysis_result_artifact::QuasiRolloutWire::from(&**rollout);
-        if !antecedent_io::analysis_result_artifact::rollout_support::did_rollout_row_admits(
-            self.rollout_did_row_spec(robust),
-            &section,
-        ) {
+        let Some(unit) = crate::support::rollout_row_unit(
+            antecedent_io::analysis_result_artifact::rollout_support::did_rollout_row(
+                self.rollout_did_row_spec(robust),
+                &section,
+            ),
+        ) else {
             return;
-        }
+        };
         rollout.supported = true;
+        result.extras.unit = Some(unit);
         result
             .diagnostics
             .retain(|diagnostic| diagnostic.code.as_ref() != "estimate.quasi.rollout.unsupported");

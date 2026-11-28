@@ -229,7 +229,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(11);
         // The debug frame of an envelope execution exceeds the default test
         // thread's stack.
-        let (completions, fits) = std::thread::Builder::new()
+        let (completions, fits) = crate::support::caller_thread()
             .stack_size(64 << 20)
             .spawn(move || {
                 let before = fits_run();
@@ -286,7 +286,7 @@ mod tests {
     /// Run `body` on a thread with the stack an envelope execution needs in a
     /// debug build, returning how many fits the memos ran.
     fn fits_during<R: Send + 'static>(body: impl FnOnce() -> R + Send + 'static) -> (R, usize) {
-        std::thread::Builder::new()
+        crate::support::caller_thread()
             .stack_size(64 << 20)
             .spawn(move || {
                 let before = fits_run();

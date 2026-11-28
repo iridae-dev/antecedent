@@ -21,9 +21,8 @@ use antecedent_graph::{
 use antecedent_identify::IdentificationStatus;
 
 /// Debug builds of the shared dispatcher carry frames close to the default test-thread stack.
-fn on_large_stack(name: &str, body: fn()) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: fn()) {
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(body)
         .expect("spawn evidence thread")
@@ -134,7 +133,7 @@ fn frequentist() -> InferenceMode {
 
 #[test]
 fn a_cpdag_anomaly_is_the_mean_of_its_dag_completions() {
-    on_large_stack("cpdag-anomaly", cpdag_anomaly_body);
+    on_large_stack(cpdag_anomaly_body);
 }
 
 fn cpdag_anomaly_body() {
@@ -197,7 +196,7 @@ fn cpdag_anomaly_body() {
 
 #[test]
 fn a_cpdag_change_that_every_member_agrees_on_keeps_one_value() {
-    on_large_stack("cpdag-change", cpdag_change_body);
+    on_large_stack(cpdag_change_body);
 }
 
 fn cpdag_change_body() {
@@ -235,7 +234,7 @@ fn cpdag_change_body() {
 
 #[test]
 fn a_bayesian_cpdag_publishes_a_shared_posterior_and_never_a_mixture() {
-    on_large_stack("cpdag-bayesian", cpdag_bayesian_body);
+    on_large_stack(cpdag_bayesian_body);
 }
 
 fn cpdag_bayesian_body() {
@@ -294,7 +293,7 @@ fn latent_collider() -> Admg {
 
 #[test]
 fn an_admg_anomaly_is_attributed_to_the_noise_blocks() {
-    on_large_stack("admg-anomaly", admg_anomaly_body);
+    on_large_stack(admg_anomaly_body);
 }
 
 fn admg_anomaly_body() {
@@ -359,7 +358,7 @@ fn shifted_collider_table(rows: usize) -> TabularData {
 
 #[test]
 fn an_admg_change_matches_the_known_shift_of_each_block() {
-    on_large_stack("admg-change", admg_change_body);
+    on_large_stack(admg_change_body);
 }
 
 fn admg_change_body() {
@@ -388,7 +387,7 @@ fn admg_change_body() {
 
 #[test]
 fn a_hedged_mechanism_is_refused_with_the_witness() {
-    on_large_stack("admg-hedge", admg_hedge_body);
+    on_large_stack(admg_hedge_body);
 }
 
 fn admg_hedge_body() {
@@ -410,7 +409,7 @@ fn admg_hedge_body() {
 
 #[test]
 fn a_pag_with_a_hedged_completion_keeps_the_identified_mass() {
-    on_large_stack("pag-hedge", pag_hedge_body);
+    on_large_stack(pag_hedge_body);
 }
 
 fn pag_hedge_body() {
@@ -445,7 +444,7 @@ fn pag_hedge_body() {
 
 #[test]
 fn a_prepared_class_attribution_seals_and_repeats_the_run() {
-    on_large_stack("class-prepared", prepared_body);
+    on_large_stack(prepared_body);
 }
 
 fn prepared_body() {
@@ -502,7 +501,7 @@ fn series_study(data: &TimeSeriesData, graph: impl IntoGraphInput) -> Study {
 
 #[test]
 fn a_temporal_cpdag_with_one_completion_is_the_temporal_dag_route() {
-    on_large_stack("temporal-cpdag-single", temporal_cpdag_single_body);
+    on_large_stack(temporal_cpdag_single_body);
 }
 
 fn temporal_cpdag_single_body() {
@@ -545,7 +544,7 @@ fn temporal_cpdag_single_body() {
 
 #[test]
 fn a_temporal_cpdag_is_the_mean_of_its_temporal_dag_completions() {
-    on_large_stack("temporal-cpdag-pair", temporal_cpdag_pair_body);
+    on_large_stack(temporal_cpdag_pair_body);
 }
 
 fn temporal_cpdag_pair_body() {
@@ -579,7 +578,7 @@ fn temporal_cpdag_pair_body() {
 
 #[test]
 fn a_temporal_admg_whose_latent_edge_misses_the_ancestors_is_the_temporal_dag_route() {
-    on_large_stack("temporal-admg-outside", temporal_admg_outside_body);
+    on_large_stack(temporal_admg_outside_body);
 }
 
 fn temporal_admg_outside_body() {
@@ -618,7 +617,7 @@ fn temporal_admg_outside_body() {
 
 #[test]
 fn a_temporal_admg_with_a_confounded_lag_edge_is_refused_with_the_witness() {
-    on_large_stack("temporal-admg-hedge", temporal_admg_hedge_body);
+    on_large_stack(temporal_admg_hedge_body);
 }
 
 fn temporal_admg_hedge_body() {
@@ -654,7 +653,7 @@ fn rebind_estimate(
     reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
 )]
 fn temporal_posterior_members_share_the_original_complete_ticks() {
-    on_large_stack("temporal-posterior-common-original-ticks", || {
+    on_large_stack(|| {
         use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
         use antecedent_prob::InferenceDiagnostics;
 

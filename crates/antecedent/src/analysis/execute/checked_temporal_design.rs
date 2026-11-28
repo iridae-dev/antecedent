@@ -252,11 +252,12 @@ impl CheckedTemporalDesignOperation {
         let estimator_id = estimator_for(&self.query, self.extra.bayesian.is_some());
         let (payload, posterior) = self.assemble(output)?;
         // A fit that meets its support row names it; every other is flagged unsupported.
-        let unsupported = if crate::analysis::design_section_rows::excursion_row_met(
+        let row = crate::analysis::design_section_rows::excursion_row_met(
             &self.query,
             arm_mean_design(&self.query),
             &payload,
-        ) {
+        );
+        let unsupported = if row.is_some() {
             vec![crate::analysis::design_section_rows::section_row_note(
                 antecedent_io::graphless_support::TEMPORAL_DESIGN_ROW_CODE,
                 format!(
@@ -310,7 +311,7 @@ impl CheckedTemporalDesignOperation {
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
-        result.support_status = None;
+        result.stamp_support(None, row);
         if let Some(record) = extras.sampling {
             result.diagnostics.push(Diagnostic::new(
                 "estimate.temporal_design.sampling_weights",

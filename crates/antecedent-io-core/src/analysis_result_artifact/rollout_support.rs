@@ -156,6 +156,31 @@ impl<'a> DidRolloutRowSpec<'a> {
 /// the covariate count and the room left above the largest fitted comparison propensity.
 #[must_use]
 pub fn did_rollout_row_admits(spec: DidRolloutRowSpec<'_>, section: &QuasiRolloutWire) -> bool {
+    did_rollout_row(spec, section).is_some_and(|row| row.admitted)
+}
+
+/// The support row a rollout section is decided under and whether that row admits it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RolloutRowDecision {
+    /// The row's family.
+    pub family: &'static str,
+    /// The row's design.
+    pub design: &'static str,
+    /// The row's method.
+    pub method: String,
+    /// The row's inference claim.
+    pub inference_claim: &'static str,
+    /// Whether the row admits the section.
+    pub admitted: bool,
+}
+
+/// [`did_rollout_row_admits`] with the row it decided under; `None` when the section's
+/// estimator, scheme or design has no row.
+#[must_use]
+pub fn did_rollout_row(
+    spec: DidRolloutRowSpec<'_>,
+    section: &QuasiRolloutWire,
+) -> Option<RolloutRowDecision> {
     let scheme = match (spec.scheme, section.uncertainty.as_str()) {
         (
             Some("cluster_bootstrap"),
@@ -165,19 +190,16 @@ pub fn did_rollout_row_admits(spec: DidRolloutRowSpec<'_>, section: &QuasiRollou
             Some("cluster_multiplier"),
             "whole_cluster_multiplier_refit_iqr_se_pointwise_and_sup_t_band",
         ) => "cluster_multiplier",
-        _ => return false,
+        _ => return None,
     };
     let units = rollout_count(section, "units");
     let clusters = rollout_count(section, "clusters");
     let rows = rollout_count(section, "rows_read");
-    if !spec.measured_options
-        || section.diagnostic("balanced_panel") != Some(1.0)
-        || units == 0
-        || clusters != units
-        || rows != rollout_count(section, "rows_supplied")
-    {
-        return false;
-    }
+    let measured = spec.measured_options
+        && section.diagnostic("balanced_panel") == Some(1.0)
+        && units != 0
+        && clusters == units
+        && rows == rollout_count(section, "rows_supplied");
     let treated_units = rollout_count(section, "treated_units");
     let never_treated = rollout_count(section, "never_treated_units");
     let (design, method, inference_claim, treated, min_probability) =
@@ -218,19 +240,20 @@ pub fn did_rollout_row_admits(spec: DidRolloutRowSpec<'_>, section: &QuasiRollou
                     room,
                 )
             }
-            _ => return false,
+            _ => return None,
         };
     let published = section
         .effects
         .first()
         .is_some_and(|effect| effect.interval.is_some() && effect.standard_error.is_some());
-    crate::graphless_support::graphless_admits_resampled(
-        crate::graphless_support::GraphlessSupportKey {
-            family: "difference_in_differences",
-            design,
-            method: &method,
-            inference_claim,
-        },
+    let admitted = measured
+        && crate::graphless_support::graphless_admits_resampled(
+            crate::graphless_support::GraphlessSupportKey {
+                family: "difference_in_differences",
+                design,
+                method: &method,
+                inference_claim,
+            },
         crate::graphless_support::GraphlessAssignmentSupport {
             assignment_unit: "cluster",
             treated,
@@ -247,7 +270,14 @@ pub fn did_rollout_row_admits(spec: DidRolloutRowSpec<'_>, section: &QuasiRollou
             interval_resamples: section.replicates_ok as usize,
             ..Default::default()
         },
-    )
+    );
+    Some(RolloutRowDecision {
+        family: "difference_in_differences",
+        design,
+        method,
+        inference_claim,
+        admitted,
+    })
 }
 
 /// Whether a support row admits a frequentist synthetic-control section with intervals: the
@@ -259,6 +289,13 @@ pub fn did_rollout_row_admits(spec: DidRolloutRowSpec<'_>, section: &QuasiRollou
 /// fewest pre-adoption periods of an adopting unit and the completed placebo refits.
 #[must_use]
 pub fn synthetic_rollout_row_admits(section: &QuasiRolloutWire) -> bool {
+    synthetic_rollout_row(section).is_some_and(|row| row.admitted)
+}
+
+/// [`synthetic_rollout_row_admits`] with the row it decided under; `None` when the section's
+/// design has no row.
+#[must_use]
+pub fn synthetic_rollout_row(section: &QuasiRolloutWire) -> Option<RolloutRowDecision> {
     let intervals = section.effects.iter().filter(|effect| effect.interval.is_some()).count();
     let overall = section.effects.first().is_some_and(|effect| effect.interval.is_some());
     let (design, method, inference_claim, observed, interval_resamples) =
@@ -298,9 +335,9 @@ pub fn synthetic_rollout_row_admits(section: &QuasiRolloutWire) -> bool {
                 },
                 section.replicates_ok as usize,
             ),
-            _ => return false,
+            _ => return None,
         };
-    crate::graphless_support::graphless_admits_resampled(
+    let admitted = crate::graphless_support::graphless_admits_resampled(
         crate::graphless_support::GraphlessSupportKey {
             family: "synthetic_control",
             design,
@@ -312,7 +349,14 @@ pub fn synthetic_rollout_row_admits(section: &QuasiRolloutWire) -> bool {
             interval_resamples,
             ..Default::default()
         },
-    )
+    );
+    Some(RolloutRowDecision {
+        family: "synthetic_control",
+        design,
+        method: method.to_owned(),
+        inference_claim,
+        admitted,
+    })
 }
 
 /// Whether a support row admits the section under its query. Only the designs with a row

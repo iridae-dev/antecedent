@@ -72,8 +72,7 @@ fn refuse(cell: SupportCell, reason: &str) {
 
 #[test]
 fn temporal_attribution_frequentist_known_truth() {
-    std::thread::Builder::new()
-        .name("temporal-attribution-frequentist".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(frequentist_body)
         .expect("spawn evidence thread")
@@ -259,8 +258,7 @@ fn frequentist_body() {
 /// the lag-aligned truth of the staged fixture.
 #[test]
 fn temporal_accepted_attribution_known_truth() {
-    std::thread::Builder::new()
-        .name("temporal-accepted-attribution".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(accepted_body)
         .expect("spawn evidence thread")
@@ -345,8 +343,7 @@ fn accepted_body() {
 
 #[test]
 fn temporal_attribution_bayesian_known_truth() {
-    std::thread::Builder::new()
-        .name("temporal-attribution-bayesian".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(bayesian_body)
         .expect("spawn evidence thread")
@@ -494,8 +491,7 @@ fn bayesian_body() {
 
 #[test]
 fn temporal_anomaly_rows_use_original_ticks_after_a_two_tick_prefix() {
-    std::thread::Builder::new()
-        .name("temporal-original-anomaly-ticks".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(|| {
             let ctx = ExecutionContext::for_tests(13);
@@ -580,8 +576,7 @@ fn temporal_anomaly_rows_use_original_ticks_after_a_two_tick_prefix() {
 
 #[test]
 fn temporal_rollout_reads_original_tail_when_complete_window_is_shorter_than_history() {
-    std::thread::Builder::new()
-        .name("temporal-rollout-source-tail".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(|| {
             use antecedent::analysis::structure_route::SimulationOutcome;
@@ -656,7 +651,7 @@ fn temporal_rollout_keeps_live_callback_bound_to_its_compiled_owner() {
         }
     }
 
-    std::thread::Builder::new()
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(|| {
             let x: Vec<f64> = (0..40).map(|i| (f64::from(i) * 0.37).sin()).collect();

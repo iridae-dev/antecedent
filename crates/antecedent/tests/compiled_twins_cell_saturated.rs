@@ -39,8 +39,7 @@ const SEED: u64 = 431;
 const REQUESTED_ARM: u32 = 3;
 
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("compiled-twins-cell-saturated".into())
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .expect("spawn twin thread")

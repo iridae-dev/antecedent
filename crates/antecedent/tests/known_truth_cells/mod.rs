@@ -643,8 +643,7 @@ pub fn for_each_matching(
 
 /// Run `body` on a thread with a stack deep enough for class envelopes in debug builds.
 pub fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("earn-known-truth".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(body)
         .unwrap()

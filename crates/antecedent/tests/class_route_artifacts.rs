@@ -15,9 +15,8 @@ use antecedent_graph::{Admg, Cpdag, DenseNodeId, Pag, TemporalAdmg, TemporalCpda
 use antecedent_io::replay_analysis_result;
 
 /// Debug builds of the shared dispatcher carry frames close to the default test-thread stack.
-fn on_large_stack(name: &str, body: fn()) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: fn()) {
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(body)
         .expect("spawn evidence thread")
@@ -253,7 +252,7 @@ fn series(
 
 #[test]
 fn static_class_attributions_publish_an_artifact_a_consumer_reads() {
-    on_large_stack("static-class-attribution", static_attribution_body);
+    on_large_stack(static_attribution_body);
 }
 
 fn static_attribution_body() {
@@ -330,7 +329,7 @@ fn static_attribution_body() {
 
 #[test]
 fn temporal_class_attributions_publish_an_artifact_a_consumer_reads() {
-    on_large_stack("temporal-class-attribution", temporal_attribution_body);
+    on_large_stack(temporal_attribution_body);
 }
 
 fn temporal_attribution_body() {

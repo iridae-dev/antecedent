@@ -357,7 +357,7 @@ impl super::super::Study {
             );
             // No evidence row names the front-door derivative route: the cell's support belongs to
             // the adjustment-identified plug-ins, so a front-door run reports its status as refused.
-            result.support_status = Some(crate::support::CellStatus::NotSupported);
+            result.refuse_construction("front_door_derivative");
             return Ok(result);
         }
         self.execute_temporal_derivative_response(
@@ -405,7 +405,7 @@ impl super::super::Study {
         );
         // The evidence rows of the temporal-ADMG derivative cells run one horizon; several
         // horizons execute and report their status as refused.
-        result.support_status = Some(crate::support::CellStatus::NotSupported);
+        result.refuse_construction("multi_horizon_admg_derivative");
         Ok(result)
     }
 

@@ -72,8 +72,7 @@ fn builder(data: TabularData, query: ResponseQuery, suite: RefuteSuite, accepted
 
 #[test]
 fn accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh() {
-    std::thread::Builder::new()
-        .name("checked-cell-aipw-evidence".into())
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(accepted_and_explicit_dag_cell_aipw_body)
         .unwrap()

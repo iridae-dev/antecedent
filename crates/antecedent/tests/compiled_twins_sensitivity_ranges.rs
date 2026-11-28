@@ -68,8 +68,7 @@ fn v(raw: u32) -> VariableId {
 
 /// Run `body` on a thread with the stack a prepared study result needs in a debug build.
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("sensitivity-ranges".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(body)
         .unwrap()

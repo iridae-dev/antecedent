@@ -9,7 +9,9 @@
 `run` builds the facade's test binaries with the test-only `evidence-trace` feature and
 runs them with `ANTECEDENT_EVIDENCE_TRACE` set and a two-replicate calibration budget, so
 each test pays for one pass through its support decisions, not for its measurement. Each
-binary writes `target/evidence-trace/<binary>.tsv`:
+binary writes `target/evidence-trace/<binary>.tsv`, and its test list
+`target/evidence-trace/<binary>.tests`; a line naming no listed test is an error, since its
+decisions could be attributed to none:
 
     unit    <binary> <test> <kind> <record id> <status>    a support decision
     record  <binary> <test> <record id> [<kind> <unit>]... a coverage record and its units
@@ -23,7 +25,10 @@ binary writes `target/evidence-trace/<binary>.tsv`:
 `parity/coverage_records.toml`. A test that declares a unit links only to what it
 declares, and a declaration of a unit the test did not execute is an error. A pass whose
 test lies below the facade never reaches a support decision; it links to the units whose
-claim source cites it, marked `cited`, the one link that is not observed.
+claim source cites it, marked `cited`, the one link that is not observed. A coverage record
+whose test lies below the facade, or that reported no supported unit, links the same way to
+the units whose claim sources attach it. A test that declares a unit records it under
+`declared`, so the declaration settles which of several executed units it asserts about.
 """
 
 from __future__ import annotations
@@ -61,7 +66,7 @@ PROFILE = [
     "--profile", "evidence-links",
 ]
 # A link needs one replicate that reaches the unit; smoke tallies never gate.
-RUN_ENV = {"ANTECEDENT_CALIBRATION_NSIM": "1", "ANTECEDENT_CALIBRATION_SMOKE": "1"}
+RUN_ENV = {"ANTECEDENT_CALIBRATION_NSIM": "2", "ANTECEDENT_CALIBRATION_SMOKE": "1"}
 NO_UNIT = "-\t-"
 FAILED_TEST = re.compile(r"^test (\S+) \.\.\. FAILED$", re.M)
 KINDS = ("matrix", "construction", "graphless", "capability")
@@ -134,9 +139,19 @@ def build(features: tuple[str, ...], members: list[str]) -> dict[str, str]:
     return executables
 
 
+def binary_of(target: str) -> str:
+    """The binary name a trace line carries for the facade target `target`."""
+    return FACADE.replace("-", "_") if target == "lib" else target
+
+
 def run_one(target: str, executable: str) -> dict:
     trace = TRACES / f"{target}.tsv"
     trace.unlink(missing_ok=True)
+    listed = subprocess.run([executable, "--list", "--format", "terse", "--include-ignored"],
+                            capture_output=True, text=True, check=False)
+    (TRACES / f"{target}.tests").write_text(
+        "".join(line.rsplit(": ", 1)[0] + "\n" for line in listed.stdout.splitlines()
+                if line.endswith(": test")))
     env = {**os.environ, "ANTECEDENT_EVIDENCE_TRACE": str(trace), **RUN_ENV}
     started = time.monotonic()
     try:
@@ -192,11 +207,17 @@ def failed_tests() -> set[tuple[str, str]]:
     """(binary, test) of every test that failed or did not finish: it links nothing."""
     runs_path = TRACES / "runs.json"
     runs = json.loads(runs_path.read_text()) if runs_path.is_file() else {}
-    return {(FACADE.replace("-", "_") if target == "lib" else target, test)
+    return {(binary_of(target), test)
             for target, run in runs.items() for test in run.get("failed_tests", [])}
 
 
-def read_traces() -> tuple[dict, dict, dict, dict, dict]:
+def listed_tests() -> dict[str, set[str]]:
+    """Binary -> the tests its executable lists."""
+    return {binary_of(path.stem): set(path.read_text(encoding="utf-8").split())
+            for path in TRACES.glob("*.tests")}
+
+
+def read_traces() -> tuple[dict, dict, dict, dict, dict, list[str]]:
     """(binary, test) -> {unit: supported?}, record id -> units, (binary, test) -> declared units,
     compiled route -> the units its results carried or were decided under, and (binary, test) ->
     the units of the results the test was handed. Lines written by a test that failed are
@@ -207,10 +228,15 @@ def read_traces() -> tuple[dict, dict, dict, dict, dict]:
     routes: dict[str, set[str]] = {}
     returned: dict[tuple[str, str], set[str]] = {}
     failed = failed_tests()
+    listed = listed_tests()
+    unattributed: dict[str, int] = {}
     for trace in sorted(TRACES.glob("*.tsv")):
         for line in trace.read_text(encoding="utf-8", errors="replace").splitlines():
             fields = line.split("\t")
             if len(fields) > 2 and (fields[1], fields[2]) in failed:
+                continue
+            if len(fields) > 2 and fields[1] in listed and fields[2] not in listed[fields[1]]:
+                unattributed[fields[1]] = unattributed.get(fields[1], 0) + 1
                 continue
             if fields[0] == "unit" and len(fields) == 6:
                 _, binary, test, kind, ident, status = fields
@@ -228,7 +254,9 @@ def read_traces() -> tuple[dict, dict, dict, dict, dict]:
                 routes.setdefault(fields[3], set()).update(u for u in pairs if u != NO_UNIT)
                 if pairs[0] != NO_UNIT:
                     returned.setdefault((fields[1], fields[2]), set()).add(pairs[0])
-    return executed, records, declared, routes, returned
+    problems = [f"{binary}: {n} trace line(s) name no test the binary lists; spawn test threads "
+                "with antecedent::support::caller_thread()" for binary, n in sorted(unattributed.items())]
+    return executed, records, declared, routes, returned, problems
 
 
 def test_matches(selector_path: str, test: str) -> bool:
@@ -268,16 +296,24 @@ def check_selector(check: str, selectors: dict[str, list[str]]) -> list[str]:
     return eb.recorded_passes(check, selectors)
 
 
+def attached_records() -> dict[str, set[str]]:
+    """Coverage record id -> the units whose current claim sources attach it."""
+    import evidence_baseline as eb
+
+    toml, records = eb.current_toml()
+    attached: dict[str, set[str]] = {}
+    for (kind, ident), ids in eb.attachments(toml, records).items():
+        for rid in ids:
+            attached.setdefault(rid, set()).add(f"{kind}\t{ident}")
+    return attached
+
+
 def build_links() -> tuple[dict, list[str]]:
-    executed, record_units, declared, route_units, returned = read_traces()
+    executed, record_units, declared, route_units, returned, problems = read_traces()
     targets = facade_targets()
     by_path = {path: name for name, path in targets.items()}
     runs_path = TRACES / "runs.json"
     runs = json.loads(runs_path.read_text()) if runs_path.is_file() else {}
-    problems: list[str] = []
-
-    def binary_of(name: str) -> str:
-        return FACADE if name == "lib" else name
 
     def tests_of(binary: str, path: str) -> list[tuple[str, str]]:
         return [key for key in set(executed) | set(declared)
@@ -297,7 +333,8 @@ def build_links() -> tuple[dict, list[str]]:
         handed = set().union(*(returned.get(key, set()) for key in keys)) if keys else set()
         return {"executed": {u for u, s in units.items() if s},
                 "refused": {u for u, s in units.items() if not s},
-                "returned": handed & set(units)}
+                "returned": handed & set(units),
+                "declared": chosen & {u for u, s in units.items() if s}}
 
     science = tomllib.loads((ROOT / "parity/scientific_records.toml").read_text(encoding="utf-8"))
     by_leaf: dict[str, list[str]] = {}
@@ -321,18 +358,28 @@ def build_links() -> tuple[dict, list[str]]:
         passes[selector] = entry
 
     coverage = tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))
+    attached = attached_records()
     records: dict[str, dict[str, set[str]]] = {}
     for record in coverage.get("record", []):
         rid = str(record["id"])
         path, _, function = str(record.get("test", "")).partition("::")
         name = by_path.get(path)
-        if name is None or name not in runs:
-            records[rid] = {}
-            continue
-        if record_units.get(rid):
-            records[rid] = {"executed": record_units[rid]}
-            continue
-        records[rid] = linked(tests_of(name, function), rid)
+        entry: dict[str, set[str]] = {}
+        if name is not None and name in runs:
+            keys = tests_of(binary_of(name), function)
+            chosen = set().union(*(declared.get(key, set()) for key in keys)) if keys else set()
+            if record_units.get(rid) and (not chosen or record_units[rid] & chosen):
+                ran = {u for key in keys for u in executed.get(key, {})} | record_units[rid]
+                for unit in sorted(chosen - ran):
+                    problems.append(f"{rid}: declares {unit.replace(chr(9), ' ')}, which it did not execute")
+                reported = record_units[rid] & chosen if chosen else record_units[rid]
+                entry = {"executed": reported, "declared": reported & chosen}
+            else:
+                entry = linked(keys, rid)
+        # Below the facade, or reporting no unit: the units whose claim sources attach it.
+        if rid in attached and not entry.get("executed") and not entry.get("refused"):
+            entry["cited"] = attached[rid]
+        records[rid] = entry
 
     units = sorted({u for table in (passes, records) for e in table.values() for s in e.values() for u in s})
     position = {u: i for i, u in enumerate(units)}

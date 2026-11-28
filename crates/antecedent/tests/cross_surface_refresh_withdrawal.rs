@@ -74,7 +74,7 @@ fn assert_same_summary(cached: &OlsSnapshot, fresh: &OlsSnapshot) {
 }
 
 fn on_large_stack(run: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
+    antecedent::support::caller_thread()
         .stack_size(8 * 1024 * 1024)
         .spawn(run)
         .expect("spawn the workflow")

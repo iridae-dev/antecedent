@@ -63,9 +63,8 @@ use antecedent_stats::{
 
 const SEED: u64 = 4_417;
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -313,7 +312,7 @@ mod envelope {
 
     #[test]
     fn the_compiled_envelope_is_the_direct_envelope_on_cpdag_and_pag_classes() {
-        on_large_stack("twin-envelope", || {
+        on_large_stack(|| {
             let cases: Vec<(StaticDiscoveryContract, TabularData, Vec<VariableId>, u32, usize)> = vec![
                 (chain3(), noise(3, 60, 1), vec![v(1)], 2, 64),
                 (collider3(), noise(3, 60, 2), vec![v(1)], 2, 64),
@@ -359,7 +358,7 @@ mod envelope {
     /// verdict of each.
     #[test]
     fn the_compiled_chain_class_holds_the_three_oracle_members_with_their_fixed_verdicts() {
-        on_large_stack("truth-envelope", || {
+        on_large_stack(|| {
             let run = compiled_run(envelope_request(chain3(), noise(3, 60, 1), vec![v(1)], 2, 64));
             let report = run.transport.unwrap();
             let envelope = report.envelope();
@@ -465,7 +464,7 @@ mod estimate {
 
     #[test]
     fn the_compiled_pag_class_estimate_is_the_direct_estimate_and_covers_the_enumerated_truth() {
-        on_large_stack("twin-estimate", || {
+        on_large_stack(|| {
             let source = study_table(30_000, false, 11);
             let target = study_table(30_000, true, 12);
             let direct_run = discover_and_transport(
@@ -592,7 +591,7 @@ mod trial {
 
     #[test]
     fn the_compiled_trial_estimate_and_confidence_set_are_the_direct_ones_and_replay() {
-        on_large_stack("twin-trial", || {
+        on_large_stack(|| {
             let (contract, source, query) = fixture();
             let direct_run =
                 discover_and_transport(&contract, &source, &[], &query, 32, &trial_ctx()).unwrap();
@@ -716,7 +715,7 @@ mod identity {
 
     #[test]
     fn the_discovered_transport_identity_binds_the_search_the_rows_the_query_and_the_stage() {
-        on_large_stack("identity-envelope", || {
+        on_large_stack(|| {
             let base = || envelope_request(chain3(), noise(3, 60, 1), vec![v(1), v(2)], 2, 64);
             let same = identity_of(base());
             assert_eq!(same, identity_of(base()), "the same request is the same program");
@@ -964,7 +963,7 @@ mod per_population {
 /// The direct refusal type is reached through the program unchanged.
 #[test]
 fn a_transport_refusal_keeps_the_discovery() {
-    on_large_stack("refusal-keeps-discovery", || {
+    on_large_stack(|| {
         let run = compiled_run(envelope_request(chain3(), noise(3, 60, 1), vec![v(9)], 2, 64));
         assert!(matches!(run.transport, Err(DiscoveredTransportError::Refused(_))));
         assert_eq!(run.outcome.structure.edges().len(), 2);

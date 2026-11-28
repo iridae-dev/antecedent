@@ -27,7 +27,7 @@ impl PreparedStudy {
         let cell = crate::analysis::contract::matrix_coordinate(&self.analysis)
             .as_deref()
             .and_then(crate::support::support_cell_from_coordinate);
-        if crate::support::retarget_permitted(self.analysis.support_status, cell) {
+        if crate::support::retarget_permitted(self.analysis.support_status(), cell) {
             Ok(())
         } else {
             Err(CausalError::Unsupported { message: crate::error::RETARGET_REQUIRES_SUPPORT }

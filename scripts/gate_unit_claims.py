@@ -118,11 +118,15 @@ def unit_claim_problems(root: Path = ROOT) -> list[str]:
         if not _check(cell) or not declared("matrix", ident, cell):
             problems.append(f"cell {ident}: {OWED}")
         problems.extend(filter(None, [contradicted(root, "matrix", ident, cell)]))
+    # A graphless route an owner may name: one with a row that holds its claim.
+    claimed_routes: set[str] = set()
     for row in graphless:
         named.update(row.get("estimators") or [])
         ident = gate_support.graphless_ident(row)
         if not _check(row) or not declared("graphless", ident, row):
             problems.append(f"graphless {ident}: {OWED}")
+        elif isinstance(row.get("route"), str):
+            claimed_routes.add(row["route"])
         problems.extend(filter(None, [contradicted(root, "graphless", ident, row)]))
     text = (root / "crates/antecedent/src/strategy_table/ids.rs").read_text(encoding="utf-8")
     for wire in gate_support.parse_estimators(text):
@@ -163,10 +167,10 @@ def unit_claim_problems(root: Path = ROOT) -> list[str]:
             if row.get("disposition") != "owner":
                 continue
             unit = str(row.get("unit") or "")
-            if unit in family_names or unit in bound or unit in graphless_routes:
+            if unit in family_names or unit in bound or unit in claimed_routes:
                 continue
             if not publisher(unit):
-                problems.append(f"owner {row['path']}: {OWED}")
+                problems.append(f"owner {row.get('path') or row.get('key')}: {OWED}")
     return problems
 
 

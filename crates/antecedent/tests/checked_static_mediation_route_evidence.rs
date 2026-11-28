@@ -507,8 +507,7 @@ fn bayesian_static_mediation_prior_cannot_alias_mechanisms_with_equal_design_wid
 }
 
 fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("checked-mediation-evidence".into())
+    antecedent::support::caller_thread()
         .stack_size(4 * 1024 * 1024)
         .spawn(run)
         .unwrap()

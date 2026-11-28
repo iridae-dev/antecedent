@@ -34,9 +34,8 @@ fn lowered(study: &Study) -> LoweredProgram {
     lowered
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    crate::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -95,7 +94,7 @@ fn mediation_study(inference: InferenceMode, replicates: u32) -> Study {
 
 #[test]
 fn mediation_lowers_the_theorem_target_the_executor_checks() {
-    on_large_stack("static-mediation-lowering", || {
+    on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(17);
         let study = mediation_study(InferenceMode::Frequentist, 0);
         let program = lowered(&study);
@@ -282,7 +281,7 @@ fn a_fitted_model_attribution_lowers_its_posterior_over_the_mechanisms() {
 
 #[test]
 fn anomaly_prepare_and_estimate_stamp_the_compiled_identity() {
-    on_large_stack("anomaly-lowering", || {
+    on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(13);
         let (x, y) = xy(|i, x| if i == 19 { 200.0 } else { 2.0 * x }, 40);
         let data = tabular(&x, &y);
@@ -463,7 +462,7 @@ fn runtime_callback_plans_expose_declaration_scope_and_never_reuse_proofs() {
         }
     }
 
-    on_large_stack("live-callback-identities", || {
+    on_large_stack(|| {
         let spec = CallbackSpec {
             name: "policy".into(),
             inputs: Arc::from([]),

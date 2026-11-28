@@ -50,8 +50,7 @@ fn query(data: &TabularData) -> AverageEffectQuery {
 #[test]
 fn unknown_tiered_average_executes_from_retained_plan_refreshes_and_refuses_unreplayable_artifact()
 {
-    std::thread::Builder::new()
-        .name("checked-unknown-tiered-average".into())
+    antecedent::support::caller_thread()
         .stack_size(8 * 1024 * 1024)
         .spawn(unknown_tiered_average_lifecycle_body)
         .unwrap()

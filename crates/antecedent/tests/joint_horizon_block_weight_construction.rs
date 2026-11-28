@@ -109,8 +109,7 @@ fn weighted_line(x: &[f64], y: &[f64], w: &[f64]) -> (f64, f64) {
 #[test]
 fn the_block_weight_draws_are_the_exp1_block_weighted_refits_up_to_one_dispersion_factor_per_cell()
 {
-    std::thread::Builder::new()
-        .name("block-weight-construction".into())
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
             let ctx = ExecutionContext::for_tests(8);

@@ -31,7 +31,7 @@ pub(crate) fn section_row_note(code: &'static str, message: String) -> Diagnosti
     Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
 }
 
-/// Whether the fit runs under a row of the graphless support table. The key and the observed
+/// The graphless support row the fit runs under, when one admits it. The key and the observed
 /// support are read from the query and the published estimate alone, so the artifact check
 /// recomputes the same answer. Rows and resamples are thresholds of the row; the measured
 /// conditions the table has no field for are checked here: a linear regression of a real
@@ -39,7 +39,10 @@ pub(crate) fn section_row_note(code: &'static str, message: String) -> Diagnosti
 /// requested replicate fitted, and a conjugate prior that moves the slope by at most a
 /// hundredth of its posterior standard deviation. The claim is the one interval the slope term
 /// publishes: its posterior interval, else its resampling spread, else its standard error.
-pub(crate) fn association_slope_row(query: &AssociationQuery, fit: &AssociationEstimate) -> bool {
+pub(crate) fn association_slope_row(
+    query: &AssociationQuery,
+    fit: &AssociationEstimate,
+) -> Option<crate::support::UnitRef> {
     if fit.selection.analysis.as_str() != "linear_regression"
         || fit.selection.outcome_kind.as_str() != "continuous"
         || query.predictors.len() != 1
@@ -51,24 +54,22 @@ pub(crate) fn association_slope_row(query: &AssociationQuery, fit: &AssociationE
         || fit.terms[1].label.contains('=')
         || fit.terms[1].scale != "outcome_units"
     {
-        return false;
+        return None;
     }
     let slope = &fit.terms[1];
     // One series is one dependent sequence; table rows are independent units.
     let (design, assignment_unit, blocks) = match fit.selection.modality.as_str() {
         "cross_section" => ("cross_section_linear_slope", "unit", 0),
         "series" => ("series_linear_slope", "sequence", 1),
-        _ => return false,
+        _ => return None,
     };
     let (method, inference_claim, band, resamples) = if let Some(record) = fit.posterior {
-        let Some(summary) = slope.posterior else {
-            return false;
-        };
+        let summary = slope.posterior?;
         // Measured with a prior the data swamp; a prior that moves the slope has no row.
         if record.method == "conjugate_normal_inverse_gamma"
             && (summary.mean - slope.estimate).abs() > 0.01 * summary.sd
         {
-            return false;
+            return None;
         }
         (
             record.method,
@@ -77,18 +78,16 @@ pub(crate) fn association_slope_row(query: &AssociationQuery, fit: &AssociationE
             record.draws,
         )
     } else if let Some(record) = fit.resampling {
-        let Some(spread) = slope.spread else {
-            return false;
-        };
+        let spread = slope.spread?;
         let (method, inference_claim) = match record.unit {
             "row" => ("bootstrap_row", "slope_95_studentized_spread"),
             "calendar_block" => ("bootstrap_circular_block", "slope_95_fixed_b_percentile_spread"),
-            _ => return false,
+            _ => return None,
         };
         if record.replicates_ok != record.replicates_requested
             || slope.standard_error_method != Some(method)
         {
-            return false;
+            return None;
         }
         (
             method,
@@ -99,7 +98,7 @@ pub(crate) fn association_slope_row(query: &AssociationQuery, fit: &AssociationE
     } else {
         let (Some(error), Some(method)) = (slope.standard_error, slope.standard_error_method)
         else {
-            return false;
+            return None;
         };
         (
             method,
@@ -108,7 +107,7 @@ pub(crate) fn association_slope_row(query: &AssociationQuery, fit: &AssociationE
             0,
         )
     };
-    crate::support::admits_resampled(
+    crate::support::admitted_resampled_unit(
         crate::support::GraphlessSupportKey {
             family: "association",
             design,
@@ -131,7 +130,7 @@ pub(crate) fn association_slope_row(query: &AssociationQuery, fit: &AssociationE
     )
 }
 
-/// Whether the fit runs under a row of the graphless support table. The key and the observed
+/// The graphless support row the fit runs under, when one admits it. The key and the observed
 /// support are read from the query and the published estimate alone, so the artifact check
 /// recomputes the same answer. Rows and resamples are thresholds of the row; the measured
 /// conditions the table has no field for are checked here: unweighted rows, no row dropped,
@@ -140,25 +139,23 @@ pub(crate) fn association_slope_row(query: &AssociationQuery, fit: &AssociationE
 pub(crate) fn bounds_endpoint_row(
     query: &antecedent_core::IvBoundsQuery,
     fit: &antecedent_estimate::IvBoundsEstimate,
-) -> bool {
-    let Some(interval) = fit.interval else {
-        return false;
-    };
+) -> Option<crate::support::UnitRef> {
+    let interval = fit.interval?;
     if query.weight.is_some()
         || fit.rows_dropped != 0
         || interval.infeasible != 0
         || !interval.width_retained
         || (interval.level - 0.95).abs() > 1e-12
     {
-        return false;
+        return None;
     }
     // The claim is an interval for the endpoints of the identified set, not for a point effect.
     let inference_claim = match interval.method.as_str() {
         "imbens_manski_row_bootstrap" => "identified_set_endpoints_95_imbens_manski_interval",
         "posterior_endpoint_quantiles" => "identified_set_endpoints_95_posterior_quantiles",
-        _ => return false,
+        _ => return None,
     };
-    crate::support::admits_resampled(
+    crate::support::admitted_resampled_unit(
         crate::support::GraphlessSupportKey {
             family: "iv_bounds",
             design: "binary_instrument",
@@ -194,37 +191,37 @@ pub(crate) fn period_history_row_design(query: &antecedent_core::HistoryMatchQue
     query.period.is_some() && query.caliper.is_none() && query.weight.is_none()
 }
 
-/// Whether the matched contrast meets its support row: the measured design, every treated
+/// The support row the matched contrast meets: the measured design, every treated
 /// unit matched, a published period interval, and the row's matched periods and pairs.
 pub(crate) fn period_history_row_support(
     query: &antecedent_core::HistoryMatchQuery,
     estimate: &antecedent_estimate::history_match::PeriodHistoryEstimate,
-) -> bool {
+) -> Option<crate::support::UnitRef> {
     let mut pairs_in_period = std::collections::BTreeMap::<i64, usize>::new();
     for period in &estimate.matched_periods {
         *pairs_in_period.entry(*period).or_default() += 1;
     }
-    period_history_row_design(query)
-        && estimate.unmatched_treated.is_empty()
-        && crate::support::support_if_graphless(
-            crate::support::GraphlessSupportKey {
-                family: "history_match",
-                design: "within_period_nearest_history",
-                method: "period_newey_west_fixed_b",
-                inference_claim: "pointwise_95_fixed_b_interval",
-            },
-            crate::support::GraphlessAssignmentSupport {
-                assignment_unit: "cluster",
-                rows: estimate.matched_queries.len(),
-                blocks: pairs_in_period.len(),
-                min_block_arm: pairs_in_period.values().copied().min().unwrap_or(0),
-                interval_95_published: estimate.serial.is_some(),
-                reported_intervals: usize::from(estimate.serial.is_some()),
-                all_reported_intervals: estimate.serial.is_some(),
-                ..Default::default()
-            },
-        )
-        .is_some()
+    if !period_history_row_design(query) || !estimate.unmatched_treated.is_empty() {
+        return None;
+    }
+    crate::support::graphless_supported_unit(
+        crate::support::GraphlessSupportKey {
+            family: "history_match",
+            design: "within_period_nearest_history",
+            method: "period_newey_west_fixed_b",
+            inference_claim: "pointwise_95_fixed_b_interval",
+        },
+        crate::support::GraphlessAssignmentSupport {
+            assignment_unit: "cluster",
+            rows: estimate.matched_queries.len(),
+            blocks: pairs_in_period.len(),
+            min_block_arm: pairs_in_period.values().copied().min().unwrap_or(0),
+            interval_95_published: estimate.serial.is_some(),
+            reported_intervals: usize::from(estimate.serial.is_some()),
+            all_reported_intervals: estimate.serial.is_some(),
+            ..Default::default()
+        },
+    )
 }
 
 /// Replace the standing note of a supported matched contrast with one naming its row.
@@ -412,7 +409,7 @@ fn excursion_row_positivity(query: &TemporalDesignQuery, pairs: u64) -> (f64, us
     }
 }
 
-/// Whether a temporal-design fit runs under a graphless support row: its exact key and
+/// The graphless support row a temporal-design fit runs under: its exact key and
 /// observed support match one. The key and the observed support are read from the published
 /// section and the query alone, so the artifact check recomputes the same answer. `arm_mean`
 /// says the design is an arm design with the mean functional.
@@ -420,13 +417,9 @@ pub(crate) fn excursion_row_met(
     query: &TemporalDesignQuery,
     arm_mean: bool,
     fit: &crate::result::TemporalDesignEstimate,
-) -> bool {
-    let Some(design) = excursion_row_design(query) else {
-        return false;
-    };
-    let Some(inference_claim) = excursion_row_claim(design, fit) else {
-        return false;
-    };
+) -> Option<crate::support::UnitRef> {
+    let design = excursion_row_design(query)?;
+    let inference_claim = excursion_row_claim(design, fit)?;
     // A weighted or misclassification-corrected arm functional is no longer the plain mean,
     // and a missing-outcome policy that dropped a pair leaves the counts short of the rows.
     // The corrected two-arm mean under a measured validation sample keeps a key: its method
@@ -434,7 +427,7 @@ pub(crate) fn excursion_row_met(
     if (arm_mean && &*fit.functional != "mean" && !validated_correction_row(query, &fit.functional))
         || fit.pairs.checked_add(fit.unpaired) != u64::try_from(query.rows()).ok()
     {
-        return false;
+        return None;
     }
     let published = fit
         .lower
@@ -444,7 +437,7 @@ pub(crate) fn excursion_row_met(
         .count();
     let all_published = published > 0 && published == fit.coordinates.len();
     let (declared_probability, local_rows) = excursion_row_positivity(query, fit.pairs);
-    crate::support::support_if_graphless(
+    crate::support::graphless_supported_unit(
         crate::support::GraphlessSupportKey {
             family: "temporal_design",
             design,
@@ -467,5 +460,4 @@ pub(crate) fn excursion_row_met(
             ..Default::default()
         },
     )
-    .is_some()
 }

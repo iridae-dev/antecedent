@@ -38,8 +38,7 @@ use antecedent_prob::InferenceDiagnostics;
 use serde_json::Value;
 
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("class-attribution-known-truth".into())
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(body)
         .expect("spawn evidence thread")

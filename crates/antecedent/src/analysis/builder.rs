@@ -1720,9 +1720,17 @@ impl Study {
     /// Evidence contract recorded at [`StudyBuilder::build`]: supported, or
     /// not supported. `None` when the query is not on the public
     /// matrix axis.
+    ///
+    /// A supported status counts only with the unit that earned it: a study classified
+    /// supported without a unit reads as [`crate::support::CellStatus::NotSupported`].
     #[must_use]
     pub const fn support_status(&self) -> Option<crate::support::CellStatus> {
-        self.support_status
+        match (self.support_status, &self.support_unit) {
+            (Some(crate::support::CellStatus::Supported), None) => {
+                Some(crate::support::CellStatus::NotSupported)
+            }
+            (status, _) => status,
+        }
     }
 
     /// Start a builder over tabular data.

@@ -255,8 +255,7 @@ fn single_graph_answer(
 
 /// Graph-posterior compiles and estimations recurse deeply; run the body on a large stack.
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("compiled-preference-atoms".into())
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(body)
         .expect("spawn the structural body")

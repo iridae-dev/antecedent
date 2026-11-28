@@ -218,8 +218,7 @@ fn compiled_study(inference: InferenceMode, retain: bool, replicates: u32) -> St
 
 #[test]
 fn the_compiled_temporal_response_retains_joint_horizons_in_both_modes() {
-    std::thread::Builder::new()
-        .name("compiled-joint-horizons".into())
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
             let ctx = ExecutionContext::for_tests(8);
@@ -426,8 +425,7 @@ fn a_linear_composition_interval_equals_the_hand_construction() {
 fn the_compiled_horizon_interval_runs_the_retained_temporal_response_in_both_modes() {
     use antecedent::analysis::RetainedOperation;
     use antecedent_estimate::JOINT_HORIZON_DISPERSION;
-    std::thread::Builder::new()
-        .name("compiled-horizon-interval".into())
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
             let ctx = ExecutionContext::for_tests(8);

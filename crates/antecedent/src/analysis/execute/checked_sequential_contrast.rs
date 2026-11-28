@@ -288,13 +288,18 @@ impl CheckedSequentialContrastOperation {
         };
         let row_design =
             crate::analysis::design_section_rows::crossfit_contrast_row_design(&self.query);
-        let supported = row_design
-            && interval_published
-            && crate::support::support_if_graphless(
-                crate::analysis::design_section_rows::crossfit_contrast_row_key(false),
-                row_observed,
-            )
-            .is_some();
+        let row = (row_design && interval_published)
+            .then(|| {
+                crate::support::graphless_supported_unit(
+                    crate::analysis::design_section_rows::crossfit_contrast_row_key(false),
+                    row_observed,
+                )
+            })
+            .flatten();
+        let supported = row.is_some();
+        if result.extras.unit.is_none() {
+            result.extras.unit = row;
+        }
         if row_design && result.posterior.is_some() {
             super::bayesian_quasi_common::state_row_with_resamples(
                 result,

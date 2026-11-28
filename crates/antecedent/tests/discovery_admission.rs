@@ -26,9 +26,8 @@ fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(0x5EED_0017)
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -81,7 +80,7 @@ fn program(study: &Study, ctx: &ExecutionContext) -> SemanticDigest {
 
 #[test]
 fn a_finished_discovery_admits_as_accept_discovered() {
-    on_large_stack("discovery-admission", || {
+    on_large_stack(|| {
         let data = chain_table(200, 4);
         let search = Study::tabular(data.clone())
             .discovery(

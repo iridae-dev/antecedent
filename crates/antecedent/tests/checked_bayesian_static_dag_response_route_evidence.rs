@@ -195,8 +195,7 @@ fn bayesian_static_dag_responses_body() {
 }
 
 fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("checked-bayesian-static-dag-response-evidence".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(run)
         .unwrap()

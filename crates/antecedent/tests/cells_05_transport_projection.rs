@@ -24,7 +24,7 @@ use antecedent_estimate::{LinearAdjustmentAte, SamplingWeights};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
 
 fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(run)
         .unwrap()

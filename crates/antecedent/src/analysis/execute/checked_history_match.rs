@@ -181,11 +181,14 @@ impl CheckedHistoryMatchOperation {
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
-        result.support_status = None;
-        if crate::analysis::design_section_rows::period_history_row_support(&self.query, &estimate)
-        {
+        let row = crate::analysis::design_section_rows::period_history_row_support(
+            &self.query,
+            &estimate,
+        );
+        if row.is_some() {
             crate::analysis::design_section_rows::note_period_history_row(&mut result);
         }
+        result.stamp_support(None, row);
         result.payload = crate::result::ResultPayload::HistoryMatch(crate::HistoryMatchEstimate {
             contrast: estimate.contrast,
             standard_error: estimate.standard_error,

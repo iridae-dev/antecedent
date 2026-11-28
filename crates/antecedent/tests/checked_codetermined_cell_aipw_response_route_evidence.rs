@@ -100,8 +100,7 @@ fn value(result: &antecedent::StudyResult) -> f64 {
 /// operation to an independent consumer.
 #[test]
 fn codetermined_joint_cell_aipw_response_is_sealed_and_refreshes() {
-    std::thread::Builder::new()
-        .name("checked-codetermined-cell-aipw-evidence".into())
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(codetermined_joint_cell_aipw_response_body)
         .unwrap()

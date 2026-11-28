@@ -63,9 +63,8 @@ fn hard(variable: u32, level: f64) -> Intervention {
     Intervention::set(v(variable), Value::f64(level))
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -162,7 +161,7 @@ fn mediation_target() -> NestedCounterfactualTarget {
 
 #[test]
 fn the_nested_counterfactual_query_equals_the_direct_entries_and_the_operation_form() {
-    on_large_stack("nested_counterfactual_query_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let target = mediation_target();
@@ -211,7 +210,7 @@ fn the_nested_counterfactual_query_equals_the_direct_entries_and_the_operation_f
 
 #[test]
 fn the_population_do_contrast_query_draws_from_the_target_seed_like_the_direct_entry() {
-    on_large_stack("population_do_contrast_query_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let target_seed = 41;
@@ -264,7 +263,7 @@ fn the_population_do_contrast_query_draws_from_the_target_seed_like_the_direct_e
 
 #[test]
 fn the_query_forms_refuse_what_their_operation_forms_refuse() {
-    on_large_stack("fitted_model_query_refusals", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let refused = |query: CausalQuery| {
             Study::tabular(data.clone())

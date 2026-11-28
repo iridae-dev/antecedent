@@ -652,7 +652,7 @@ impl PreparedStudy {
             )
         };
         let status = support_after_suite_change(
-            prior.support_status,
+            prior.support_status(),
             (&analysis.query, class, analysis.structure_source, &analysis.settings.inference),
             (analysis.settings.refute, suite),
             ctx,
@@ -670,17 +670,17 @@ impl PreparedStudy {
                 Some(crate::support::UnitRef::Construction { key, .. }) => {
                     Some(crate::support::UnitRef::Construction { cell, key })
                 }
-                Some(crate::support::UnitRef::Matrix(_)) | None => {
+                Some(crate::support::UnitRef::Matrix(_)) => {
                     Some(crate::support::UnitRef::Matrix(cell))
                 }
+                // An undecided prior gains the suite's cell only when that cell decided anew.
+                None => (status != prior.support_status())
+                    .then_some(crate::support::UnitRef::Matrix(cell)),
                 Some(other) => Some(other.clone()),
             },
         );
-        if let Some(unit) = &unit {
-            crate::support::trace_executed(
-                unit,
-                &status.unwrap_or(crate::support::CellStatus::NotSupported),
-            );
+        if let (Some(unit), Some(status)) = (&unit, &status) {
+            crate::support::trace_executed(unit, status);
         }
         Ok((status, unit))
     }

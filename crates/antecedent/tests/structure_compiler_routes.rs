@@ -47,9 +47,8 @@ fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(0x5EED_0017)
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -185,7 +184,7 @@ fn graph_and_links<G: std::fmt::Debug, R>(
 
 #[test]
 fn static_searches_compile_and_equal_their_engines() {
-    on_large_stack("static-discovery", || {
+    on_large_stack(|| {
         let data = chain_table(400, 3);
         // PC.
         let study = Study::tabular(data.clone())
@@ -259,7 +258,7 @@ fn static_searches_compile_and_equal_their_engines() {
 
 #[test]
 fn a_structure_posterior_declares_bayesian_inference_and_equals_its_engine() {
-    on_large_stack("posterior-discovery", || {
+    on_large_stack(|| {
         let data = chain_table(300, 5);
         let study = Study::tabular(data.clone())
             .discovery(
@@ -306,7 +305,7 @@ fn a_structure_posterior_declares_bayesian_inference_and_equals_its_engine() {
 
 #[test]
 fn temporal_searches_compile_and_equal_their_engines() {
-    on_large_stack("temporal-discovery", || {
+    on_large_stack(|| {
         let series = lag1_series(200, 11);
         let vars = vec![v(0), v(1)];
         let study = Study::series(series.clone())
@@ -354,7 +353,7 @@ fn temporal_searches_compile_and_equal_their_engines() {
 
 #[test]
 fn discovered_provenance_reaches_the_downstream_contract_and_program() {
-    on_large_stack("discovered-provenance", || {
+    on_large_stack(|| {
         let data = chain_table(400, 4);
         let search = Study::tabular(data.clone())
             .discovery(DiscoverySpec::lingam(static_params(), 0.1, "parcorr"), three())
@@ -408,7 +407,7 @@ fn discovered_provenance_reaches_the_downstream_contract_and_program() {
 
 #[test]
 fn attribution_and_simulation_equal_their_engines() {
-    on_large_stack("model-routes", || {
+    on_large_stack(|| {
         let data = chain_table(300, 9);
         let fitted = antecedent::gcm::fit_gcm(chain_dag(), &data).unwrap();
         let run = |query: CausalQuery, route: &str| {
@@ -513,7 +512,7 @@ fn attribution_and_simulation_equal_their_engines() {
 
 #[test]
 fn mechanism_and_unit_change_run_on_the_retained_path() {
-    on_large_stack("retained-change", || {
+    on_large_stack(|| {
         let data = two_period_table();
         let fitted = antecedent::gcm::fit_gcm(two_node_dag(), &data).unwrap();
         let detection = MechanismChangeQuery::new(
@@ -568,7 +567,7 @@ fn mechanism_and_unit_change_run_on_the_retained_path() {
 
 #[test]
 fn a_cancelled_or_unleased_route_refuses_before_allocating() {
-    on_large_stack("route-resources", || {
+    on_large_stack(|| {
         let data = chain_table(200, 2);
         let study = Study::tabular(data)
             .discovery(DiscoverySpec::pc(static_params(), "parcorr"), three())
@@ -646,7 +645,7 @@ fn raw_model_engines_are_not_public() {
 
 #[test]
 fn an_accepted_structure_posterior_carries_its_provenance_downstream() {
-    on_large_stack("posterior-provenance", || {
+    on_large_stack(|| {
         let data = chain_table(300, 6);
         let search = Study::tabular(data.clone())
             .discovery(
@@ -713,7 +712,7 @@ fn an_accepted_structure_posterior_carries_its_provenance_downstream() {
 
 #[test]
 fn noise_replay_counterfactual_and_rollout_equal_their_engines() {
-    on_large_stack("model-programs", || {
+    on_large_stack(|| {
         let data = chain_table(200, 12);
         let fitted = antecedent::gcm::fit_gcm(chain_dag(), &data).unwrap();
         let run = |target: SimulationTarget| {
@@ -810,7 +809,7 @@ fn noise_replay_counterfactual_and_rollout_equal_their_engines() {
 
 #[test]
 fn wrapped_mechanisms_name_themselves_in_the_program() {
-    on_large_stack("wrapped-program", || {
+    on_large_stack(|| {
         let data = chain_table(120, 13);
         let fitted = Arc::new(antecedent::gcm::fit_gcm(chain_dag(), &data).unwrap());
         let standard = antecedent::MechanismProgram::standard();
@@ -848,7 +847,7 @@ fn wrapped_mechanisms_name_themselves_in_the_program() {
 
 #[test]
 fn a_screened_exact_marginals_search_compiles_and_equals_its_engine() {
-    on_large_stack("screened-exact-marginals", || {
+    on_large_stack(|| {
         let data = chain_table(300, 5);
         let spec = DiscoverySpec::screened_exact_marginals(
             BayesianDiscoverParams::default(),

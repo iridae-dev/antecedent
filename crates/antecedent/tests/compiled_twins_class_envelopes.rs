@@ -55,8 +55,7 @@ use antecedent_graph::{Cpdag, DenseNodeId, Pag, TemporalPag};
 use antecedent_identify::{TemporalClassEnvelope, temporal_pag_mediation_window};
 
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("compiled-twins-class-envelopes".into())
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(body)
         .expect("spawn twin thread")

@@ -280,7 +280,7 @@ fn a_continuous_outcome_is_not_disclosed() {
 fn bayesian_bootstrap_routes_are_not_disclosed_as_gaussian_fits() {
     // The robust ATE and the attribution posteriors reweight rows with
     // Dirichlet draws; no Gaussian outcome likelihood is fitted.
-    std::thread::Builder::new()
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(bayesian_bootstrap_routes_body)
         .unwrap()

@@ -630,7 +630,7 @@ pub(super) fn compile_with_payloads(
             discovery_algorithm: study.graph.algorithm_id().map(Arc::from),
             structure_provenance: study.structure_provenance_shared(),
             accepted_variable_names: study.graph.variable_names().map(Arc::from),
-            support_status: study.support_status,
+            support_status: study.support_status(),
             identifier: study.declared.identifier.map(|id| Arc::from(id.as_str())),
             estimator: advertised_estimator(study, resolved_estimator.as_deref()).map(Arc::from),
             resolved_estimator,

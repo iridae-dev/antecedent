@@ -10,7 +10,7 @@ of both sides. What is left is the residue, classified:
   lost       the pass or record no longer exists
   moved      it exists and links only to other units
   uncovered  it exists and links to no unit at all
-  ambiguous  its test executed several units of the item's kind, declared none, and was
+  ambiguous  its test executed several units of the item's kind, declared none of them, and was
              handed no result of the item's unit
   refused    its test executed the item's unit, and the unit refused
   retired    the item's unit no longer has a claim source
@@ -112,6 +112,15 @@ def resolution_problems(resolutions: list[dict], items: dict[tuple[str, str], di
     return problems
 
 
+def credits(entry: dict, key: tuple[str, str]) -> bool:
+    """Whether a pass or record's link entry credits the unit `key` it reaches: its units are
+    cited, it reaches no other unit of the kind, or the test returned or declared `key`."""
+    reached = {tuple(u) for field in ("executed", "cited") for u in entry.get(field, [])}
+    if entry.get("cited") or sum(1 for u in reached if u[0] == key[0]) <= 1:
+        return True
+    return key in {tuple(u) for field in ("returned", "declared") for u in entry.get(field, [])}
+
+
 def residue() -> tuple[list[dict], list[str]]:
     import evidence_baseline as eb
     import evidence_links as el
@@ -148,13 +157,15 @@ def residue() -> tuple[list[dict], list[str]]:
             if evidence in done:
                 continue
             reached = [tuple(u) for field in ("executed", "cited") for u in entry.get(field, [])]
-            if key in reached or (kind == "matrix" and any(
-                    u[0] == "construction" and u[1].split("#", 1)[0] == ident for u in reached)):
-                same_kind = {u for u in reached if u[0] == kind}
-                handed = {tuple(u) for u in entry.get("returned", [])}
-                if len(same_kind) > 1 and not entry.get("cited") and key not in handed:
+            matching = ([key] if key in reached else []) + (
+                [u for u in reached if u[0] == "construction" and u[1].split("#", 1)[0] == ident]
+                if kind == "matrix" else []
+            )
+            if matching:
+                if not any(credits(entry, u) for u in matching):
+                    same = {m[0] for m in matching}
                     out.append({"item": f"{kind}:{ident}", "evidence": evidence, "residue": "ambiguous",
-                                "links": sorted(f"{k}:{i}" for k, i in same_kind)})
+                                "links": sorted(f"{k}:{i}" for k, i in set(reached) if k in same)})
                 continue
             if not exists:
                 label = "lost"

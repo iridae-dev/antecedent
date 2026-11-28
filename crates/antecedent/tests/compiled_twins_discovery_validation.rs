@@ -49,9 +49,8 @@ fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(0x5EED_0077)
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -138,7 +137,7 @@ fn stability(report: DiscoveryCheckReport) -> antecedent::validate::DiscoverySta
 
 #[test]
 fn pcmci_checks_match_their_direct_validators() {
-    on_large_stack("twin-pcmci-checks", || {
+    on_large_stack(|| {
         let series = lag1_series(240, 41);
         let study = series_study(
             &series,
@@ -230,7 +229,7 @@ fn pcmci_checks_match_their_direct_validators() {
 
 #[test]
 fn the_fdr_search_matches_its_direct_validator() {
-    on_large_stack("twin-fdr-check", || {
+    on_large_stack(|| {
         let series = lag1_series(200, 43);
         let study =
             series_study(&series, DiscoverySpec::pcmci(params(2, 0.1, true, "parcorr"), "parcorr"));
@@ -251,7 +250,7 @@ fn the_fdr_search_matches_its_direct_validator() {
 
 #[test]
 fn orientation_regime_and_holdout_checks_match_their_direct_validators() {
-    on_large_stack("twin-plus-checks", || {
+    on_large_stack(|| {
         let series = lag1_series(240, 47);
         let mut ws = DiscoveryWorkspace::default();
 
@@ -340,7 +339,7 @@ fn orientation_regime_and_holdout_checks_match_their_direct_validators() {
 /// is selected at every level; the synthetic-null check runs at the study's own level.
 #[test]
 fn the_checks_find_the_known_lag_one_link() {
-    on_large_stack("truth-checks", || {
+    on_large_stack(|| {
         let series = lag1_series(400, 59);
         let study = series_study(
             &series,
@@ -380,7 +379,7 @@ fn the_checks_find_the_known_lag_one_link() {
 
 #[test]
 fn a_check_refuses_a_search_it_does_not_validate() {
-    on_large_stack("check-refusals", || {
+    on_large_stack(|| {
         let series = lag1_series(160, 61);
         let plus = series_study(
             &series,
@@ -432,7 +431,7 @@ fn a_check_refuses_a_search_it_does_not_validate() {
 /// the program names the `DiscoveryValidation` route.
 #[test]
 fn a_check_program_is_keyed_by_the_search_and_its_options() {
-    on_large_stack("check-identity", || {
+    on_large_stack(|| {
         let series = lag1_series(160, 61);
         let pcmci = series_study(
             &series,

@@ -200,7 +200,12 @@ fn assert_precision(name: &str, results: &[Vec<f64>], n: usize, draws: usize) {
     );
 }
 fn large_stack<F: FnOnce() -> Vec<f64> + Send + 'static>(work: F) -> Vec<f64> {
-    std::thread::Builder::new().stack_size(16 * 1024 * 1024).spawn(work).unwrap().join().unwrap()
+    antecedent::support::caller_thread()
+        .stack_size(16 * 1024 * 1024)
+        .spawn(work)
+        .unwrap()
+        .join()
+        .unwrap()
 }
 #[test]
 #[ignore = "calibration: final measurement only"]

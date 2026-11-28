@@ -23,8 +23,7 @@ use antecedent_prob::InferenceDiagnostics;
 
 /// Debug builds of the shared dispatcher carry frames close to the default test-thread stack.
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("graph-posterior-attribution".into())
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(body)
         .expect("spawn evidence thread")

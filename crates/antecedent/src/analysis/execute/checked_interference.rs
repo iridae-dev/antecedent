@@ -314,8 +314,19 @@ impl CheckedInterferenceOperation {
             .extra_diagnostics(vec![diagnostic])
             .wall_time_ns(elapsed_ns(started)),
         );
+        let row_unit = interference_inference
+            .as_ref()
+            .filter(|inference| {
+                inference.graphless_support_status == Some(crate::support::CellStatus::Supported)
+            })
+            .and_then(|inference| interference_row_key(inference.method))
+            .map(crate::support::graphless_unit);
         result.payload =
             crate::result::ResultPayload::from_interference(estimated, interference_inference);
+        // The exposure-contrast interval's row decides a result the study decided no unit for.
+        if result.extras.unit.is_none() {
+            result.extras.unit = row_unit;
+        }
         result.posterior = posterior;
         // The Student-t reference law of an arm of few clusters states its support row; the
         // Dirichlet law of larger arms has none.
@@ -447,7 +458,6 @@ impl CheckedInterferenceOperation {
             });
         let graphless_support_status = interval.as_ref().and_then(|interval| {
             interference_graphless_support(
-                "two_stage_saturation",
                 "saturation_cluster_neyman_welch",
                 crate::support::GraphlessAssignmentSupport {
                     assignment_unit: "cluster",
@@ -510,7 +520,6 @@ impl CheckedInterferenceOperation {
         let to_exposed_units = self.assignment.iter().filter(|&&assigned| assigned).count();
         let graphless_support_status = interval.as_ref().and_then(|_| {
             interference_graphless_support(
-                "cluster_randomization_total",
                 "cluster_total_neyman_welch",
                 crate::support::GraphlessAssignmentSupport {
                     assignment_unit: "cluster",
@@ -571,7 +580,6 @@ impl CheckedInterferenceOperation {
         });
         let graphless_support_status = interval.as_ref().and_then(|_| {
             interference_graphless_support(
-                "observational_known_exposure",
                 "observational_known_exposure_cluster_t",
                 crate::support::GraphlessAssignmentSupport {
                     assignment_unit: "cluster",
@@ -1230,19 +1238,28 @@ fn estimate_observed_exposure(
 /// interval or too little independent-cluster support classifies as refused and
 /// yields no support.
 fn interference_graphless_support(
-    design: &'static str,
     method: &'static str,
     support: crate::support::GraphlessAssignmentSupport,
 ) -> Option<crate::support::CellStatus> {
-    crate::support::support_if_graphless(
-        crate::support::GraphlessSupportKey {
-            family: "interference",
-            design,
-            method,
-            inference_claim: "exposure_contrast_pointwise_95_student_interval",
-        },
-        support,
-    )
+    crate::support::support_if_graphless(interference_row_key(method)?, support)
+}
+
+/// The graphless row an exposure-contrast interval of `method` is decided under.
+fn interference_row_key(
+    method: &'static str,
+) -> Option<crate::support::GraphlessSupportKey<'static>> {
+    let design = match method {
+        "saturation_cluster_neyman_welch" => "two_stage_saturation",
+        "cluster_total_neyman_welch" => "cluster_randomization_total",
+        "observational_known_exposure_cluster_t" => "observational_known_exposure",
+        _ => return None,
+    };
+    Some(crate::support::GraphlessSupportKey {
+        family: "interference",
+        design,
+        method,
+        inference_claim: "exposure_contrast_pointwise_95_student_interval",
+    })
 }
 
 /// The width and directed edges of the structure the operation was sealed against.

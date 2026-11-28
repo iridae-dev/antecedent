@@ -218,8 +218,7 @@ fn contract(structural_policy: StructuralPolicy) -> PreferenceContract {
 }
 
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("preference-class-marks".into())
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(body)
         .expect("spawn the structural body")

@@ -143,7 +143,12 @@ fn confounded_series_and_graph() -> (TimeSeriesData, TemporalDag, GraphPosterior
 }
 
 fn on_regression_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new().stack_size(32 * 1024 * 1024).spawn(body).unwrap().join().unwrap();
+    antecedent::support::caller_thread()
+        .stack_size(32 * 1024 * 1024)
+        .spawn(body)
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[test]
@@ -574,7 +579,7 @@ fn report<'a>(
 
 #[test]
 fn temporal_cross_world_cells_match_the_linear_mechanism_under_every_suite() {
-    std::thread::Builder::new()
+    antecedent::support::caller_thread()
         .stack_size(64 << 20)
         .spawn(|| {
             let pin = pin();
@@ -714,7 +719,7 @@ fn temporal_lead_refuters_pass_the_clean_series_at_their_size_and_flag_a_planted
 
 #[test]
 fn temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder() {
-    std::thread::Builder::new()
+    antecedent::support::caller_thread()
         .stack_size(64 << 20)
         .spawn(|| {
             let pin = pin();

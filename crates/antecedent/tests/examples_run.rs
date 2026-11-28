@@ -209,7 +209,7 @@ fn example_discover_then_estimate_runs() {
 
 #[test]
 fn example_gcm_do_runs() {
-    on_large_stack("example-gcm-do", || gcm_do::run().unwrap());
+    on_large_stack(|| gcm_do::run().unwrap());
 }
 
 #[test]
@@ -239,7 +239,7 @@ fn example_rank_designs_runs() {
 
 #[test]
 fn example_sales_spreadsheet_e2e_runs() {
-    on_large_stack("example-sales-spreadsheet-e2e", || sales_spreadsheet_e2e::run().unwrap());
+    on_large_stack(|| sales_spreadsheet_e2e::run().unwrap());
 }
 
 #[test]
@@ -251,8 +251,7 @@ fn example_sequential_bayes_runs() {
 fn example_staged_static_kinds_runs() {
     // Debug builds of the shared prepared dispatcher carry frames close to the default
     // test-thread stack, so the example runs on its own thread.
-    std::thread::Builder::new()
-        .name("example-staged-static-kinds".into())
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(|| staged_static_kinds::run().unwrap())
         .expect("spawn example thread")
@@ -287,7 +286,7 @@ fn example_shared_exogenous_counterfactual_runs() {
 
 #[test]
 fn example_intervention_programs_runs() {
-    on_large_stack("example-intervention-programs", || intervention_programs::run().unwrap());
+    on_large_stack(|| intervention_programs::run().unwrap());
 }
 
 #[cfg(all(feature = "ml-gbdt", feature = "ml-forest"))]
@@ -308,7 +307,7 @@ fn example_noise_replay_runs() {
 
 #[test]
 fn example_intrinsic_influence_runs() {
-    on_large_stack("example-intrinsic-influence", || intrinsic_influence::run().unwrap());
+    on_large_stack(|| intrinsic_influence::run().unwrap());
 }
 
 #[test]
@@ -318,9 +317,8 @@ fn example_feedback_three_questions_runs() {
 
 /// Runs an example that executes a compiled model route on a thread with a stack large enough
 /// for debug builds of the shared prepared dispatcher.
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .expect("spawn example thread")
@@ -343,7 +341,5 @@ mod delayed_entry_incidence;
 
 #[test]
 fn example_delayed_entry_incidence_runs() {
-    on_large_stack("example-delayed-entry-incidence", || {
-        delayed_entry_incidence::run(None).unwrap()
-    });
+    on_large_stack(|| delayed_entry_incidence::run(None).unwrap());
 }

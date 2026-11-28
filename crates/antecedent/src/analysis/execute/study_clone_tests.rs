@@ -147,7 +147,7 @@ fn temporal_class_lookup_returns_the_retained_envelope_without_copying() {
         .build()
         .unwrap();
     let ctx = ExecutionContext::for_tests(3);
-    let prepared = std::thread::Builder::new()
+    let prepared = crate::support::caller_thread()
         .stack_size(64 << 20)
         .spawn(move || study.prepare(&ctx).unwrap())
         .unwrap()

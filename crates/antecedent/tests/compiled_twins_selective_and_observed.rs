@@ -43,9 +43,8 @@ fn vars(n: u32) -> Vec<VariableId> {
     (0..n).map(VariableId::from_raw).collect()
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -109,7 +108,7 @@ fn selective(
 
 #[test]
 fn a_compiled_static_selective_search_is_the_adapter_fresh_and_resumed() {
-    on_large_stack("twin-selective-static", || {
+    on_large_stack(|| {
         let data = collider_table(300, 7);
         let contract = StaticDiscoveryContract::new(
             StaticAlgorithm::Pc,
@@ -151,7 +150,7 @@ fn a_compiled_static_selective_search_is_the_adapter_fresh_and_resumed() {
 
 #[test]
 fn a_compiled_temporal_selective_search_is_the_adapter() {
-    on_large_stack("twin-selective-temporal", || {
+    on_large_stack(|| {
         let series = lag1_series(240, 11);
         let contract = TemporalDiscoveryContract::new(
             TemporalAlgorithm::PcmciPlus,
@@ -174,7 +173,7 @@ fn a_compiled_temporal_selective_search_is_the_adapter() {
 
 #[test]
 fn a_selective_search_refuses_other_variables_and_only_a_selective_search_resumes() {
-    on_large_stack("selective-refusals", || {
+    on_large_stack(|| {
         let data = collider_table(120, 13);
         let contract = StaticDiscoveryContract::new(
             StaticAlgorithm::Pc,
@@ -249,7 +248,7 @@ fn partially_observed(n: usize, seed: u64) -> TabularData {
 
 #[test]
 fn compiled_observed_marginals_are_the_kernel_under_the_master_seed() {
-    on_large_stack("twin-observed-marginals", || {
+    on_large_stack(|| {
         let data = partially_observed(40, 17);
         let spec =
             DiscoverySpec::exact_dag_marginals(signed_uniform()).with_observed_marginal_draws(4096);
@@ -285,7 +284,7 @@ fn compiled_observed_marginals_are_the_kernel_under_the_master_seed() {
 /// three times the 0.01 Monte Carlo error bound the schedule stops at.
 #[test]
 fn compiled_observed_marginals_agree_with_an_independent_integration() {
-    on_large_stack("truth-observed-marginals", || {
+    on_large_stack(|| {
         let data = TabularData::from_f64_columns([
             ("x", [0.8, -0.3, 1.25].as_slice()),
             ("y", [-1.4, 0.1, f64::NAN].as_slice()),
@@ -303,7 +302,7 @@ fn compiled_observed_marginals_agree_with_an_independent_integration() {
 
 #[test]
 fn a_draw_limit_on_another_search_is_refused() {
-    on_large_stack("observed-refusal", || {
+    on_large_stack(|| {
         let data = partially_observed(40, 19);
         let spec = DiscoverySpec::exact_dag_marginals(BayesianDiscoverParams::default())
             .with_observed_marginal_draws(256);

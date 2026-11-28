@@ -25,8 +25,7 @@ use antecedent_validate::RefutationReport;
 
 /// Class estimation recurses deeply; run each body on a large stack.
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("class-design-validation".into())
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(body)
         .expect("spawn evidence thread")

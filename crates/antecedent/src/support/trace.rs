@@ -17,27 +17,53 @@ use super::unit::UnitRef;
 /// The environment variable naming the trace file.
 pub const TRACE_ENV: &str = "ANTECEDENT_EVIDENCE_TRACE";
 
-/// Record that the unit `unit` was decided with `status` on this thread.
-#[cfg(feature = "evidence-trace")]
-pub(crate) fn executed(unit: &UnitRef, status: &CellStatus) {
-    if let Some(path) = std::env::var_os(TRACE_ENV) {
-        append(std::path::Path::new(&path), unit, status);
-        DECIDED.with(|decided| {
-            decided.borrow_mut().push(format!("{}\t{}", unit.kind(), unit.record_id()))
-        });
+/// A thread named after the thread that spawns it, so the evidence trace attributes the work
+/// it runs to the calling test. Every thread a test or a route spawns is built from this.
+#[doc(hidden)]
+pub fn caller_thread() -> std::thread::Builder {
+    let builder = std::thread::Builder::new();
+    match std::thread::current().name() {
+        Some(name) => builder.name(name.to_owned()),
+        None => builder,
     }
 }
 
-#[cfg(feature = "evidence-trace")]
-thread_local! {
-    /// Units decided on this thread since its last route line.
-    static DECIDED: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+/// Record that the unit `unit` was decided with `status` on this thread.
+#[inline]
+pub(crate) fn executed(unit: &UnitRef, status: &CellStatus) {
+    #[cfg(feature = "evidence-trace")]
+    executed_record(unit.kind(), &unit.record_id(), status);
+    #[cfg(not(feature = "evidence-trace"))]
+    let _ = (unit, status);
 }
 
-/// Record that the unit `unit` was decided with `status` on this thread.
-#[cfg(not(feature = "evidence-trace"))]
+/// [`executed`] for a unit known only by its kind and record id, such as a capability id the
+/// embedded status does not list.
 #[inline]
-pub(crate) const fn executed(_unit: &UnitRef, _status: &CellStatus) {}
+pub(crate) fn executed_record(kind: &str, id: &str, status: &CellStatus) {
+    #[cfg(feature = "evidence-trace")]
+    if let Some(path) = std::env::var_os(TRACE_ENV) {
+        write_unit(std::path::Path::new(&path), kind, id, status);
+    }
+    #[cfg(not(feature = "evidence-trace"))]
+    let _ = (kind, id, status);
+}
+
+#[cfg(feature = "evidence-trace")]
+fn write_unit(path: &std::path::Path, kind: &str, id: &str, status: &CellStatus) {
+    write_line(path, &format!("unit\t{}\t{kind}\t{id}\t{}", origin(), status.as_str()));
+    decided().entry(test_name()).or_default().push(format!("{kind}\t{id}"));
+}
+
+/// Units decided since the test's last route line, by test: a worker thread carries its
+/// caller's name, so its decisions reach the caller's route line, and no test sees another's.
+#[cfg(feature = "evidence-trace")]
+fn decided() -> std::sync::MutexGuard<'static, std::collections::HashMap<String, Vec<String>>> {
+    static DECIDED: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<String, Vec<String>>>,
+    > = std::sync::OnceLock::new();
+    DECIDED.get_or_init(Default::default).lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
 /// Record that the compiled route `route` produced a result decided by `unit` (`- -` when none),
 /// with the units decided on this thread since the previous route line.
@@ -55,15 +81,13 @@ fn write_route(path: &std::path::Path, route: &str, unit: Option<&UnitRef>) {
     let (kind, id) =
         unit.map_or_else(|| ("-", "-".to_owned()), |unit| (unit.kind(), unit.record_id()));
     let mut line = format!("route\t{}\t{route}\t{kind}\t{id}", origin());
-    DECIDED.with(|decided| {
-        let mut decided = decided.borrow_mut();
-        decided.sort_unstable();
-        decided.dedup();
-        for unit in decided.drain(..) {
-            line.push('\t');
-            line.push_str(&unit);
-        }
-    });
+    let mut units = decided().remove(&test_name()).unwrap_or_default();
+    units.sort_unstable();
+    units.dedup();
+    for unit in units {
+        line.push('\t');
+        line.push_str(&unit);
+    }
     write_line(path, &line);
 }
 
@@ -91,23 +115,35 @@ macro_rules! evidence_unit {
     };
 }
 
-#[cfg(feature = "evidence-trace")]
-fn append(path: &std::path::Path, unit: &UnitRef, status: &CellStatus) {
-    write_line(
-        path,
-        &format!("unit\t{}\t{}\t{}\t{}", origin(), unit.kind(), unit.record_id(), status.as_str()),
-    );
-}
-
-/// `<binary>\t<thread>`: the test binary's target name and the running test.
+/// `<binary>\t<test>`: the test binary's target name and the running test.
 #[cfg(feature = "evidence-trace")]
 fn origin() -> String {
-    let binary = std::env::current_exe()
+    format!("{}\t{}", binary_name(), test_name())
+}
+
+/// The running test: the name of the thread, which libtest names after its test and
+/// [`caller_thread`] passes on.
+#[cfg(feature = "evidence-trace")]
+fn test_name() -> String {
+    std::thread::current().name().unwrap_or("").to_owned()
+}
+
+/// The test binary's target name: its file stem without Cargo's `-<16 hex>` suffix.
+#[doc(hidden)]
+#[must_use]
+pub fn binary_name() -> String {
+    let stem = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.file_stem().map(|stem| stem.to_string_lossy().into_owned()))
-        .map(|stem| stem.rsplit_once('-').map_or(stem.clone(), |(name, _)| name.to_owned()))
         .unwrap_or_default();
-    format!("{binary}\t{}", std::thread::current().name().unwrap_or(""))
+    match stem.rsplit_once('-') {
+        Some((name, hash))
+            if hash.len() == 16 && hash.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
+        {
+            name.to_owned()
+        }
+        _ => stem,
+    }
 }
 
 #[cfg(feature = "evidence-trace")]
@@ -127,7 +163,7 @@ mod tests {
     fn a_line_names_the_test_and_the_decided_unit() {
         let path = std::env::temp_dir()
             .join(format!("antecedent-evidence-trace-{}.tsv", std::process::id()));
-        append(&path, &UnitRef::Capability(UnitId::new("no.such.unit")), &CellStatus::NotSupported);
+        write_unit(&path, "capability", "no.such.unit", &CellStatus::NotSupported);
         let trace = std::fs::read_to_string(&path).expect("the trace was written");
         let _ = std::fs::remove_file(&path);
         let fields: Vec<&str> = trace.trim_end().split('\t').collect();
@@ -137,18 +173,40 @@ mod tests {
     }
 
     #[test]
-    fn a_route_line_names_the_units_decided_since_the_last_one() {
+    fn a_route_line_names_the_units_its_test_decided_on_any_thread() {
         let path = std::env::temp_dir()
             .join(format!("antecedent-evidence-route-{}.tsv", std::process::id()));
         let refused = UnitRef::Capability(UnitId::new("refused.unit"));
-        DECIDED
-            .with(|decided| decided.borrow_mut().push(format!("capability\t{}", "refused.unit")));
+        let worker = path.clone();
+        caller_thread()
+            .spawn(move || {
+                write_unit(&worker, "capability", "refused.unit", &CellStatus::NotSupported);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+        std::thread::Builder::new()
+            .name("another test".into())
+            .spawn(|| decided().entry(test_name()).or_default().push("capability\tother".into()))
+            .unwrap()
+            .join()
+            .unwrap();
         write_route(&path, "SomeRoute", None);
         write_route(&path, "SomeRoute", Some(&refused));
         let trace = std::fs::read_to_string(&path).expect("the trace was written");
         let _ = std::fs::remove_file(&path);
         let lines: Vec<Vec<&str>> = trace.lines().map(|line| line.split('\t').collect()).collect();
-        assert_eq!(lines[0][3..], ["SomeRoute", "-", "-", "capability", "refused.unit"]);
-        assert_eq!(lines[1][3..], ["SomeRoute", "capability", "refused.unit"]);
+        assert!(
+            lines[0][2].ends_with("a_route_line_names_the_units_its_test_decided_on_any_thread")
+        );
+        assert_eq!(lines[1][3..], ["SomeRoute", "-", "-", "capability", "refused.unit"]);
+        assert_eq!(lines[2][3..], ["SomeRoute", "capability", "refused.unit"]);
+    }
+
+    #[test]
+    fn a_binary_name_drops_only_a_cargo_hash() {
+        let name = binary_name();
+        assert!(!name.is_empty());
+        assert!(name.rsplit_once('-').is_none_or(|(_, hash)| hash.len() != 16));
     }
 }

@@ -324,7 +324,7 @@ fn builder(
 }
 
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new().stack_size(64 << 20).spawn(body).unwrap().join().unwrap();
+    antecedent::support::caller_thread().stack_size(64 << 20).spawn(body).unwrap().join().unwrap();
 }
 
 /// The mixed value of one component, read from the result.

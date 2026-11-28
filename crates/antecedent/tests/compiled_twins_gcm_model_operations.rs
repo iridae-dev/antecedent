@@ -79,9 +79,8 @@ fn hard(variable: u32, level: f64) -> Intervention {
     Intervention::set(v(variable), Value::f64(level))
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -177,7 +176,7 @@ fn assert_do_sample_eq(compiled: &DoSampleResult, direct: &DoSampleResult) {
 
 #[test]
 fn arrow_strengths_equal_the_compiled_arrow_strengths_route() {
-    on_large_stack("arrow_strengths_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let direct = arrow_strengths(&fitted.model).unwrap();
@@ -202,7 +201,7 @@ fn arrow_strengths_equal_the_compiled_arrow_strengths_route() {
 
 #[test]
 fn population_do_contrast_draws_from_the_target_seed_like_a_context_seeded_with_it() {
-    on_large_stack("population_do_contrast_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let target_seed = 41;
@@ -240,7 +239,7 @@ fn population_do_contrast_draws_from_the_target_seed_like_a_context_seeded_with_
 
 #[test]
 fn kde_do_sampler_equals_the_compiled_do_sample_route() {
-    on_large_stack("kde_do_sampler_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let interventions: Arc<[Intervention]> = Arc::from([hard(0, 0.5)]);
@@ -267,7 +266,7 @@ fn kde_do_sampler_equals_the_compiled_do_sample_route() {
 
 #[test]
 fn mcmc_do_sampler_equals_the_compiled_do_sample_route() {
-    on_large_stack("mcmc_do_sampler_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let interventions: Arc<[Intervention]> = Arc::from([hard(0, 0.5)]);
@@ -299,7 +298,7 @@ fn mcmc_do_sampler_equals_the_compiled_do_sample_route() {
 
 #[test]
 fn weighting_do_sampler_equals_the_compiled_do_sample_route() {
-    on_large_stack("weighting_do_sampler_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         // `y` has a parent, so the sampler reweights the observed rows toward do(y = 1).
@@ -323,7 +322,7 @@ fn weighting_do_sampler_equals_the_compiled_do_sample_route() {
 
 #[test]
 fn model_evaluator_equals_the_compiled_model_evaluation_route() {
-    on_large_stack("model_evaluation_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let direct = ModelEvaluator { alpha: 0.05, n_permutations: 8, seed: 5 }
@@ -365,7 +364,7 @@ fn sample_route(data: &TabularData, graph: &Dag, interventions: Arc<[Interventio
 
 #[test]
 fn sample_interventional_equals_the_compiled_interventional_sample() {
-    on_large_stack("sample_interventional_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let interventions: Arc<[Intervention]> = Arc::from([hard(1, 0.25)]);
@@ -380,7 +379,7 @@ fn sample_interventional_equals_the_compiled_interventional_sample() {
 
 #[test]
 fn sample_observational_equals_the_compiled_sample_with_no_intervention() {
-    on_large_stack("sample_observational_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let mut rng = CausalRng::from_seed(13);
@@ -392,7 +391,7 @@ fn sample_observational_equals_the_compiled_sample_with_no_intervention() {
 
 #[test]
 fn simultaneous_counterfactual_declaration_equals_the_direct_engine_and_refuses_overlap() {
-    on_large_stack("simultaneous_counterfactual_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let outer = [hard(0, 1.0)];
@@ -435,7 +434,7 @@ fn simultaneous_counterfactual_declaration_equals_the_direct_engine_and_refuses_
 
 #[test]
 fn the_nested_counterfactual_entries_equal_the_compiled_nested_operation() {
-    on_large_stack("nested_counterfactual_twin", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         // Y_{x = 1, M_{x = 0}} with M = y: the mediation contrast of x on z through y.
@@ -472,7 +471,7 @@ fn the_nested_counterfactual_entries_equal_the_compiled_nested_operation() {
 
 #[test]
 fn a_nested_operation_that_freezes_its_outcome_is_refused_before_it_runs() {
-    on_large_stack("nested_counterfactual_refusal", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let operation = ModelOperation::NestedCounterfactual(NestedCounterfactualTarget {
             outer: Arc::from([hard(0, 0.0)]),
@@ -495,7 +494,7 @@ fn a_nested_operation_that_freezes_its_outcome_is_refused_before_it_runs() {
 /// sealed body: its calibration basis names the off-axis `Simulate` query the contract targets.
 #[test]
 fn a_sealed_interventional_sample_verifies_against_its_body() {
-    on_large_stack("sealed_interventional_sample", || {
+    on_large_stack(|| {
         let (data, graph) = linear();
         let ctx = ctx();
         let worlds: [Arc<[Intervention]>; 2] = [Arc::from([]), Arc::from([hard(1, 0.25)])];

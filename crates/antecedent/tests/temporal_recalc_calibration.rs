@@ -155,7 +155,7 @@ fn temporal_checked_effect_basic_l95() {
 #[test]
 fn checked_temporal_calibration_oracle_matches_enumerated_scm() {
     // Quadrature of the same marginal SCM probabilities, not a measurement run.
-    std::thread::Builder::new()
+    antecedent::support::caller_thread()
         .stack_size(8 * 1024 * 1024)
         .spawn(|| {
             let mut input = request(1, 17, TemporalFunctional::Response { sequence: vec![0, 0] });

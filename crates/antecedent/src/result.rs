@@ -1393,6 +1393,21 @@ impl StudyResult {
         self.stamp_support(Some(crate::support::CellStatus::Supported), Some(unit));
     }
 
+    /// Refuse support to the construction `key` this result ran in place of its cell's route:
+    /// the unit becomes that construction on the cell, decided `not_supported`.
+    pub(crate) fn refuse_construction(&mut self, key: &'static str) {
+        let unit = match self.extras.unit {
+            Some(crate::support::UnitRef::Matrix(cell)) => {
+                Some(crate::support::UnitRef::Construction { cell, key })
+            }
+            _ => None,
+        };
+        if let Some(unit) = &unit {
+            crate::support::trace_executed(unit, &crate::support::CellStatus::NotSupported);
+        }
+        self.stamp_support(Some(crate::support::CellStatus::NotSupported), unit);
+    }
+
     /// Method records resolved by the route this result executed, with their sources and caveats.
     #[must_use]
     pub fn method_provenance(&self) -> antecedent_io::method_provenance::MethodProvenanceWire {
@@ -1427,24 +1442,31 @@ impl StudyResult {
         self.lowered_quadrant = Some(program.refutation_quadrant());
         self.execution_identity = Some(execution);
         if self.support_status.is_none() && self.extras.unit.is_none() {
-            self.decide_route_unit(program.route());
+            self.decide_route_unit(program.route(), ctx)?;
         }
-        crate::support::trace_route(program.route(), self.extras.unit.as_ref());
+        let returned =
+            self.extras.unit.as_ref().filter(|_| {
+                self.support_status() != Some(crate::support::CellStatus::NotSupported)
+            });
+        crate::support::trace_route(program.route(), returned);
         Ok(())
     }
 
     /// Decide the unit of a result whose execution decided none: the capability unit its
     /// compiled route runs under. A route with no unit leaves the result undecided.
-    fn decide_route_unit(&mut self, route: &'static str) {
-        use crate::support::{CellStatus, UnitRef};
-        if let Some(unit) = crate::support::units_generated::unit_of(route) {
-            let status = if crate::support::capability_supported(unit.as_str()) {
-                CellStatus::Supported
-            } else {
-                CellStatus::NotSupported
-            };
-            self.stamp_support(Some(status), Some(UnitRef::Capability(unit)));
+    ///
+    /// Release: an unsupported unit refuses. Development: it is recorded in what a release
+    /// build would refuse, and the result carries `not_supported`.
+    fn decide_route_unit(
+        &mut self,
+        route: &'static str,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<(), crate::CausalError> {
+        if let Some(decision) = crate::support::unit::route_decision(route) {
+            crate::support::unit::require_decided(ctx, &decision, route)?;
+            self.stamp_support(Some(decision.status), Some(decision.unit));
         }
+        Ok(())
     }
 
     /// Route-native diagnostic records the result carries, in diagnostic order.

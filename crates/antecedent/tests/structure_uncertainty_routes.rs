@@ -43,9 +43,8 @@ fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(0x5EED_0031)
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -164,7 +163,7 @@ fn node(raw: u32) -> StructureNode {
 
 #[test]
 fn a_class_posterior_collapses_the_dag_posterior_it_wraps() {
-    on_large_stack("class-posterior", || {
+    on_large_stack(|| {
         let data = chain_table(300, 5);
         let dag_study = Study::tabular(data.clone())
             .discovery(
@@ -233,7 +232,7 @@ fn a_class_posterior_collapses_the_dag_posterior_it_wraps() {
 
 #[test]
 fn a_stability_search_tabulates_the_resamples_of_its_engine() {
-    on_large_stack("stability-discovery", || {
+    on_large_stack(|| {
         let data = pure_chain_table(300, 3);
         let spec = DiscoverySpec::pc(static_params(), "parcorr").bootstrap_stability(20);
         let study = Study::tabular(data.clone()).discovery(spec.clone(), three()).build().unwrap();
@@ -324,7 +323,7 @@ fn a_stability_search_tabulates_the_resamples_of_its_engine() {
 
 #[test]
 fn a_series_stability_search_resamples_circular_blocks() {
-    on_large_stack("series-stability", || {
+    on_large_stack(|| {
         let series = lag1_series(240, 11);
         let vars = vec![v(0), v(1)];
         let study = Study::series(series.clone())
@@ -373,7 +372,7 @@ fn a_series_stability_search_resamples_circular_blocks() {
 
 #[test]
 fn a_panel_stability_search_resamples_whole_units() {
-    on_large_stack("panel-stability", || {
+    on_large_stack(|| {
         let units = vec![lag1_series(100, 12), lag1_series(100, 13), lag1_series(100, 14)];
         let vars = vec![v(0), v(1)];
         let panel = antecedent::panel_of_units(units).unwrap();
@@ -400,7 +399,7 @@ fn a_panel_stability_search_resamples_whole_units() {
 
 #[test]
 fn latent_variable_and_multi_environment_searches_are_resampled_too() {
-    on_large_stack("lpcmci-jpcmci-stability", || {
+    on_large_stack(|| {
         let vars = vec![v(0), v(1)];
         let latent = Study::series(lag1_series(200, 15))
             .discovery(
@@ -443,7 +442,7 @@ fn latent_variable_and_multi_environment_searches_are_resampled_too() {
 
 #[test]
 fn a_template_posterior_collapses_onto_temporal_equivalence_classes() {
-    on_large_stack("dbn-class-posterior", || {
+    on_large_stack(|| {
         let series = lag1_series(200, 17);
         let vars = vec![v(0), v(1)];
         let schedule = GraphMcmcSchedule { n_chains: 2, n_warmup: 50, n_draws: 100, thin: 1 };
@@ -480,7 +479,7 @@ fn a_template_posterior_collapses_onto_temporal_equivalence_classes() {
 
 #[test]
 fn an_order_posterior_under_laplace_noise_orients_what_the_gaussian_posterior_cannot() {
-    on_large_stack("laplace-order-posterior", || {
+    on_large_stack(|| {
         let n = 1500;
         let mut rng = CausalRng::from_seed(77);
         let mut laplace = || {
@@ -516,7 +515,7 @@ fn an_order_posterior_under_laplace_noise_orients_what_the_gaussian_posterior_ca
 
 #[test]
 fn a_pag_posterior_is_a_compiled_bayesian_route_over_ancestral_graph_classes() {
-    on_large_stack("pag-posterior", || {
+    on_large_stack(|| {
         let data = chain_table(1200, 41);
         let study = Study::tabular(data.clone())
             .discovery(
@@ -576,7 +575,7 @@ fn a_pag_posterior_is_a_compiled_bayesian_route_over_ancestral_graph_classes() {
 
 #[test]
 fn a_regime_search_is_resampled_with_its_labels_one_table_per_regime() {
-    on_large_stack("rpcmci-stability", || {
+    on_large_stack(|| {
         let n = 300;
         let series = lag1_series(n, 31);
         let vars = vec![v(0), v(1)];
@@ -600,7 +599,7 @@ fn a_regime_search_is_resampled_with_its_labels_one_table_per_regime() {
 
 #[test]
 fn a_pag_sampler_is_a_compiled_bayesian_route_beyond_four_variables() {
-    on_large_stack("pag-mcmc", || {
+    on_large_stack(|| {
         let n = 600;
         let mut rng = CausalRng::from_seed(51);
         let mut column = |scale: f64, base: Option<&Vec<f64>>| -> Vec<f64> {
@@ -718,7 +717,7 @@ fn discovery_builder_retains_typed_refusal_until_replaced() {
 
 #[test]
 fn a_frequentist_static_search_returns_its_graph_and_publishes_no_interval() {
-    on_large_stack("static-point-discovery", || {
+    on_large_stack(|| {
         let data = pure_chain_table(1000, 5);
         let study = Study::tabular(data.clone())
             .discovery(DiscoverySpec::pc(static_params(), "parcorr"), three())
@@ -752,7 +751,7 @@ fn a_frequentist_static_search_returns_its_graph_and_publishes_no_interval() {
 
 #[test]
 fn a_frequentist_temporal_search_returns_its_lag_graph_and_publishes_no_interval() {
-    on_large_stack("temporal-point-discovery", || {
+    on_large_stack(|| {
         let series = lag1_series(600, 11);
         let vars = vec![v(0), v(1)];
         let study = Study::series(series.clone())

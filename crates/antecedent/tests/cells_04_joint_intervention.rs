@@ -38,9 +38,8 @@ use antecedent_core::{
 use antecedent_data::{ImputationSpec, MissingDeclaration, MissingPolicy, TabularData};
 use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, TieredBackground, WithinTier};
 
-fn on_large_stack(name: &str, body: fn()) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: fn()) {
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -226,7 +225,7 @@ fn standardized_cell() -> f64 {
 #[test]
 fn the_joint_cell_equals_the_standardization_on_a_codetermined_closure_and_refuses_an_explicit_admg_or_cpdag()
  {
-    on_large_stack("cells-04-latent-class", latent_class_body);
+    on_large_stack(latent_class_body);
 }
 
 #[allow(
@@ -310,7 +309,7 @@ fn latent_class_body() {
 
 #[test]
 fn a_missing_outcome_follows_complete_case_and_the_policies_the_route_cannot_pool_are_refused() {
-    on_large_stack("cells-04-missing", missing_body);
+    on_large_stack(missing_body);
 }
 
 fn missing_body() {
@@ -386,7 +385,7 @@ fn missing_body() {
 
 #[test]
 fn table_weights_are_refused_by_the_joint_cell_on_a_study_and_on_a_batch() {
-    on_large_stack("cells-04-weights", weights_body);
+    on_large_stack(weights_body);
 }
 
 fn weights_body() {
@@ -431,7 +430,7 @@ fn weights_body() {
 
 #[test]
 fn an_unobserved_cell_and_a_non_binary_level_are_refused_instead_of_extrapolated() {
-    on_large_stack("cells-04-held-out", held_out_body);
+    on_large_stack(held_out_body);
 }
 
 fn held_out_body() {
@@ -461,7 +460,7 @@ fn held_out_body() {
 
 #[test]
 fn a_declared_panel_or_series_is_refused_by_the_joint_cell_with_the_bootstrap_off() {
-    on_large_stack("cells-04-dependence", dependence_body);
+    on_large_stack(dependence_body);
 }
 
 fn dependence_body() {
@@ -493,7 +492,7 @@ fn dependence_body() {
 
 #[test]
 fn a_declared_panel_or_series_is_refused_by_the_joint_cell_even_when_a_bootstrap_is_requested() {
-    on_large_stack("cells-04-dependence-bootstrap", dependence_with_bootstrap_body);
+    on_large_stack(dependence_with_bootstrap_body);
 }
 
 fn dependence_with_bootstrap_body() {
@@ -634,7 +633,7 @@ fn assert_matches_reference(result: &StudyResult, expected: &serde_json::Value, 
 
 #[test]
 fn the_joint_cell_equals_the_exact_weighted_cross_fit_aipw_and_its_sandwich_variances() {
-    on_large_stack("cells-04-weighted-reference", weighted_reference_body);
+    on_large_stack(weighted_reference_body);
 }
 
 fn weighted_reference_body() {
@@ -688,7 +687,7 @@ fn weighted_reference_body() {
 
 #[test]
 fn a_zero_weight_row_equals_the_table_with_the_row_deleted() {
-    on_large_stack("cells-04-zero-weight", zero_weight_body);
+    on_large_stack(zero_weight_body);
 }
 
 fn zero_weight_body() {
@@ -721,7 +720,7 @@ fn zero_weight_body() {
 
 #[test]
 fn the_weights_are_scale_free_and_an_extreme_weight_is_read_not_clipped() {
-    on_large_stack("cells-04-weight-scale", weight_scale_body);
+    on_large_stack(weight_scale_body);
 }
 
 fn weight_scale_body() {
@@ -741,7 +740,7 @@ fn weight_scale_body() {
 
 #[test]
 fn declared_score_dependence_is_read_by_the_joint_cell_and_refused_when_it_cannot_be() {
-    on_large_stack("cells-04-dependence-refusals", dependence_refusal_body);
+    on_large_stack(dependence_refusal_body);
 }
 
 fn dependence_refusal_body() {
@@ -844,7 +843,7 @@ fn dependence_refusal_body() {
 
 #[test]
 fn a_prepared_joint_cell_reads_the_weights_and_the_dependence_and_stamps_them_in_its_identity() {
-    on_large_stack("cells-04-prepared", prepared_body);
+    on_large_stack(prepared_body);
 }
 
 fn prepared_body() {
@@ -902,7 +901,7 @@ fn prepared_body() {
 
 #[test]
 fn a_weighted_or_dependent_joint_cell_is_supported_by_its_own_exact_reference() {
-    on_large_stack("cells-04-support", support_body);
+    on_large_stack(support_body);
 }
 
 fn support_body() {

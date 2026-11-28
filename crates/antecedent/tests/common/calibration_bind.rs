@@ -59,6 +59,10 @@ pub fn constructions(
                     reported_level: key.level,
                     unit: result
                         .unit()
+                        .filter(|_| {
+                            result.support_status()
+                                != Some(antecedent::support::CellStatus::NotSupported)
+                        })
                         .map(|unit| format!("{}\t{}", unit.kind(), unit.record_id())),
                 },
                 ScopeFacts {

@@ -31,9 +31,8 @@ fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(0xA77_B057)
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -150,7 +149,7 @@ fn change_study(rooted: bool, inference: InferenceMode, replicates: u32) -> Stud
 
 #[test]
 fn a_change_attribution_has_a_posterior_over_the_mechanisms() {
-    on_large_stack("attribute-change-posterior", || {
+    on_large_stack(|| {
         for rooted in [false, true] {
             let study = change_study(rooted, bayesian(24), 0);
             let ctx = ctx();
@@ -193,7 +192,7 @@ fn a_change_attribution_has_a_posterior_over_the_mechanisms() {
 
 #[test]
 fn a_change_attribution_has_a_bootstrap_beside_its_posterior() {
-    on_large_stack("attribute-change-bootstrap", || {
+    on_large_stack(|| {
         let ctx = ctx();
         let frequentist =
             CompiledExecution::run(&change_study(false, InferenceMode::Frequentist, 40), &ctx)
@@ -230,7 +229,7 @@ fn a_change_attribution_has_a_bootstrap_beside_its_posterior() {
 
 #[test]
 fn an_intrinsic_influence_has_a_posterior_over_the_mechanisms() {
-    on_large_stack("attribute-intrinsic-posterior", || {
+    on_large_stack(|| {
         let study = Study::tabular(chain_table())
             .graph(chain_dag())
             .query(intrinsic_target())
@@ -347,7 +346,7 @@ fn target_study(target: AttributeTarget, inference: InferenceMode, replicates: u
 
 #[test]
 fn every_refit_target_has_a_posterior_and_a_bootstrap() {
-    on_large_stack("attribute-refit-targets", || {
+    on_large_stack(|| {
         let ctx = ctx();
         for (name, target) in refit_targets() {
             let posterior =
@@ -386,7 +385,7 @@ fn every_refit_target_has_a_posterior_and_a_bootstrap() {
 
 #[test]
 fn mechanism_change_detection_has_no_posterior_and_says_why() {
-    on_large_stack("attribute-mechanism-change", || {
+    on_large_stack(|| {
         let detection = MechanismChangeQuery::new(
             [VariableId::from_raw(1)],
             PopulationSelector::TimeRange { start: 0, end: 100 },
@@ -455,7 +454,7 @@ fn temporal_study(target: AttributeTarget, inference: InferenceMode, replicates:
 
 #[test]
 fn a_temporal_dag_attribution_resamples_blocks_in_both_inference_modes() {
-    on_large_stack("attribute-temporal", || {
+    on_large_stack(|| {
         let ctx = ctx();
         let change = ChangeAttributionQuery::new(
             VariableId::from_raw(1),
@@ -523,7 +522,7 @@ fn a_temporal_dag_attribution_resamples_blocks_in_both_inference_modes() {
 
 #[test]
 fn standalone_temporal_queries_say_what_runs_and_what_does_not() {
-    on_large_stack("standalone-temporal-queries", || {
+    on_large_stack(|| {
         let ctx = ctx();
         // A unit change runs on the lag-aligned unfolding as the fitted model's point answer.
         let study = Study::series(shifted_series())
@@ -624,7 +623,7 @@ fn rollout_study(
 
 #[test]
 fn a_temporal_rollout_steps_the_fitted_dynamics_and_carries_block_refit_uncertainty() {
-    on_large_stack("temporal-rollout", || {
+    on_large_stack(|| {
         let ctx = ctx();
         let series = series_with_shift(0.0);
         let do_x = |level: f64| {
@@ -685,7 +684,7 @@ fn a_temporal_rollout_steps_the_fitted_dynamics_and_carries_block_refit_uncertai
 
 #[test]
 fn every_simulation_target_carries_refit_uncertainty_in_both_modes() {
-    on_large_stack("simulation-refits", || {
+    on_large_stack(|| {
         let ctx = ctx();
         let do_t = || -> std::sync::Arc<[Intervention]> {
             std::sync::Arc::from([Intervention::set(VariableId::from_raw(1), Value::f64(1.0))])
@@ -758,7 +757,7 @@ fn every_simulation_target_carries_refit_uncertainty_in_both_modes() {
 
 #[test]
 fn an_attribute_mechanism_change_has_a_block_null_for_every_statistic_and_a_declared_posterior() {
-    on_large_stack("attribute-mechanism-change-temporal", || {
+    on_large_stack(|| {
         let ctx = ctx();
         let detection = || {
             MechanismChangeQuery::new(

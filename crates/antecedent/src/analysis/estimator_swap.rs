@@ -43,7 +43,7 @@ impl PreparedStudy {
                 "the requested estimator is not listed for the prepared study's support cell"
             ));
         }
-        if source.support_status != Some(Supported)
+        if source.support_status() != Some(Supported)
             || source.declared.learner_factories.is_some()
             || (estimator == EstimatorId::CellAipw
                 && (source.declared.score_dependence.is_some()

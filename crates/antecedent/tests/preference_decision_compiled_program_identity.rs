@@ -333,8 +333,7 @@ fn dag_posterior() -> GraphPosterior {
 
 #[test]
 fn the_structures_of_a_graph_posterior_execute_their_decision_programs() {
-    std::thread::Builder::new()
-        .name("preference-program-identity".into())
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(posterior_body)
         .expect("spawn the structural body")

@@ -126,8 +126,7 @@ fn ctx() -> ExecutionContext {
 
 /// Debug builds of the dispatcher carry frames close to the default test-thread stack.
 fn on_large_stack<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) -> T {
-    std::thread::Builder::new()
-        .name("family-conformance".into())
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .expect("spawn conformance thread")

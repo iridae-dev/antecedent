@@ -377,7 +377,7 @@ impl super::Study {
         );
         // No evidence row names the front-door derivative route: the cell's support belongs to
         // the adjustment-identified plug-ins, so a front-door run reports its status as refused.
-        result.support_status = Some(crate::support::CellStatus::NotSupported);
+        result.refuse_construction("front_door_derivative");
         Ok(result)
     }
 

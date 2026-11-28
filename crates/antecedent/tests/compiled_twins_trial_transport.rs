@@ -135,8 +135,7 @@ fn direct_identification() -> TransportIdentification {
 }
 
 fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("compiled-twin".into())
+    antecedent::support::caller_thread()
         .stack_size(8 * 1024 * 1024)
         .spawn(run)
         .expect("spawn twin thread")

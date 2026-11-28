@@ -43,8 +43,7 @@ use latent_scm::{LatentScm, Rng};
 
 /// Graph-posterior estimation recurses deeply; run each body on a large stack.
 fn on_large_stack(body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name("graph-posterior-functional".into())
+    antecedent::support::caller_thread()
         .stack_size(64 * 1024 * 1024)
         .spawn(body)
         .expect("spawn evidence thread")

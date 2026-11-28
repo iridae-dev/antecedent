@@ -123,9 +123,8 @@ fn coverage_scope(result: &StudyResult) -> String {
 }
 
 /// Run `body` on a thread with the stack the prepared dispatcher needs in debug builds.
-fn on_large_stack(name: &str, body: fn()) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: fn()) {
+    antecedent::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(body)
         .expect("spawn evidence thread")
@@ -191,7 +190,7 @@ fn run_series(
 
 #[test]
 fn a_row_weight_change_posterior_runs_retained_and_states_its_measured_scope() {
-    on_large_stack("fitted-model-static-posterior", || {
+    on_large_stack(|| {
         let inside = run_static(300, bayesian(1_000), 0, EstimatorId::GcmFitBayesian);
         let posterior = inside.posterior.as_ref().expect("a posterior over the mechanisms");
         assert_eq!(posterior.draws.n_draws, 1_000);
@@ -219,7 +218,7 @@ fn a_row_weight_change_posterior_runs_retained_and_states_its_measured_scope() {
 
 #[test]
 fn a_block_bootstrap_change_interval_runs_retained_and_states_its_measured_scope() {
-    on_large_stack("fitted-model-temporal-bootstrap", || {
+    on_large_stack(|| {
         let inside = run_series(301, InferenceMode::Frequentist, 200, EstimatorId::GcmFit);
         let effect = inside.estimate().as_effect().expect("the total change");
         // Sampling standard deviation of the total change: sqrt(2 * 4.49 / 300) = 0.17.
@@ -237,7 +236,7 @@ fn a_block_bootstrap_change_interval_runs_retained_and_states_its_measured_scope
 
 #[test]
 fn a_block_weight_change_posterior_runs_retained_and_states_its_measured_scope() {
-    on_large_stack("fitted-model-temporal-posterior", || {
+    on_large_stack(|| {
         let inside = run_series(301, bayesian(1_000), 0, EstimatorId::GcmFitBayesian);
         let posterior = inside.posterior.as_ref().expect("a block-weight posterior");
         assert!((posterior.summaries.mean[0] - SHIFT).abs() < 0.6);

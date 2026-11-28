@@ -143,7 +143,9 @@ fn block_bootstrap_is_the_same_for_any_thread_budget() {
     parallel.parallelism = Parallelism::bounded(NonZeroThreadCount::new(4).unwrap());
     // The two budgets are independent runs of the same study, so they run side by side.
     let (a, b) = std::thread::scope(|scope| {
-        let serial_run = scope.spawn(|| run(&data, 49, None, &serial).unwrap());
+        let serial_run = antecedent::support::caller_thread()
+            .spawn_scoped(scope, || run(&data, 49, None, &serial).unwrap())
+            .unwrap();
         let parallel_run = run(&data, 49, None, &parallel).unwrap();
         (
             serial_run.join().unwrap_or_else(|payload| std::panic::resume_unwind(payload)),

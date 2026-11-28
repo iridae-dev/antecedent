@@ -74,12 +74,19 @@ def measures(group: str, test: str) -> bool:
 
 
 def recorded_passes(cited: str, by_leaf: dict[str, list[str]]) -> list[str]:
-    """Recorded scientific passes of the check `path::name`: same crate, same test name."""
+    """Recorded scientific passes of the check `path::name`: the selector its file and name
+    give, inside any further inline modules of that test target. A check whose file is not a
+    known test layout has none."""
+    import evidence_fingerprint
+
     path, _, name = cited.partition("::")
-    parts = path.split("/")
-    crate = parts[1] if len(parts) > 1 and parts[0] == "crates" else "python"
-    leaf = name.rsplit("::", 1)[-1]
-    return [s for s in by_leaf.get(leaf, []) if s.split("::", 1)[0] == crate]
+    try:
+        selector = evidence_fingerprint.locate(ROOT, {"evidence_test": path, "evidence_assertion": name})["selector"]
+    except (OSError, ValueError, KeyError):
+        return []
+    target, _, rest = selector.rpartition("::")
+    return [s for s in by_leaf.get(name.rsplit("::", 1)[-1], [])
+            if s == selector or (s.startswith(target + "::") and s.endswith("::" + rest))]
 
 
 def capability_checks(record: dict) -> list[str]:
@@ -89,6 +96,102 @@ def capability_checks(record: dict) -> list[str]:
             if fixture.get("evidence_assertion"):
                 checks.append(f"{fixture['evidence_test']}::{fixture['evidence_assertion']}")
     return checks
+
+
+def _suite(value: object) -> str | None:
+    return value if isinstance(value, str) and value and value != "unallocated" else None
+
+
+def unit_targets(record: dict, cells: dict[str, dict], rows: dict[str, dict]) -> list[tuple[str, str]]:
+    """The units a capability record's evidence attaches to: the cells and rows its
+    `matrix_units` and `graphless_units` select, or the record itself."""
+    import gate_support
+
+    if not (record.get("matrix_units") or record.get("graphless_units")):
+        return [("capability", str(record["id"]))]
+    found = [("matrix", ident) for selector in record.get("matrix_units") or []
+             for ident, cell in cells.items()
+             if gate_support.selector_matches(selector, cell, gate_support.CELL_AXES)]
+    found += [("graphless", ident) for selector in record.get("graphless_units") or []
+              for ident, row in rows.items()
+              if gate_support.selector_matches(selector, row, gate_support.GRAPHLESS_AXES)]
+    return found
+
+
+def attachments(toml: dict[str, dict], records: list[tuple[str, str]]) -> dict[tuple[str, str], set[str]]:
+    """Every coverage record each unit's claim sources attach, by any mechanism in use: a
+    cell's `calibration` list, a capability record's lists and suites, and a calibration
+    route's groups."""
+    cells = {cell_ident(c): c for c in toml[CELLS].get("cell", [])}
+    rows = {graphless_ident(r): r for r in toml[GRAPHLESS].get("support", [])}
+    caps = {str(r["id"]): r for r in toml[CAPABILITIES].get("record", [])}
+    out: dict[tuple[str, str], set[str]] = {}
+    for ident, cell in cells.items():
+        out.setdefault(("matrix", ident), set()).update(str(x) for x in cell.get("calibration") or [])
+    for key, measured in capability_measurements(list(caps.values()), cells, rows, records).items():
+        out.setdefault(key, set()).update(measured)
+    for route in toml[ROUTES].get("route", []):
+        groups = [str(g) for g in route.get("groups") or []]
+        if not groups:
+            continue
+        produced = {rid for rid, test in records if any(measures(g, test) for g in groups)}
+        record = caps.get(str(route.get("record", "")))
+        targets = unit_targets(record, cells, rows) if record else []
+        for name in route.get("routes") or []:
+            if str(name).startswith("graphless."):
+                for ident, r in rows.items():
+                    prefix = f"graphless.{r['family']}.{r['design']}.{r['method']}"
+                    if name == prefix or str(name).startswith(prefix + "."):
+                        targets.append(("graphless", ident))
+        for key in targets:
+            out.setdefault(key, set()).update(produced)
+    return out
+
+
+def current_toml() -> tuple[dict[str, dict], list[tuple[str, str]]]:
+    """The working tree's registries and its coverage records as (id, test)."""
+    toml = {p: tomllib.loads((ROOT / p).read_text(encoding="utf-8")) if (ROOT / p).is_file() else {}
+            for p in SOURCES if p.endswith(".toml")}
+    records = [(str(r["id"]), str(r.get("test", ""))) for r in toml[COVERAGE].get("record", [])]
+    return toml, records
+
+
+def capability_measurements(caps: list[dict], cells: dict[str, dict], rows: dict[str, dict],
+                            records: list[tuple[str, str]]) -> dict[tuple[str, str], set[str]]:
+    """The coverage records each capability record attaches, by the unit it attaches them to,
+    as `claim_passes.write_claim_index` attaches them: a record naming `matrix_units` or
+    `graphless_units` attaches to those units, any other to itself; it attaches its named
+    lists, every record of a file only it names as a suite (its own top-level suite always),
+    and every record of a test an inference output names."""
+    suites: dict[str, tuple[list[str], list[str]]] = {}
+    owners: dict[str, set[str]] = {}
+    for record in caps:
+        files, tests = [], []
+        top = _suite(record.get("measurement_suite"))
+        if top:
+            files.append(top.split("::", 1)[0])
+        for output in record.get("inference_outputs") or []:
+            suite = _suite(output.get("measurement_suite"))
+            if suite:
+                (tests if "::" in suite else files).append(suite)
+        suites[str(record["id"])] = (files, tests)
+        for path in files:
+            owners.setdefault(path, set()).add(str(record["id"]))
+    out: dict[tuple[str, str], set[str]] = {}
+    for record in caps:
+        rid = str(record["id"])
+        files, tests = suites[rid]
+        owned = {path for path in files if owners.get(path) == {rid}}
+        top = _suite(record.get("measurement_suite"))
+        if top:
+            owned.add(top.split("::", 1)[0])
+        measured = {str(x) for key in CAPABILITY_LISTS for x in record.get(key) or []}
+        measured |= {ident for ident, test in records
+                     if test.split("::", 1)[0] in owned
+                     or any(test == suite or test.startswith(suite + "::") for suite in tests)}
+        for key in unit_targets(record, cells, rows):
+            out.setdefault(key, set()).update(measured)
+    return out
 
 
 def extract(ref: str | None) -> tuple[dict, dict[tuple[str, str], dict]]:
@@ -124,7 +227,7 @@ def extract(ref: str | None) -> tuple[dict, dict[tuple[str, str], dict]]:
         checks = []
         if cell.get("evidence_test") and cell.get("evidence_assertion"):
             checks.append(f"{cell['evidence_test']}::{cell['evidence_assertion']}")
-        items[("matrix", ident)] = evidence(checks, set(cell.get("calibration") or []))
+        items[("matrix", ident)] = evidence(checks, set())
 
     rows = {graphless_ident(r): r for r in toml[GRAPHLESS].get("support", [])}
     for row in status.get("graphless", []):
@@ -144,30 +247,10 @@ def extract(ref: str | None) -> tuple[dict, dict[tuple[str, str], dict]]:
         if row.get("status") != "supported":
             continue
         record = caps.get(str(row["id"]), {})
-        calibration = {str(x) for key in CAPABILITY_LISTS for x in record.get(key) or []}
-        suite = record.get("measurement_suite")
-        if isinstance(suite, str) and suite and suite != "unallocated":
-            path = suite.split("::", 1)[0]
-            calibration |= {rid for rid, test in records if test.split("::", 1)[0] == path}
-        items[("capability", str(row["id"]))] = evidence(capability_checks(record), calibration)
-
-    for route in toml[ROUTES].get("route", []):
-        groups = [str(g) for g in route.get("groups") or []]
-        if not groups:
-            continue
-        produced = {rid for rid, test in records if any(measures(g, test) for g in groups)}
-        targets = []
-        if route.get("record"):
-            targets.append(("capability", str(route["record"])))
-        for name in route.get("routes") or []:
-            if str(name).startswith("graphless."):
-                for ident, r in rows.items():
-                    prefix = f"graphless.{r['family']}.{r['design']}.{r['method']}"
-                    if name == prefix or str(name).startswith(prefix + "."):
-                        targets.append(("graphless", ident))
-        for key in targets:
-            if key in items:
-                items[key]["calibration"] = sorted(set(items[key]["calibration"]) | produced)
+        items[("capability", str(row["id"]))] = evidence(capability_checks(record), set())
+    for key, measured in attachments(toml, records).items():
+        if key in items:
+            items[key]["calibration"] = sorted(set(items[key]["calibration"]) | (measured & record_ids))
     return source, items
 
 

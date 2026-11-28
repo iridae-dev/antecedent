@@ -172,8 +172,8 @@ impl Study {
         }
         let refused_after = retained_refusal(program);
         let estimate = estimator.estimate(&prepared, ctx)?;
-        let supported =
-            crate::analysis::design_section_rows::association_slope_row(query, &estimate);
+        let row = crate::analysis::design_section_rows::association_slope_row(query, &estimate);
+        let supported = row.is_some();
         let scores = estimate
             .prediction
             .as_ref()
@@ -230,6 +230,10 @@ impl Study {
             self.declared.population_registry.as_ref(),
             &[],
         );
+        // The section's row decides the slope's interval when the study decided no unit.
+        if result.extras.unit.is_none() {
+            result.extras.unit = row;
+        }
         Ok(result)
     }
 

@@ -148,8 +148,7 @@ fn derivative_lowers_the_response_derivative_functional() {
 
 #[test]
 fn intervention_response_prepare_and_estimate_stamp_the_compiled_identity() {
-    std::thread::Builder::new()
-        .name("static-response-lowering".into())
+    crate::support::caller_thread()
         .stack_size(16 * 1024 * 1024)
         .spawn(|| {
             let ctx = ExecutionContext::for_tests(11);

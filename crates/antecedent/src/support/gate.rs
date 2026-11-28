@@ -55,14 +55,11 @@ pub(crate) fn capability_supported(capability: &str) -> bool {
     let supported = capability_units().is_some_and(|units| {
         units.iter().any(|unit| unit.id == capability && unit.status == "supported")
     });
-    if let Some(unit) =
-        capability_units().and_then(|units| units.iter().find(|unit| unit.id == capability))
-    {
-        super::trace::executed(
-            &super::unit::UnitRef::Capability(super::unit::UnitId::new(unit.id.as_str())),
-            if supported { &CellStatus::Supported } else { &CellStatus::NotSupported },
-        );
-    }
+    super::trace::executed_record(
+        "capability",
+        capability,
+        if supported { &CellStatus::Supported } else { &CellStatus::NotSupported },
+    );
     supported
 }
 

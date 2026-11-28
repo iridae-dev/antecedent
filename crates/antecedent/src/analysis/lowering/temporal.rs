@@ -770,7 +770,7 @@ fn assemble(
         query_variables: Arc::clone(&record.query_variables),
         source_digest: None,
         support_coordinate: crate::analysis::contract::matrix_coordinate(study).map(Arc::from),
-        supported: matches!(study.support_status, Some(crate::support::CellStatus::Supported)),
+        supported: matches!(study.support_status(), Some(crate::support::CellStatus::Supported)),
         support_status: study.support_status,
     };
     let evidence = super::decision::evidence_program(cx, None, &statistical)?;

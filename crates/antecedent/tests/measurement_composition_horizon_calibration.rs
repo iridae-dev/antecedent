@@ -113,7 +113,7 @@ fn query() -> ResponseQuery {
 /// Run `work` on a thread with a stack large enough for the compiled study.
 fn on_large_stack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
     std::thread::scope(|scope| {
-        let handle = std::thread::Builder::new()
+        let handle = antecedent::support::caller_thread()
             .stack_size(STACK_BYTES)
             .spawn_scoped(scope, work)
             .expect("spawn the replicate thread");

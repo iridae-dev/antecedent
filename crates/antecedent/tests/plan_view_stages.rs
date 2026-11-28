@@ -500,7 +500,7 @@ fn discovery_and_association_views_state_operations_backend_memory_and_reuse() {
         ("association", RouteFamily::Associational, association_study()),
     ];
     // A structure search recurses deeply; give it the stack its own tests use.
-    std::thread::Builder::new()
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
             for (label, family, study) in studies {

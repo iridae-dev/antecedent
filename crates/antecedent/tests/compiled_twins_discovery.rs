@@ -51,9 +51,8 @@ fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(0x5EED_0041)
 }
 
-fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .name(name.into())
+fn on_large_stack(body: impl FnOnce() + Send + 'static) {
+    antecedent::support::caller_thread()
         .stack_size(32 * 1024 * 1024)
         .spawn(body)
         .unwrap()
@@ -201,7 +200,7 @@ fn static_study(data: &TabularData, spec: DiscoverySpec) -> Study {
 
 #[test]
 fn static_constraint_searches_match_their_engines() {
-    on_large_stack("twin-static", || {
+    on_large_stack(|| {
         let data = chain_table(400, 3);
         let params = static_params();
 
@@ -272,7 +271,7 @@ fn static_constraint_searches_match_their_engines() {
 
 #[test]
 fn temporal_constraint_searches_match_their_engines() {
-    on_large_stack("twin-temporal", || {
+    on_large_stack(|| {
         let series = lag1_series(200, 11);
         let vars = vec![v(0), v(1)];
         let params = temporal_params(1);
@@ -388,7 +387,7 @@ fn temporal_constraint_searches_match_their_engines() {
 
 #[test]
 fn structure_posteriors_match_their_engines() {
-    on_large_stack("twin-posterior", || {
+    on_large_stack(|| {
         let data = chain_table(300, 5);
         let params = BayesianDiscoverParams::default();
         let bayesian = |spec: DiscoverySpec| run(&static_study(&data, spec));
@@ -507,7 +506,7 @@ fn structure_posteriors_match_their_engines() {
 /// same engines and refuse it the same way.
 #[test]
 fn gated_samplers_refuse_like_their_engines() {
-    on_large_stack("twin-gated-refusal", || {
+    on_large_stack(|| {
         let data = chain_table(300, 5);
         let params = BayesianDiscoverParams::default();
         // Structure MCMC always applies its convergence gate. On this fixture its chains settle
@@ -550,7 +549,7 @@ fn gated_samplers_refuse_like_their_engines() {
 }
 #[test]
 fn the_dbn_template_posterior_matches_its_engine() {
-    on_large_stack("twin-dbn", || {
+    on_large_stack(|| {
         let series = lag1_series(200, 41);
         let vars = vec![v(0), v(1)];
         let params = BayesianDiscoverParams::default();
@@ -600,7 +599,7 @@ fn the_dbn_template_posterior_matches_its_engine() {
 /// compiled route that serves it is the accepted-posterior pooling, which calls the same engine.
 #[test]
 fn the_pooled_exact_posterior_is_the_mixture_of_the_per_table_engines() {
-    on_large_stack("twin-pooled", || {
+    on_large_stack(|| {
         let params = BayesianDiscoverParams::default();
         let tables: Vec<TabularData> =
             [31_u64, 32].iter().map(|&seed| chain_table(150, seed)).collect();

@@ -23,7 +23,7 @@ fn gaussian_adapter_posterior_summary_precision() {
     let n = grid_n(256);
     let draws = grid_n(4096);
     let results = map_replicates(n_sim(), |rep| {
-        std::thread::Builder::new()
+        antecedent::support::caller_thread()
             .stack_size(16 * 1024 * 1024)
             .spawn(move || {
                 let mut rng = candidate::Generator::new(grid_seed(0x61ba_0000 + rep));
