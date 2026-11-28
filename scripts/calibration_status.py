@@ -141,12 +141,12 @@ def tree_fingerprints(records: list[dict], root: Path = ROOT) -> dict[str, str |
     out: dict[str, str | None] = {}
     for rec in records:
         now = None
-        if rec.get("dependency_manifest") and checker.check(measurement_binding(rec), rec["dependency_manifest"])["current"]:
+        if rec.get("dependency_manifest") and checker.check(measurement_binding(rec), rec["dependency_manifest"], first_failure=True)["current"]:
             now = "manifest:" + rec["dependency_manifest"]
         else:
             for row in attestations_by_id.get(rec.get("id"), []):
                 if (row.get("dependency_manifest") and probe.covers(rec, row) and _same_platform(root, rec, row)
-                        and checker.check(probe_binding(row), row["dependency_manifest"])["current"]):
+                        and checker.check(probe_binding(row), row["dependency_manifest"], first_failure=True)["current"]):
                     now = "manifest:" + row["dependency_manifest"]
                     break
         if now is None and rec.get("id") in carried_ids:
@@ -339,6 +339,11 @@ def interval_routes(
             ]
             if no_interval:
                 allocated = []
+            else:
+                allocated = [
+                    rid for rid in allocated
+                    if rid not in by_id or by_id[rid].get("interval_method") not in (None, "", "none")
+                ]
             row = {
                 "record": str(rec["id"]),
                 "route": str(route.get("name", "")),
@@ -370,7 +375,8 @@ def cmd_intervals(args: argparse.Namespace) -> int:
         else:
             candidate_ids.update(unit.get("calibration_current", unit["calibration"]))
     # A measurement cannot attest a route unless its unit also has a current link.
-    candidate_records = [record for record in records if record["id"] in candidate_ids]
+    candidate_records = [record for record in records if record["id"] in candidate_ids
+                         and record.get("interval_method") not in (None, "", "none")]
     current = set(current_ids(records=candidate_records)) if candidate_records else set()
     rows = interval_routes(capability, records, index, current)
     counts = collections.Counter(row["state"] for row in rows)

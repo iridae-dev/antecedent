@@ -374,10 +374,11 @@ class UnitIndexRouteTests(unittest.TestCase):
 
     def test_a_route_is_measured_by_the_records_linked_to_its_unit(self):
         index = {("capability", "cap"): unit(["cov.boot"])}
-        rows = self.rows([{"id": "cov.allocated"}], index)
+        rows = self.rows([{"id": "cov.allocated", "interval_method": "analytic_se"}], index)
         self.assertEqual(rows["bootstrap"]["state"], status.NOT_MEASURED)
         self.assertEqual(rows["bootstrap"]["missing_slots"], ["cov.boot"])
-        records = [{"id": "cov.allocated"}, {"id": "cov.boot"}]
+        records = [{"id": "cov.allocated", "interval_method": "analytic_se"},
+                   {"id": "cov.boot", "interval_method": "bootstrap_se"}]
         self.assertEqual(self.rows(records, index)["bootstrap"]["state"], status.CALIBRATED)
         below = [records[0], records[1] | {"boundary": True}]
         self.assertEqual(self.rows(below, index)["bootstrap"]["state"], status.MEASURED_BELOW_NOMINAL)
@@ -385,7 +386,8 @@ class UnitIndexRouteTests(unittest.TestCase):
     def test_a_record_outside_the_index_keeps_its_allocation(self):
         for index in (None, {}):
             with self.subTest(index=index):
-                self.assertEqual(self.rows([{"id": "cov.allocated"}], index)["analytic"]["state"], status.CALIBRATED)
+                records = [{"id": "cov.allocated", "interval_method": "analytic_se"}]
+                self.assertEqual(self.rows(records, index)["analytic"]["state"], status.CALIBRATED)
                 rows = self.rows([], index)
                 self.assertEqual(rows["analytic"]["state"], status.NOT_MEASURED)
                 self.assertEqual(rows["analytic"]["missing_slots"], ["cov.allocated"])
@@ -411,7 +413,7 @@ class UnitIndexRouteTests(unittest.TestCase):
                 {"name": "refusal", "status": "supported", "no_interval_reason": "Refuses intervals."},
             ],
         }]
-        records = [{"id": "cov.linked", "boundary": True}]
+        records = [{"id": "cov.linked", "interval_method": "bootstrap_se", "boundary": True}]
         index = {("capability", "cap"): unit(["cov.linked"])}
         rows = {r["route"]: r for r in status.interval_routes(capability, records, index, set())}
         self.assertEqual(rows["bootstrap"]["state"], status.MEASUREMENT_OWED)
@@ -420,10 +422,16 @@ class UnitIndexRouteTests(unittest.TestCase):
         self.assertEqual(rows["refusal"]["allocated"], 0)
 
     def test_a_current_measurement_with_a_flagged_link_is_not_calibrated(self):
-        records = [{"id": "cov.linked"}]
+        records = [{"id": "cov.linked", "interval_method": "bootstrap_se"}]
         index = {("capability", "cap"): unit(["cov.linked"]) | {"calibration_current": []}}
         rows = status.interval_routes(self.CAPABILITY, records, index, {"cov.linked"})
         self.assertEqual({row["state"] for row in rows}, {status.MEASUREMENT_OWED})
+
+    def test_a_current_record_without_an_interval_cannot_calibrate_a_route(self):
+        records = [{"id": "cov.point", "interval_method": "none"}]
+        index = {("capability", "cap"): unit(["cov.point"]) | {"calibration_current": ["cov.point"]}}
+        rows = status.interval_routes(self.CAPABILITY, records, index, {"cov.point"})
+        self.assertEqual({row["state"] for row in rows}, {status.NOT_MEASURED})
 
     def test_the_header_counts_every_state_including_not_measured_and_unmapped(self):
         capability = [{"id": "c", "inference_claim": "interval", "routes": [{"name": "r", "status": "supported"}]}]
@@ -477,7 +485,7 @@ class IntervalStateTests(unittest.TestCase):
                 ],
             }
         ]
-        rows = status.interval_routes(capability, [{"id": "a"}])
+        rows = status.interval_routes(capability, [{"id": "a", "interval_method": "analytic_se"}])
         self.assertEqual([(r["route"], r["state"]) for r in rows], [("est", status.CALIBRATED)])
 
 

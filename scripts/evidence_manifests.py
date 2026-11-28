@@ -583,9 +583,13 @@ class Checker:
     def rust_text(self, key: str) -> str:
         """`rust_text_digest` of a checkout file ("missing-input" when absent)."""
         path = self.path(key)
-        if not path.is_file():
+        signature = _stat_signature(path)
+        if signature is None:
             return digest(b"missing-input")
-        return rust_text_digest(path.read_text(encoding="utf-8", errors="replace"))
+        entry = ("rust_text", key, signature)
+        if entry not in self.cache:
+            self.cache[entry] = rust_text_digest(path.read_text(encoding="utf-8", errors="replace"))
+        return self.cache[entry]
 
     def recipe_current(self, entry: dict) -> bool:
         """Whether a build recipe still says what it said when bound (`evidence_recipes`)."""
@@ -614,10 +618,9 @@ class Checker:
         if (commit, key) not in cache:
             shown = subprocess.run(["git", "show", f"{commit}:{key}"], cwd=self.root, capture_output=True)
             data = shown.stdout if shown.returncode == 0 else None
-            cache[(commit, key)] = (data is not None and digest(data) == bound
-                                    and rust_text_digest(data.decode("utf-8", "replace")))
-        bound_text = cache[(commit, key)]
-        return bool(bound_text) and bound_text == self.rust_text(key)
+            cache[(commit, key)] = (digest(data), rust_text_digest(data.decode("utf-8", "replace"))) if data is not None else (None, None)
+        raw_digest, code_digest = cache[(commit, key)]
+        return bound == raw_digest and code_digest == self.rust_text(key)
 
     def same_build_manifest_as_bound(self, key: str, bound: str, manifest: dict) -> bool:
         """Whether a Cargo.toml bound by raw bytes differs from them only in the
@@ -819,11 +822,15 @@ class Checker:
         address = self.pass_index[ref] if ref.startswith("pass:") else ref
         return digest(canonical(["reviewed-evidence-inputs-v1", address, sorted(current), context]))
 
-    def check(self, binding: dict, ref: object) -> dict:
+    def check(self, binding: dict, ref: object, *, first_failure: bool = False) -> dict:
         label = f"{binding['kind']}:{binding['key']}"
         result = {"record": label, "current": False, "reasons": []}
         try:
             manifest = self.load(ref)
+            if first_failure and "nix_build" in manifest:
+                # A stale shared build policy invalidates every artifact built under it. Avoid
+                # traversing thousands of inputs per record when only the verdict is requested.
+                self.recheck_nix(manifest["nix_build"]["policy"])
             validate(manifest, binding)
             reasons = result["reasons"]
             if manifest["compiler"] != {k: self.pin[k] for k in ("release", "commit")}:
@@ -836,7 +843,8 @@ class Checker:
             for entry in manifest["inputs"]:
                 kind = entry["kind"]
                 key = entry["name"] if kind in NAMED_KINDS else entry["path"]
-                self.reverse[f"{kind}:{key}"].add(label)
+                if not first_failure:
+                    self.reverse[f"{kind}:{key}"].add(label)
                 if kind == "rust_items":
                     unchanged = self.items.items_current(entry, names)
                 elif kind == "rust_guards":
@@ -862,6 +870,8 @@ class Checker:
                         unchanged = self.same_build_manifest_as_bound(key, entry["digest"], manifest)
                 if not unchanged:
                     reasons.append(f"input_changed:{kind}:{key}")
+                    if first_failure:
+                        break
             result["current"] = not reasons
         except (OSError, ValueError, KeyError, TypeError, RecursionError, subprocess.CalledProcessError) as error:
             result["reasons"].append(f"manifest_owed:{error}")

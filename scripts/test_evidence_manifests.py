@@ -393,6 +393,18 @@ class ManifestTests(unittest.TestCase):
         manifest["inputs"][0]["name"] = "PATH"
         self.assertFalse(self.check(manifest)["current"])
 
+    def test_a_cached_normalized_file_still_checks_every_receipts_raw_digest(self):
+        path = "crates/c/src/lib.rs"
+        original = b"fn statistic() {}"
+        self.write(path, "// documentation\n" + original.decode())
+        manifest = {"nix_build": {"source": {"commit": "1" * 40}}}
+        checker = em.Checker(self.root, {})
+        with patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0, original)) as git:
+            self.assertTrue(checker.same_code_as_bound(path, em.digest(original), manifest))
+            self.assertFalse(checker.same_code_as_bound(path, "0" * 64, manifest))
+            self.assertTrue(checker.same_code_as_bound(path, em.digest(original), manifest))
+        git.assert_called_once()
+
     def test_another_targets_declaration_is_not_an_input_of_a_binary(self):
         git = lambda *args: subprocess.run(["git", *args], cwd=self.root, check=True, capture_output=True, text=True)  # noqa: E731
         base = ('[package]\nname = "c"\nautotests = false\n\n[features]\nslow = []\n\n'
