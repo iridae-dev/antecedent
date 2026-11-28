@@ -294,83 +294,6 @@ class AppendAttestedRecordsTest(unittest.TestCase):
         ):
             collector.main()
 
-    def test_selected_accepted_cell_binds_its_stamped_record_and_no_fixed_one(self) -> None:
-        source = (
-            '[[cell]]\nquery = "Elasticity"\ngraph_class = "Dag"\n'
-            'structure = "accepted"\ninference = "Frequentist"\nvalidation = "none"\n'
-            'estimators = ["elasticity.plugin"]\n'
-            'calibration_reason = "estimator_grid_not_measured"\n'
-        )
-        coordinate = ("Elasticity", "Dag", "accepted", "Frequentist", "none")
-        record = {
-            "id": "new.v2_validation_none.v2_structure_accepted",
-            "validation_schema": 2,
-            "validation": "none",
-            "query": "Elasticity",
-            "graph_class": "Dag",
-            "inference": "Frequentist",
-            "structure": "accepted",
-            "nominal": 0.95,
-            "boundary": False,
-            "estimator": "elasticity.plugin",
-        }
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "supported.toml"
-            path.write_text(source, encoding="utf-8", newline="\n")
-            with patch.object(collector, "SUPPORTED", path):
-                with self.assertRaisesRegex(SystemExit, "incompatible or absent record"):
-                    collector.sync_supported_cells(
-                        {"fixed": {**record, "structure": "fixed"}}, {coordinate: ["fixed"]}
-                    )
-                self.assertEqual(path.read_text(encoding="utf-8"), source)
-                self.assertEqual(
-                    collector.sync_supported_cells({record["id"]: record}, {coordinate: [record["id"]]}), 1
-                )
-            self.assertIn(f'calibration = ["{record["id"]}"]', path.read_text(encoding="utf-8"))
-
-    def test_selected_cell_sync_leaves_other_cells_byte_identical(self) -> None:
-        source = (
-            '[[cell]]\nquery = "Elasticity"\ngraph_class = "Dag"\n'
-            'structure = "explicit"\ninference = "Frequentist"\nvalidation = "none"\n'
-            'estimators = ["elasticity.plugin"]\n'
-            'calibration_reason = "estimator_grid_not_measured"\n\n'
-            '[[cell]]\nquery = "Other"\ngraph_class = "Dag"\n'
-            'structure = "explicit"\ninference = "Frequentist"\nvalidation = "none"\n'
-            'calibration = ["old"]\n'
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "supported.toml"
-            path.write_text(source, encoding="utf-8", newline="\n")
-            original = collector.SUPPORTED
-            collector.SUPPORTED = path
-            try:
-                changed = collector.sync_supported_cells(
-                    {
-                        "new.v2_validation_none": {
-                            "id": "new.v2_validation_none",
-                            "validation_schema": 2,
-                            "validation": "none",
-                            "query": "Elasticity",
-                            "graph_class": "Dag",
-                            "inference": "Frequentist",
-                            "structure": "fixed",
-                            "nominal": 0.95,
-                            "boundary": False,
-                            "estimator": "elasticity.plugin",
-                        }
-                    },
-                    {("Elasticity", "Dag", "explicit", "Frequentist", "none"): ["new.v2_validation_none"]},
-                )
-            finally:
-                collector.SUPPORTED = original
-            self.assertEqual(changed, 1)
-            self.assertIn('calibration = ["new.v2_validation_none"]', path.read_text(encoding="utf-8"))
-            self.assertEqual(
-                path.read_text(encoding="utf-8").split("[[cell]]")[2],
-                source.split("[[cell]]")[2],
-            )
-
-
 class SupportedCellSyncTest(unittest.TestCase):
     @staticmethod
     def source(inference: str = "Bayesian", bound: bool = True) -> str:
@@ -449,48 +372,31 @@ class SupportedCellSyncTest(unittest.TestCase):
                 collector.sync_supported_cells({"candidate": record}, only_cells={coordinate: {"candidate"}})
             self.assertEqual(path.read_text(encoding="utf-8"), source)
 
-    def test_new_passing_fisher_and_bayesian_do_not_rebind_frontdoor_boundary(self) -> None:
-        for inference, estimator in (
-            ("Bayesian", "nested_markov_bayesian"),
-            ("Frequentist", "nested_markov_fisher"),
-        ):
-            with self.subTest(inference=inference), tempfile.TemporaryDirectory() as directory:
-                source = self.source(inference)
-                path = Path(directory) / "supported.toml"
-                path.write_text(source, encoding="utf-8", newline="\n")
-                with patch.object(collector, "SUPPORTED", path):
-                    collector.sync_supported_cells(
-                        {
-                            "frontdoor": self.record("functional.effect", inference, True),
-                            "new_passing": self.record(estimator, inference),
-                        }
-                    )
-                parsed = collector.tomllib.loads(path.read_text(encoding="utf-8"))["cell"][0]
-                self.assertEqual(parsed["calibration"], ["frontdoor"])
-                self.assertEqual(parsed["calibration_reason"], "boundary_record")
-
-    def test_default_sync_leaves_not_measured_cell_byte_identical(self) -> None:
+    def test_sync_validates_and_never_writes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            source = self.source(bound=False)
             path = Path(directory) / "supported.toml"
+            source = self.source(bound=False)
             path.write_text(source, encoding="utf-8", newline="\n")
+            coordinate = ("AverageEffect", "Admg", "explicit", "Bayesian", "none")
             with patch.object(collector, "SUPPORTED", path):
+                self.assertEqual(collector.sync_supported_cells({"new": self.record("nested_markov_bayesian")}), 0)
                 self.assertEqual(
-                    collector.sync_supported_cells({"new": self.record("nested_markov_bayesian")}), 0
+                    collector.sync_supported_cells(
+                        {"frontdoor": self.record("functional.effect")}, {coordinate: ["frontdoor"]}
+                    ),
+                    0,
                 )
             self.assertEqual(path.read_text(encoding="utf-8"), source)
 
-    def test_missing_bound_record_refuses_without_writing(self) -> None:
+    def test_a_bound_calibration_list_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            source = self.source()
             path = Path(directory) / "supported.toml"
-            path.write_text(source, encoding="utf-8", newline="\n")
+            path.write_text(self.source(), encoding="utf-8", newline="\n")
             with (
                 patch.object(collector, "SUPPORTED", path),
-                self.assertRaisesRegex(SystemExit, "bound calibration records absent"),
+                self.assertRaisesRegex(SystemExit, "binds a calibration list"),
             ):
-                collector.sync_supported_cells({"new": self.record("nested_markov_bayesian")})
-            self.assertEqual(path.read_text(encoding="utf-8"), source)
+                collector.sync_supported_cells({"frontdoor": self.record("functional.effect")})
 
     def test_explicit_same_axes_foreign_estimator_refuses_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -499,84 +405,12 @@ class SupportedCellSyncTest(unittest.TestCase):
             path.write_text(source, encoding="utf-8", newline="\n")
             with (
                 patch.object(collector, "SUPPORTED", path),
-                self.assertRaisesRegex(SystemExit, "not owned by the supported cell"),
+                self.assertRaisesRegex(SystemExit, "not owned by the cell"),
             ):
                 collector.sync_supported_cells(
                     {"new": self.record("nested_markov_bayesian")},
                     {("AverageEffect", "Admg", "explicit", "Bayesian", "none"): ["new"]},
                 )
-            self.assertEqual(path.read_text(encoding="utf-8"), source)
-
-    def test_refresh_uses_new_measurement_of_original_bound_method(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "supported.toml"
-            path.write_text(self.source(), encoding="utf-8", newline="\n")
-            with patch.object(collector, "SUPPORTED", path):
-                collector.sync_supported_cells({"frontdoor": self.record("functional.effect")})
-            parsed = collector.tomllib.loads(path.read_text(encoding="utf-8"))["cell"][0]
-            self.assertEqual(parsed["calibration"], ["frontdoor"])
-            self.assertNotIn("calibration_reason", parsed)
-
-    def test_schema_ownership_does_not_require_new_foreign_posteriors(self) -> None:
-        for inference, foreign in (
-            ("Bayesian", "nested_markov_bayesian"),
-            ("Frequentist", "nested_markov_fisher"),
-        ):
-            cell = collector.tomllib.loads(self.source(inference))["cell"][0]
-            records = {
-                "frontdoor": self.record("functional.effect", inference, True),
-                "new_posterior": self.record(foreign, inference),
-            }
-            self.assertEqual(collector.supported_cell_calibration_problems(cell, records), [])
-            cell["calibration"].append("new_posterior")
-            self.assertTrue(
-                any(
-                    "foreign estimator" in error
-                    for error in collector.supported_cell_calibration_problems(cell, records)
-                )
-            )
-
-    def test_schema_requires_every_actual_owned_grid_and_rejects_missing_record(self) -> None:
-        cell = collector.tomllib.loads(self.source())["cell"][0]
-        records = {
-            "frontdoor": self.record("functional.effect", boundary=True),
-            "new_owned_grid": self.record("functional.effect"),
-        }
-        errors = collector.supported_cell_calibration_problems(cell, records)
-        self.assertTrue(any("missing required owned records" in error for error in errors))
-        cell["calibration"].append("new_owned_grid")
-        self.assertEqual(collector.supported_cell_calibration_problems(cell, records), [])
-        del records["frontdoor"]
-        self.assertTrue(
-            any(
-                "unknown bound record" in error
-                for error in collector.supported_cell_calibration_problems(cell, records)
-            )
-        )
-
-    def test_schema_rejects_other_structure_even_with_same_estimator(self) -> None:
-        cell = collector.tomllib.loads(self.source())["cell"][0]
-        record = self.record("functional.effect")
-        record["structure"] = "graph_posterior"
-        self.assertTrue(
-            any(
-                "scientific coordinate" in error
-                for error in collector.supported_cell_calibration_problems(
-                    cell, {"frontdoor": record}
-                )
-            )
-        )
-
-    def test_default_refresh_refuses_foreign_existing_binding_without_writing(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "supported.toml"
-            source = self.source()
-            path.write_text(source, encoding="utf-8", newline="\n")
-            with (
-                patch.object(collector, "SUPPORTED", path),
-                self.assertRaisesRegex(SystemExit, "not owned by the supported cell"),
-            ):
-                collector.sync_supported_cells({"frontdoor": self.record("nested_markov_bayesian")})
             self.assertEqual(path.read_text(encoding="utf-8"), source)
 
     @staticmethod

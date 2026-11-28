@@ -96,6 +96,7 @@ CELLS = "parity/support_cells.toml"
 GRAPHLESS = "parity/support_graphless.toml"
 RECORDS = "parity/capability_records.toml"
 MANIFEST = "parity/capabilities/route_manifest.toml"
+UNIT_INDEX = "parity/unit_index.json"
 IDS = "crates/antecedent/src/strategy_table/ids.rs"
 
 CELL_AXES = ("query", "graph_class", "structure", "inference", "validation")
@@ -1039,6 +1040,20 @@ def regression_pin_problem(fixture: str, inference: str) -> str | None:
     return None
 
 
+def measured_cells(root: Path = ROOT) -> set[str] | None:
+    """Matrix cells a coverage record measures, directly or through a construction on the
+    cell (parity/unit_index.json); None when the index is missing."""
+    import unit_index
+
+    if not (root / UNIT_INDEX).is_file():
+        return None
+    return {
+        ident.partition("#")[0]
+        for (kind, ident), unit in unit_index.load(root).items()
+        if kind in ("matrix", "construction") and unit["calibration"]
+    }
+
+
 def matrix_problems(shard: str = "all", *, resolve: bool = False) -> tuple[list[str], str]:
     """The support-matrix contract: axes match the live surface, n/a and refusal rules are
     well-formed and disjoint, and every supported cell is well-formed. With `resolve`, every
@@ -1512,10 +1527,14 @@ def matrix_problems(shard: str = "all", *, resolve: bool = False) -> tuple[list[
     _truthful = {
         (c.get("query"), c.get("inference")) for c in cells if c.get("evidence_kind") in _truth_kinds
     }
+    measured = measured_cells(root)
+    if measured is None:
+        fail.append(f"{UNIT_INDEX}: missing; run scripts/unit_index.py")
+        measured = set()
     for row in cells:
         if (
             row.get("evidence_kind") in {"internal_cross_check", "regression_pin"}
-            and not row.get("calibration")
+            and cell_ident(row) not in measured
             and (row.get("query"), row.get("inference")) not in _truthful
         ):
             fail.append(

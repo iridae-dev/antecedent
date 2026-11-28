@@ -775,6 +775,7 @@ impl core::default::Default for antecedent_stats::SymbolicCmi
 impl core::default::Default for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::default::Default for antecedent_stats::adaptive_inference::ResourceReceipt
 impl core::default::Default for antecedent_stats::continuous_error::SimexConfig
+impl core::default::Default for antecedent_stats::execution_quote::WorkLease
 impl core::default::Default for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace
 impl core::default::Default for antecedent_stats::faer_backend::SolverTraffic
 impl core::default::Default for antecedent_stats::linear_program::LpOptions
@@ -1560,6 +1561,7 @@ impl core::marker::Freeze for antecedent_stats::continuous_error::SimexConfig [a
 impl core::marker::Freeze for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::marker::Freeze for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::marker::Freeze for antecedent_stats::dcor::DistanceY [auto]
+impl core::marker::Freeze for antecedent_stats::execution_quote::WorkLease [auto]
 impl core::marker::Freeze for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Freeze for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::marker::Freeze for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -1886,6 +1888,7 @@ impl core::marker::Send for antecedent_stats::continuous_error::SimexConfig [aut
 impl core::marker::Send for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::marker::Send for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::marker::Send for antecedent_stats::dcor::DistanceY [auto]
+impl core::marker::Send for antecedent_stats::execution_quote::WorkLease [auto]
 impl core::marker::Send for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Send for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::marker::Send for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -2491,6 +2494,7 @@ impl core::marker::Sync for antecedent_stats::continuous_error::SimexConfig [aut
 impl core::marker::Sync for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::marker::Sync for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::marker::Sync for antecedent_stats::dcor::DistanceY [auto]
+impl core::marker::Sync for antecedent_stats::execution_quote::WorkLease [auto]
 impl core::marker::Sync for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Sync for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::marker::Sync for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -2818,6 +2822,7 @@ impl core::marker::Unpin for antecedent_stats::continuous_error::SimexConfig [au
 impl core::marker::Unpin for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::marker::Unpin for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::marker::Unpin for antecedent_stats::dcor::DistanceY [auto]
+impl core::marker::Unpin for antecedent_stats::execution_quote::WorkLease [auto]
 impl core::marker::Unpin for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Unpin for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::marker::Unpin for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -3146,6 +3151,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_er
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::dcor::DistanceY [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::execution_quote::WorkLease [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -3473,6 +3479,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error::SimexFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::dcor::DistanceY [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::execution_quote::WorkLease [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -5364,6 +5371,8 @@ pub fn <antecedent_stats::dcor::DistanceY>::const fn is_defined(&self) -> bool
 pub fn <antecedent_stats::dcor::DistanceY>::fn correlate(&self, x: &[f64]) -> f64
 pub fn <antecedent_stats::dcor::DistanceY>::fn correlate_or_zero_without_spread(&self, x: &[f64]) -> f64
 pub fn <antecedent_stats::dcor::DistanceY>::fn new(y: &[f64]) -> Self
+pub fn <antecedent_stats::execution_quote::WorkLease>::fn charge(&mut self, ctx: core::option::Option<&antecedent_core::execution::context::ExecutionContext>, operations: u64, state_bytes: u64, unevaluated: &str) -> core::result::Result<(), antecedent_core::search::SearchReceipt>
+pub fn <antecedent_stats::execution_quote::WorkLease>::fn new() -> Self
 pub fn <antecedent_stats::faer_backend::ResampledLeastSquares>::fn prepare(x: &[f64], n: usize, p: usize, y: &[f64], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::option::Option<Self>
 pub fn <antecedent_stats::faer_backend::ResampledLeastSquares>::fn try_coefficients(&self, rows: &[usize], ws: &mut antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_stats::StatsError>
 pub fn <antecedent_stats::faer_scope::FaerScope>::const fn try_new(workers: u32) -> core::result::Result<Self, antecedent_stats::faer_scope::FaerScopeError>
@@ -6006,6 +6015,8 @@ pub struct antecedent_stats::continuous_error::SimexConfig
 pub struct antecedent_stats::continuous_error::SimexFit
 pub struct antecedent_stats::dcor::DistanceY
 pub struct antecedent_stats::dcor::DistanceY has private fields
+pub struct antecedent_stats::execution_quote::WorkLease
+pub struct antecedent_stats::execution_quote::WorkLease has private fields
 pub struct antecedent_stats::faer_backend::ResampledLeastSquares
 pub struct antecedent_stats::faer_backend::ResampledLeastSquares has private fields
 pub struct antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace
@@ -6664,7 +6675,7 @@ pub variant antecedent_stats::ChainError::LowEffectiveSize { effective: f64, min
 pub variant antecedent_stats::ChainError::NonFinite(&'static str)
 pub variant antecedent_stats::ChainError::Operator(&'static str)
 pub variant antecedent_stats::ChainError::PoolCovariance(antecedent_stats::SynthesisError)
-pub variant antecedent_stats::ChainError::Search { stop: &'static str, summary: alloc::string::String, receipt: antecedent_core::search::SearchReceipt }
+pub variant antecedent_stats::ChainError::Search { stop: &'static str, summary: alloc::string::String, receipt: alloc::boxed::Box<antecedent_core::search::SearchReceipt> }
 pub variant antecedent_stats::ChainError::Shape(&'static str)
 pub variant antecedent_stats::ChainError::SingularPool
 pub variant antecedent_stats::Coefficient::Fixed(f64)
@@ -6803,7 +6814,7 @@ pub variant antecedent_stats::StatsError::NonPositiveVariance { message: &'stati
 pub variant antecedent_stats::StatsError::RankDeficient { rank: usize, ncols: usize }
 pub variant antecedent_stats::StatsError::ResourceLimit { message: &'static str, required_bytes: u64, limit_bytes: u64 }
 pub variant antecedent_stats::StatsError::Route { message: &'static str, diagnostic: antecedent_core::diagnostic::RouteNativeDiagnostic }
-pub variant antecedent_stats::StatsError::Search { stop: &'static str, summary: alloc::string::String, receipt: antecedent_core::search::SearchReceipt }
+pub variant antecedent_stats::StatsError::Search { stop: &'static str, summary: alloc::string::String, receipt: alloc::boxed::Box<antecedent_core::search::SearchReceipt> }
 pub variant antecedent_stats::StatsError::Shape { message: &'static str }
 pub variant antecedent_stats::StatsError::SingularLocalDesign { order: usize }
 pub variant antecedent_stats::StatsError::Unsupported { message: &'static str }
@@ -6831,7 +6842,7 @@ pub variant antecedent_stats::ValueFunctional::Minimum
 pub variant antecedent_stats::ValueFunctional::Product
 pub variant antecedent_stats::ValueFunctional::Ratio
 pub variant antecedent_stats::ValueFunctional::SquaredDifference
-pub variant antecedent_stats::adaptive_inference::AdaptiveInferenceError::Budget { receipt: antecedent_core::search::SearchReceipt, summary: alloc::string::String }
+pub variant antecedent_stats::adaptive_inference::AdaptiveInferenceError::Budget { receipt: alloc::boxed::Box<antecedent_core::search::SearchReceipt>, summary: alloc::string::String }
 pub variant antecedent_stats::adaptive_inference::AdaptiveInferenceError::Cancelled
 pub variant antecedent_stats::adaptive_inference::AdaptiveInferenceError::Capacity(antecedent_stats::adaptive_inference::CapacityError)
 pub variant antecedent_stats::adaptive_inference::AdaptiveInferenceError::InvalidParameter(&'static str)
@@ -6958,6 +6969,7 @@ pub variant antecedent_stats::linear_program::ConstraintSense::AtLeast
 pub variant antecedent_stats::linear_program::ConstraintSense::AtMost
 pub variant antecedent_stats::linear_program::ConstraintSense::Equal
 pub variant antecedent_stats::linear_program::LpError::BoundsLength { variables: usize, lower: usize, upper: usize }
+pub variant antecedent_stats::linear_program::LpError::Budget { receipt: alloc::boxed::Box<antecedent_core::search::SearchReceipt> }
 pub variant antecedent_stats::linear_program::LpError::Cancelled
 pub variant antecedent_stats::linear_program::LpError::ConstraintLength { constraint: usize, variables: usize, found: usize }
 pub variant antecedent_stats::linear_program::LpError::GroupLength { constraints: usize, groups: usize }

@@ -43,7 +43,7 @@ from route_closure import (
     estimator_route_problems,
     is_estimator_route,
     manifest_capability_problems,
-    mapped_groups,
+    linked_records,
 )
 from test_evidence import rust_test_declaration_problems
 
@@ -483,7 +483,7 @@ def manifest_problems(
         manifest_capability_problems(
             routes,
             tomllib.loads(records_text).get("record", []) if records_text else [],
-            mapped_groups(root),
+            linked_records(root),
         )
     )
     record_keys = set()

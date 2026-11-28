@@ -149,6 +149,11 @@ step python3 scripts/gate_compiled_path.py
 step python3 scripts/test_gate_compiled_path.py
 step python3 scripts/gate_unit_claims.py
 step python3 scripts/gate_unit_claims.py --self-test
+
+echo "== evidence records: execution links, unit index, closure and monotonicity (ADR 0031) =="
+step python3 scripts/unit_index.py --check
+step python3 scripts/gate_evidence_closure.py
+step python3 scripts/gate_evidence_closure.py --self-test
 step bash scripts/gate_gcm_conformance.sh --tests-only
 
 echo "== support: the one count, the matrix, the graphless supports, the transport stages =="

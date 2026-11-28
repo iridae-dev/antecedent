@@ -13218,7 +13218,6 @@ pub const antecedent_estimate::POSTERIOR_EQUAL_TAIL: &str
 pub const antecedent_estimate::PROPENSITY_FIT_STAGE: &str
 pub const antecedent_estimate::REFIT_BOOTSTRAP_UNCERTAINTY_KIND: &str
 pub const antecedent_estimate::RESPONSE_SHORT_SERIES_ROWS: f64
-pub const antecedent_estimate::SAMPLED_RECOVERY_CALIBRATION: &str
 pub const antecedent_estimate::SAMPLED_RECOVERY_MAX_BINARY_VARIABLES: usize
 pub const antecedent_estimate::SAMPLED_RECOVERY_MAX_ROWS: usize
 pub const antecedent_estimate::SELECTION_RULE: &str
@@ -13470,7 +13469,6 @@ pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_QUADRATURE_NODES: [u
 pub const antecedent_estimate::survival_posterior::MAX_HAZARD_POSTERIOR_DRAWS: usize
 pub const antecedent_estimate::survival_posterior::MIN_HAZARD_POSTERIOR_DRAWS: usize
 pub const antecedent_estimate::switchback_posterior::SWITCHBACK_POSTERIOR_ESTIMAND: &str
-pub const antecedent_estimate::temporal_dependent_interval::INTERVAL_CALIBRATION_STATUS: &str
 pub const antecedent_estimate::temporal_dependent_interval::INTERVAL_CLAIM: &str
 pub const antecedent_estimate::temporal_dependent_interval::INTERVAL_MAX_REPLICATES: usize
 pub const antecedent_estimate::temporal_dependent_interval::INTERVAL_MAX_UNITS: usize
@@ -20283,6 +20281,7 @@ pub fn antecedent_estimate::recovery::consume_recovery_evidence(plan: &anteceden
 pub fn antecedent_estimate::recovery::consume_retained_recovery_plan(plan: &antecedent_estimate::recovery::RetainedRecoveryPlan) -> antecedent_estimate::recovery::CertifiedInterventionEvaluation
 pub fn antecedent_estimate::recovery_sampled::refuse_component_variance_only(margin_variances: &[f64]) -> antecedent_estimate::SampledRecoveryError
 pub fn antecedent_estimate::recovery_sampled::replay_sampled_recovery(derivation: &antecedent_identify::recovery::RecoveryDerivation, input: &antecedent_estimate::SampledObservationInput, expected: &antecedent_estimate::SampledRecoveryReceipt, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::SampledRecoveryResult, antecedent_estimate::SampledRecoveryError>
+pub fn antecedent_estimate::recovery_sampled::sampled_recovery_calibration() -> &'static str
 pub fn antecedent_estimate::refuse_cancelled(ctx: &antecedent_core::execution::context::ExecutionContext, stage: &str) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::refuse_column_attribution() -> antecedent_estimate::EstimationError
 pub fn antecedent_estimate::refuse_eval(error: &antecedent_expr::provider::EvalError) -> antecedent_estimate::EstimationError
@@ -20364,6 +20363,7 @@ pub fn antecedent_estimate::temporal_curve_outcome_regressors(query: &antecedent
 pub fn antecedent_estimate::temporal_curve_posterior_meaning::require_ordinary_temporal_curve_posterior(serial: antecedent_estimate::temporal_curve_posterior_meaning::SerialErrorModel) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_dependent_interval::balanced_linear_unit_scores<E: antecedent_estimate::temporal_dependent_interval::TemporalEstimator + ?core::marker::Sized>(estimator: &E, units: &[&antecedent_estimate::temporal_dependent_interval::UnitHistories], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_dependent_interval::dependent_unit_interval<E: antecedent_estimate::temporal_dependent_interval::TemporalEstimator + ?core::marker::Sized>(panel: &antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel, estimator: &E, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_dependent_interval::DependentInterval, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::temporal_dependent_interval::interval_calibration_status() -> &'static str
 pub fn antecedent_estimate::temporal_dependent_interval::validate_config(config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::bayesian_bootstrap(scores: &antecedent_estimate::temporal_design::ClusterScores, draws: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_design::PosteriorSummary, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::contrasts::factorial_scores(pairs: &antecedent_estimate::temporal_design::LaggedPairs, outcome: &[f64], first: &[bool], first_probability: &[f64], second: &[bool], second_probability: &[f64], cluster: &[usize], floor: f64) -> core::result::Result<antecedent_estimate::temporal_design::contrasts::DesignScores, antecedent_estimate::EstimationError>
@@ -22024,7 +22024,6 @@ pub use antecedent_estimate::recovery::evaluate_exact_recovery = antecedent_esti
 pub use antecedent_estimate::recovery::evaluate_recovered_effect = antecedent_estimate::evaluate_recovered_effect
 pub use antecedent_estimate::recovery_sampled::ObservationPattern = antecedent_estimate::ObservationPattern
 pub use antecedent_estimate::recovery_sampled::ObservationRow = antecedent_estimate::ObservationRow
-pub use antecedent_estimate::recovery_sampled::SAMPLED_RECOVERY_CALIBRATION = antecedent_estimate::SAMPLED_RECOVERY_CALIBRATION
 pub use antecedent_estimate::recovery_sampled::SAMPLED_RECOVERY_MAX_BINARY_VARIABLES = antecedent_estimate::SAMPLED_RECOVERY_MAX_BINARY_VARIABLES
 pub use antecedent_estimate::recovery_sampled::SAMPLED_RECOVERY_MAX_ROWS = antecedent_estimate::SAMPLED_RECOVERY_MAX_ROWS
 pub use antecedent_estimate::recovery_sampled::SampledEffectInterval = antecedent_estimate::SampledEffectInterval
@@ -22051,6 +22050,7 @@ pub use antecedent_estimate::retarget::check_depends_on = antecedent_estimate::c
 pub use antecedent_estimate::retarget::check_target_dependencies = antecedent_estimate::check_target_dependencies
 pub use antecedent_estimate::retarget::exceedance_cdf_values = antecedent_estimate::exceedance_cdf_values
 pub use antecedent_estimate::retarget::retarget = antecedent_estimate::retarget
+pub use antecedent_estimate::sampled_recovery_calibration = antecedent_estimate::recovery_sampled::sampled_recovery_calibration
 pub use antecedent_estimate::sampling_weights::RetainedSamplingWeights = antecedent_estimate::RetainedSamplingWeights
 pub use antecedent_estimate::sampling_weights::SamplingWeightRecord = antecedent_estimate::SamplingWeightRecord
 pub use antecedent_estimate::sampling_weights::SamplingWeights = antecedent_estimate::SamplingWeights

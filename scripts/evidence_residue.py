@@ -22,6 +22,7 @@ It goes stale when the baseline item or any named unit's claim source changes.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import sys
@@ -66,13 +67,26 @@ def item_digest(item: dict) -> str:
     return digest({"kind": item["kind"], "id": item["id"], "evidence": item["evidence"]})
 
 
+def claim(row: dict) -> dict:
+    """A claim source without its record attachments, which execution links replace."""
+    import evidence_baseline as eb
+
+    attached = {"calibration", "measurement_suite", "historical_coverage_records", *eb.CAPABILITY_LISTS}
+    kept = {k: v for k, v in row.items() if k not in attached}
+    if isinstance(kept.get("inference_outputs"), list):
+        kept["inference_outputs"] = [
+            {k: v for k, v in output.items() if k not in attached} if isinstance(output, dict) else output
+            for output in kept["inference_outputs"]]
+    return kept
+
+
 def unit_digest(sources: dict[tuple[str, str], dict], unit: tuple[str, str]) -> str | None:
     if unit[0] == "construction":
         cell = unit[1].split("#", 1)[0]
         row = sources.get(("matrix", cell))
-        return digest({"construction": unit[1], "cell": row}) if row is not None else None
+        return digest({"construction": unit[1], "cell": claim(row)}) if row is not None else None
     row = sources.get(unit)
-    return digest(row) if row is not None else None
+    return digest(claim(row)) if row is not None else None
 
 
 def load_resolutions() -> list[dict]:
@@ -97,6 +111,11 @@ def resolution_problems(resolutions: list[dict], items: dict[tuple[str, str], di
             continue
         if res.get("baseline_digest") != item_digest(item):
             problems.append(f"{where}: stale, the baseline item changed")
+        held = {f"pass:{p}" for e in item["evidence"].values() for ps in e["scientific"].values() for p in ps} | {
+            f"record:{r}" for e in item["evidence"].values() for r in e["calibration"]}
+        for evidence in evidence_of(res):
+            if evidence != "*" and evidence not in held:
+                problems.append(f"{where}: {evidence} is not evidence of the item")
         units = [unit_key(str(u)) for u in res.get("units") or []]
         if res.get("kind") == "retired" and units:
             problems.append(f"{where}: a retirement names no units")
@@ -112,10 +131,82 @@ def resolution_problems(resolutions: list[dict], items: dict[tuple[str, str], di
     return problems
 
 
+REACHED = ("executed", "cited", "declared")
+
+
+def reached_units(entry: dict) -> list[tuple[str, str]]:
+    """The units a link entry reaches: executed by its test, cited by a claim source, or named
+    by a record below the facade (a declaration above it names an executed unit)."""
+    return list(dict.fromkeys(tuple(u) for field in REACHED for u in entry.get(field, [])))
+
+
+def is_alias(key: tuple[str, str], row: dict) -> bool:
+    """A capability record standing for cells or rows, whose evidence is theirs."""
+    return key[0] == "capability" and bool(row.get("matrix_units") or row.get("graphless_units"))
+
+
+def evidence_of(res: dict) -> list[str]:
+    """The evidence a resolution settles: one `pass:`/`record:` name, a list of them, or `*`."""
+    evidence = res.get("evidence", "")
+    return [str(e) for e in evidence] if isinstance(evidence, list) else [str(evidence)]
+
+
+def settled_evidence(resolutions: list[dict]) -> dict[tuple[str, str], set[str]]:
+    """Baseline item -> the evidence its resolutions settle (`*` for all of it)."""
+    settled: dict[tuple[str, str], set[str]] = {}
+    for res in resolutions:
+        settled.setdefault(unit_key(str(res.get("item", ""))), set()).update(evidence_of(res))
+    return settled
+
+
+@functools.cache
+def _resolution_context() -> tuple[dict[str, dict], dict[tuple[str, str], dict]]:
+    import evidence_baseline as eb
+
+    return {f"{i['kind']}:{i['id']}": i for i in eb.load()["items"]}, claim_sources()
+
+
+def resolution(item: str, evidence: list[str], kind: str, units: list[str], reason: str,
+               author: str = "charles") -> dict:
+    """A resolution bound to the current digests of the baseline item and of each named unit."""
+    items, sources = _resolution_context()
+    if item not in items:
+        raise SystemExit(f"{item}: names no baseline item")
+    if kind not in RESOLUTION_KINDS:
+        raise SystemExit(f"{kind}: kind must be one of {', '.join(RESOLUTION_KINDS)}")
+    digests = {u: unit_digest(sources, unit_key(u)) for u in units}
+    if any(d is None for d in digests.values()):
+        raise SystemExit(f"{item}: names a unit with no claim source")
+    return {"item": item, "evidence": evidence if len(evidence) != 1 else evidence[0], "kind": kind,
+            "units": units, "reason": reason, "author": author,
+            "baseline_digest": item_digest(items[item]), "unit_digests": digests}
+
+
+def render_resolution(res: dict) -> str:
+    def value(v: object) -> str:
+        if isinstance(v, dict):
+            return "{ " + ", ".join(f"{json.dumps(k)} = {json.dumps(x)}" for k, x in v.items()) + " }"
+        if isinstance(v, list) and len(json.dumps(v)) > 80:
+            return "[\n" + "".join(f"  {json.dumps(x)},\n" for x in v) + "]"
+        return json.dumps(v)
+
+    return "[[resolution]]\n" + "".join(f"{k} = {value(v)}\n" for k, v in res.items())
+
+
+def append_resolutions(resolutions: list[dict]) -> None:
+    head = "" if RESOLUTIONS.is_file() else (
+        "# ADR 0031 evidence resolutions: baseline evidence that no execution link covers, settled\n"
+        "# by a reasoned resolution bound to the digests of both sides. Written with\n"
+        "# `scripts/evidence_links.py resolve`; a stale entry is an error.\n")
+    text = RESOLUTIONS.read_text(encoding="utf-8") if RESOLUTIONS.is_file() else head
+    RESOLUTIONS.write_text(text + "".join("\n" + render_resolution(r) for r in resolutions),
+                           encoding="utf-8")
+
+
 def credits(entry: dict, key: tuple[str, str]) -> bool:
     """Whether a pass or record's link entry credits the unit `key` it reaches: its units are
     cited, it reaches no other unit of the kind, or the test returned or declared `key`."""
-    reached = {tuple(u) for field in ("executed", "cited") for u in entry.get(field, [])}
+    reached = set(reached_units(entry))
     if entry.get("cited") or sum(1 for u in reached if u[0] == key[0]) <= 1:
         return True
     return key in {tuple(u) for field in ("returned", "declared") for u in entry.get(field, [])}
@@ -135,9 +226,7 @@ def residue() -> tuple[list[dict], list[str]]:
     items = {(i["kind"], i["id"]): i for i in baseline["items"]}
     resolutions = load_resolutions()
     problems = resolution_problems(resolutions, items, sources)
-    settled: dict[tuple[str, str], set[str]] = {}
-    for res in resolutions:
-        settled.setdefault(unit_key(str(res["item"])), set()).add(str(res["evidence"]))
+    settled = settled_evidence(resolutions)
 
     out = []
     for key, item in sorted(items.items()):
@@ -156,7 +245,7 @@ def residue() -> tuple[list[dict], list[str]]:
         ):
             if evidence in done:
                 continue
-            reached = [tuple(u) for field in ("executed", "cited") for u in entry.get(field, [])]
+            reached = reached_units(entry)
             matching = ([key] if key in reached else []) + (
                 [u for u in reached if u[0] == "construction" and u[1].split("#", 1)[0] == ident]
                 if kind == "matrix" else []

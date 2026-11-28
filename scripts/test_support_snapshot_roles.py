@@ -13,10 +13,11 @@ class SupportSnapshotRoles(unittest.TestCase):
             {"id": "cov.propensity_matching.boundary", "role": "named_boundary"},
         ]
         cell = dict(query="AverageEffect", graph_class="Dag", structure="explicit",
-                    inference="frequentist", validation="none", estimators=["explicit"],
-                    calibration=[row["id"] for row in records])
+                    inference="frequentist", validation="none", estimators=["explicit"])
+        linked = {generator.gate_support.cell_ident(cell): [row["id"] for row in records]}
         with (
             patch.object(generator, "load", return_value={"record": records}) as load,
+            patch("unit_index.matrix_records", return_value=linked),
             patch.object(generator.external_evidence, "routes", return_value={}),
         ):
             snapshot = generator.support_snapshot([], [], [cell] * 2696)

@@ -6223,7 +6223,6 @@ pub const <antecedent_io::release_migration::RouteAxis>::ALL: [Self; 4]
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_RETAINED_BYTES: u64
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_SECTIONS: u32
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_SECTION_BYTES: u64
-pub const antecedent_io::adaptive_inference_result_artifact::ADAPTIVE_INFERENCE_CALIBRATION: &str
 pub const antecedent_io::adaptive_inference_result_artifact::ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::adaptive_inference_result_artifact::ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION: u16
 pub const antecedent_io::adaptive_inference_result_artifact::ADAPTIVE_RESULT_REPLAY_TOLERANCE: f64
@@ -6235,7 +6234,6 @@ pub const antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_O
 pub const antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_POINT_ONLY: &str
 pub const antecedent_io::array_fit_artifact::ARRAY_FIT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::array_fit_artifact::ARRAY_FIT_ARTIFACT_VERSION: u32
-pub const antecedent_io::array_fit_artifact::ARRAY_FIT_CALIBRATION: &str
 pub const antecedent_io::array_fit_artifact::ARRAY_FIT_SUPPORT: &str
 pub const antecedent_io::array_fit_artifact::ID_BAYESIAN_PROPENSITY: &str
 pub const antecedent_io::array_fit_artifact::ID_BAYESIAN_TEMPORAL_PROPENSITY: &str
@@ -6257,9 +6255,7 @@ pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_MAX_LEVELS:
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_MONOTONICITY_CAVEAT: &str
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_TREATMENT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_TREATMENT_ARTIFACT_VERSION: u16
-pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_TREATMENT_CALIBRATION: &str
 pub const antecedent_io::categorical_treatment_artifact::MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES: usize
-pub const antecedent_io::choice_inference_result_artifact::CHOICE_INFERENCE_CALIBRATION: &str
 pub const antecedent_io::choice_inference_result_artifact::CHOICE_INFERENCE_RESULT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::choice_inference_result_artifact::CHOICE_INFERENCE_RESULT_ARTIFACT_VERSION: u16
 pub const antecedent_io::choice_inference_result_artifact::CHOICE_RESULT_REPLAY_TOLERANCE: f64
@@ -6272,24 +6268,20 @@ pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_ARTIFACT_VERSI
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_BAND_BIAS_AWARE: &str
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_BAND_CLOSED: &str
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_BIAS_AWARE_FEATURE: &str
-pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_CALIBRATION: &str
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_DECLARED_ROWS_FEATURE: &str
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_INFERENCE_CLAIM: &str
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_QUADRATIC_FEATURE: &str
 pub const antecedent_io::effect_constancy_artifact::EFFECT_CONSTANCY_ARTIFACT_FEATURE: &str
 pub const antecedent_io::effect_constancy_artifact::EFFECT_CONSTANCY_ARTIFACT_VERSION: u16
-pub const antecedent_io::effect_constancy_artifact::EFFECT_CONSTANCY_CALIBRATION: &str
 pub const antecedent_io::effect_constancy_artifact::MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES: usize
 pub const antecedent_io::external_cyclic_artifact::MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES: usize
 pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_ARTIFACT_FEATURE: &str
 pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_ARTIFACT_VERSION: u32
-pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_CALIBRATION: &str
 pub const antecedent_io::joint_panel_artifact::JOINT_PANEL_ARTIFACT_VERSION: u16
 pub const antecedent_io::joint_panel_artifact::JOINT_PANEL_FAMILY_ARTIFACT_VERSION: u16
 pub const antecedent_io::joint_panel_artifact::MAX_JOINT_PANEL_ARTIFACT_BYTES: usize
 pub const antecedent_io::joint_response_artifact::JOINT_RESPONSE_ARTIFACT_VERSION: u16
 pub const antecedent_io::joint_response_artifact::MAX_JOINT_RESPONSE_ARTIFACT_BYTES: usize
-pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_CALIBRATION: &str
 pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_FEATURE: &str
 pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_MAX_BOOTSTRAP: u32
 pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_TRACE_HEAD: usize
@@ -6301,7 +6293,6 @@ pub const antecedent_io::learned_continuous_artifact::LEARNED_CONTINUOUS_INTERVA
 pub const antecedent_io::learned_continuous_artifact::LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION: u32
 pub const antecedent_io::learned_joint_transport_artifact::LEARNED_JOINT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::learned_joint_transport_artifact::LEARNED_JOINT_ARTIFACT_VERSION: u32
-pub const antecedent_io::learned_joint_transport_artifact::LEARNED_JOINT_CALIBRATION: &str
 pub const antecedent_io::measured_inference::MAX_MEASURED_ARTIFACT_BYTES: usize
 pub const antecedent_io::measured_inference::cohort_interval::ROUTE: &str
 pub const antecedent_io::measured_inference::count_fitted_interval::MEASURED_DRAWS: u32
@@ -6336,7 +6327,6 @@ pub const antecedent_io::measured_inference::split_parent_set_effect::TOTAL_EFFE
 pub const antecedent_io::mechanism_discrepancy_artifact::MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES: usize
 pub const antecedent_io::mechanism_discrepancy_artifact::MECHANISM_DISCREPANCY_ARTIFACT_FEATURE: &str
 pub const antecedent_io::mechanism_discrepancy_artifact::MECHANISM_DISCREPANCY_ARTIFACT_VERSION: u16
-pub const antecedent_io::mechanism_discrepancy_artifact::MECHANISM_DISCREPANCY_CALIBRATION: &str
 pub const antecedent_io::mixed_source_artifact::MIXED_SOURCE_ARTIFACT_FEATURE: &str
 pub const antecedent_io::mixed_source_artifact::MIXED_SOURCE_ARTIFACT_VERSION: u32
 pub const antecedent_io::mixed_source_artifact::MIXED_SOURCE_POINT_ONLY: &str
@@ -6351,7 +6341,6 @@ pub const antecedent_io::mz_transport_artifact::MZ_TRANSPORT_ARTIFACT_FEATURE: &
 pub const antecedent_io::mz_transport_artifact::MZ_TRANSPORT_ARTIFACT_VERSION: u32
 pub const antecedent_io::nested_markov_artifact::NESTED_MARKOV_ARTIFACT_FEATURE: &str
 pub const antecedent_io::nested_markov_artifact::NESTED_MARKOV_ARTIFACT_VERSION: u32
-pub const antecedent_io::nested_markov_artifact::NESTED_MARKOV_CALIBRATION: &str
 pub const antecedent_io::nested_markov_artifact::NESTED_MARKOV_GRAPH_ID: &str
 pub const antecedent_io::nested_markov_artifact::NESTED_MARKOV_PARAMETERIZATION: &str
 pub const antecedent_io::nested_markov_bayesian_artifact::FEATURE: &str
@@ -6378,7 +6367,6 @@ pub const antecedent_io::predictive_assessment_artifact::MAX_PREDICTIVE_ASSESSME
 pub const antecedent_io::predictive_assessment_artifact::MAX_PREDICTIVE_ASSESSMENT_NUMBERS: usize
 pub const antecedent_io::predictive_assessment_artifact::PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::predictive_assessment_artifact::PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION: u16
-pub const antecedent_io::predictive_assessment_artifact::PREDICTIVE_ASSESSMENT_CALIBRATION: &str
 pub const antecedent_io::predictive_assessment_artifact::PREDICTIVE_ASSESSMENT_CAVEATS: [&str; 3]
 pub const antecedent_io::predictive_assessment_artifact::PREDICTIVE_ASSESSMENT_INTERVAL: &str
 pub const antecedent_io::recovery_artifact::RECOVERY_ARTIFACT_FEATURE: &str
@@ -6427,7 +6415,6 @@ pub const antecedent_io::vector_treatment_artifact::MAX_VECTOR_TREATMENT_ARTIFAC
 pub const antecedent_io::vector_treatment_artifact::VECTOR_TREATMENT_ADJUSTMENT_CAVEAT: &str
 pub const antecedent_io::vector_treatment_artifact::VECTOR_TREATMENT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::vector_treatment_artifact::VECTOR_TREATMENT_ARTIFACT_VERSION: u16
-pub const antecedent_io::vector_treatment_artifact::VECTOR_TREATMENT_CALIBRATION: &str
 pub const antecedent_io::vector_treatment_artifact::VECTOR_TREATMENT_HC_ROW_CAP: usize
 pub const antecedent_io::vector_treatment_artifact::VECTOR_TREATMENT_INFERENCE_CAVEAT: &str
 pub const antecedent_io::vector_treatment_artifact::VECTOR_TREATMENT_MAX_ADJUSTMENT: usize
@@ -9951,6 +9938,7 @@ pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn export(
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn reconstruct(bytes: &[u8], limits: antecedent_io::z_transport_artifact::ZTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_graph::selection::SelectionDiagram, antecedent_identify::sid::z_transport::BoundZTransportFunctional, antecedent_expr::exact::transport::ExactTransportData, antecedent_expr::provider::Assignment, antecedent_expr::exact_plan::ExactEvaluationLimits, Self), antecedent_io_core::error::IoError>
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn reconstruct_expecting(bytes: &[u8], limits: antecedent_io::z_transport_artifact::ZTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext, retained: &antecedent_io_core::retained_artifact::RetainedArtifactIdentity) -> core::result::Result<(antecedent_graph::selection::SelectionDiagram, antecedent_identify::sid::z_transport::BoundZTransportFunctional, antecedent_expr::exact::transport::ExactTransportData, antecedent_expr::provider::Assignment, antecedent_expr::exact_plan::ExactEvaluationLimits, Self), antecedent_io_core::error::IoError>
 pub fn antecedent_io::accept_claim_expecting(bytes: &[u8], profile: &antecedent_contract::claim::ConsumerProfile, expected: &antecedent_io_core::contract_section::consume::RetainedClaimIdentity) -> core::result::Result<(antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::error::IoError>
+pub fn antecedent_io::adaptive_inference_result_artifact::adaptive_inference_calibration(spec: &antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec) -> &'static str
 pub fn antecedent_io::adaptive_inference_result_artifact::compute_adaptive_result(contract: &antecedent_contract::adaptive_design::declaration::AdaptiveDesignContract, spec: &antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::adaptive_inference_result_artifact::AdaptiveResult, antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError>
 pub fn antecedent_io::analysis_wire::descriptive_scope(scope: antecedent_io_core::analysis_wire::RefutationScopeWire, produced_by: [u8; 32]) -> core::result::Result<antecedent_io_core::analysis_wire::RefutationScopeWire, antecedent_io_core::error::IoError>
 pub fn antecedent_io::analysis_wire::effect_estimate_from_owned_wire(w: antecedent_io::EffectEstimateWire) -> core::result::Result<antecedent_estimate::effect_estimate::EffectEstimate, antecedent_io_core::error::IoError>
@@ -9959,6 +9947,7 @@ pub fn antecedent_io::analysis_wire::effect_estimate_to_wire(e: &antecedent_esti
 pub fn antecedent_io::analysis_wire::refutation_from_wire(w: &antecedent_io_core::analysis_wire::RefutationReportWire) -> core::result::Result<antecedent_validate::common::report::RefutationReport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::analysis_wire::refutation_to_wire(r: &antecedent_validate::common::report::RefutationReport) -> antecedent_io_core::analysis_wire::RefutationReportWire
 pub fn antecedent_io::analysis_wire::whole_target_diagnostic_scope(report: &antecedent_validate::target_native::TargetRefutationReport, produced_by: [u8; 32]) -> core::result::Result<antecedent_io_core::analysis_wire::RefutationScopeWire, antecedent_io_core::error::IoError>
+pub fn antecedent_io::array_fit_artifact::array_fit_calibration(estimator_id: &str) -> &'static str
 pub fn antecedent_io::array_fit_artifact::inspect_array_fit_header(bytes: &[u8]) -> core::result::Result<bool, antecedent_io_core::error::IoError>
 pub fn antecedent_io::bayesian_posterior_row_artifact::dose_grid_row(kind: &str, functional: antecedent_estimate::dose_grid_functional::DoseFunctional, posterior: &antecedent_estimate::dose_grid_posterior::DoseGridPosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
 pub fn antecedent_io::bayesian_posterior_row_artifact::policy_row(posterior: &antecedent_estimate::continuous_dose_posterior::DosePolicyPosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
@@ -9967,6 +9956,8 @@ pub fn antecedent_io::bayesian_posterior_row_artifact::survival_row(posterior: &
 pub fn antecedent_io::bridge_distribution_interval::bridged_distribution_interval(bridged: &antecedent_io_core::bridge_distribution::BridgedDistribution, level: f64) -> core::result::Result<antecedent_io::bridge_interval::BridgedClaimInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::bridge_interval::bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::BridgedClaimInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::bridge_interval::construct_bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::ConstructedBridgeInterval, antecedent_contract::external_refusal::ExternalRefusal>
+pub fn antecedent_io::categorical_treatment_artifact::categorical_treatment_calibration() -> &'static str
+pub fn antecedent_io::choice_inference_result_artifact::choice_inference_calibration() -> &'static str
 pub fn antecedent_io::choice_inference_result_artifact::compute_choice_result(contract: &antecedent_contract::adaptive_design::choice::ChoiceDesignContract, spec: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::choice_inference_result_artifact::ChoiceResult, antecedent_io::choice_inference_result_artifact::ChoiceResultError>
 pub fn antecedent_io::choice_inference_result_artifact::declaration_from_wire(w: &antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire) -> core::result::Result<antecedent_contract::adaptive_design::choice::ChoiceDesignDeclaration, antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>
 pub fn antecedent_io::choice_inference_result_artifact::declaration_to_wire(d: &antecedent_contract::adaptive_design::choice::ChoiceDesignDeclaration) -> antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
@@ -10004,7 +9995,9 @@ pub fn antecedent_io::decode_analysis_result_artifact(bytes: &[u8]) -> core::res
 pub fn antecedent_io::decode_analysis_result_artifact_expecting(bytes: &[u8], retained: &antecedent_io_core::retained_artifact::RetainedArtifactIdentity) -> core::result::Result<(antecedent_io_core::container::EncodedArtifact, antecedent_io_core::analysis_result_artifact::AnalysisResultHeader, antecedent_io_core::analysis_result_artifact::AnalysisResultWire), antecedent_io_core::error::IoError>
 pub fn antecedent_io::decode_model_bundle(artifact: &antecedent_io_core::container::EncodedArtifact) -> core::result::Result<antecedent_io::ModelBundle, antecedent_io_core::error::IoError>
 pub fn antecedent_io::distribution_factor_laws_to_wire(snapshot: &antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot) -> core::result::Result<antecedent_io_core::identity::DistributionFactorLawsWire, antecedent_io_core::error::IoError>
+pub fn antecedent_io::dose_grid_functional_artifact::dose_grid_calibration() -> &'static str
 pub fn antecedent_io::dose_grid_functional_artifact::dose_support_table(dose: &[f64], points: &[f64], bandwidth: f64, minimum_local_ess: f64) -> core::result::Result<alloc::vec::Vec<antecedent_io::dose_grid_functional_artifact::DoseSupportWire>, antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError>
+pub fn antecedent_io::effect_constancy_artifact::effect_constancy_calibration() -> &'static str
 pub fn antecedent_io::encode_causal_posterior_bytes(posterior: &antecedent_estimate::bayesian::CausalPosterior, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn antecedent_io::encode_causal_posterior_bytes_with_payload(posterior: &antecedent_estimate::bayesian::CausalPosterior, artifact_id: &str, payload: antecedent_io::PosteriorPayload) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn antecedent_io::encode_causal_posterior_with_payload(posterior: &antecedent_estimate::bayesian::CausalPosterior, artifact_id: &str, payload: antecedent_io::PosteriorPayload) -> core::result::Result<antecedent_io_core::container::EncodedArtifact, antecedent_io_core::error::IoError>
@@ -10014,6 +10007,7 @@ pub fn antecedent_io::external_cyclic_artifact::consume_external_cyclic_artifact
 pub fn antecedent_io::external_cyclic_artifact::inspect_external_cyclic_artifact(bytes: &[u8]) -> core::result::Result<antecedent_io::external_cyclic_artifact::ExternalCyclicInspection, antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError>
 pub fn antecedent_io::interference_estimate_from_wire(value: &antecedent_io_core::transport_interference_wire::InterferenceEstimateWire) -> antecedent_estimate::interference::InterferenceEstimate
 pub fn antecedent_io::interference_estimate_to_wire(value: &antecedent_estimate::interference::InterferenceEstimate) -> antecedent_io_core::transport_interference_wire::InterferenceEstimateWire
+pub fn antecedent_io::joint_bayesian_transport_artifact::joint_bayesian_calibration() -> &'static str
 pub fn antecedent_io::joint_bayesian_transport_artifact::prior_data_overlap_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, prior_sources: &[antecedent_contract::evidence_ledger::ids::SourceId], likelihood_sources: &[antecedent_contract::evidence_ledger::ids::SourceId]) -> core::result::Result<antecedent_estimate::joint_bayesian_transport::SourceDependence, antecedent_io_core::error::IoError>
 pub fn antecedent_io::joint_bayesian_transport_artifact::source_dependence_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, sources: &[antecedent_contract::evidence_ledger::ids::SourceId]) -> core::result::Result<antecedent_estimate::joint_bayesian_transport::SourceDependence, antecedent_io_core::error::IoError>
 pub fn antecedent_io::joint_panel_artifact::consume_panel_execution(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::joint_panel_artifact::HistoricalPanelExecution, antecedent_io::joint_panel_artifact::PanelArtifactError>
@@ -10027,6 +10021,8 @@ pub fn antecedent_io::joint_response_artifact::consume_joint_response(bytes: &[u
 pub fn antecedent_io::joint_response_artifact::consume_joint_response_expecting(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext, retained: &antecedent_io_core::retained_artifact::RetainedArtifactIdentity) -> core::result::Result<antecedent_io::joint_response_artifact::HistoricalJointResponse, antecedent_io::joint_response_artifact::JointResponseArtifactError>
 pub fn antecedent_io::joint_response_artifact::encode_joint_response(source: antecedent_io::joint_response_artifact::JointResponseArtifactSource<'_>, evaluation: &antecedent_estimate::response::joint_linear::JointLinearEvaluation, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::joint_response_artifact::JointResponseArtifactError>
 pub fn antecedent_io::joint_response_artifact::joint_response_identity(source: antecedent_io::joint_response_artifact::JointResponseArtifactSource<'_>) -> core::result::Result<[u8; 32], antecedent_io::joint_response_artifact::JointResponseArtifactError>
+pub fn antecedent_io::latent_class_artifact::latent_class_artifact_calibration() -> &'static str
+pub fn antecedent_io::learned_joint_transport_artifact::learned_joint_calibration() -> &'static str
 pub fn antecedent_io::measured_inference::build_report(route: &str, source: &[u8], premises: &str, data: &str, scope: serde_json::value::Value, executions: alloc::vec::Vec<antecedent_io::measured_inference::ScalarExecution>) -> core::result::Result<antecedent_io::measured_inference::MeasuredInferenceReport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::categorical_candidate::measure_source(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::decode(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation) -> core::result::Result<antecedent_io::measured_inference::MeasuredEnvelopeWire, antecedent_io_core::error::IoError>
@@ -10066,12 +10062,16 @@ pub fn antecedent_io::measured_inference::split_parent_set_effect::run(source: &
 pub fn antecedent_io::measured_inference::split_parent_set_effect::run_with_collider_bound(source: &antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource, ctx: &antecedent_core::execution::context::ExecutionContext, max_conflicting_colliders: usize) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, names: &[alloc::string::String], treatment: u32, outcome: u32) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set_under_conflicts(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, evidence: &antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'_>, names: &[alloc::string::String], treatment: u32, outcome: u32, max_colliders: usize) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
+pub fn antecedent_io::mechanism_discrepancy_artifact::mechanism_discrepancy_calibration() -> &'static str
 pub fn antecedent_io::mnar_candidate_source::decode_source(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::mnar_candidate_source::ReconstructedMnarSource, antecedent_io_core::error::IoError>
 pub fn antecedent_io::mnar_candidate_source::decode_source_expecting(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext, retained: &antecedent_io_core::retained_artifact::RetainedArtifactIdentity) -> core::result::Result<antecedent_io::mnar_candidate_source::ReconstructedMnarSource, antecedent_io_core::error::IoError>
 pub fn antecedent_io::mnar_candidate_source::encode(source: &antecedent_core::mnar_fixed_shift::FixedShiftSource, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::mnar_candidate_source::EncodedMnarSource, antecedent_io_core::error::IoError>
 pub fn antecedent_io::mnar_candidate_source::reconstruct(bytes: &[u8], expected: &antecedent_io::mnar_candidate_source::ExpectedMnarSource, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::mnar_candidate_source::ReconstructedMnarSource, antecedent_io_core::error::IoError>
 pub fn antecedent_io::mnar_candidate_source::reconstruct_expecting(bytes: &[u8], expected: &antecedent_io::mnar_candidate_source::ExpectedMnarSource, ctx: &antecedent_core::execution::context::ExecutionContext, retained: &antecedent_io_core::retained_artifact::RetainedArtifactIdentity) -> core::result::Result<antecedent_io::mnar_candidate_source::ReconstructedMnarSource, antecedent_io_core::error::IoError>
 pub fn antecedent_io::msm_sensitivity_adapter::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
+pub fn antecedent_io::nested_markov_artifact::nested_markov_calibration() -> &'static str
+pub fn antecedent_io::nested_markov_bayesian_artifact::calibration() -> &'static str
+pub fn antecedent_io::predictive_assessment_artifact::predictive_assessment_calibration() -> &'static str
 pub fn antecedent_io::randomized_ipow_artifact::posterior_row(source: antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire, posterior: &antecedent_estimate::randomized_posterior::RandomizedPosterior, coordinates: alloc::vec::Vec<alloc::string::String>) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
 pub fn antecedent_io::randomized_ipow_artifact::replay(source: &antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire, draws: usize) -> core::result::Result<antecedent_estimate::randomized_posterior::RandomizedPosterior, antecedent_io_core::error::IoError>
 pub fn antecedent_io::randomized_ipow_artifact::replay_analysis_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_io_core::error::IoError>
@@ -10103,6 +10103,7 @@ pub fn antecedent_io::transport_grid_wire::encode_transport_section(section_id: 
 pub fn antecedent_io::transport_grid_wire::grid_identity(wire: &antecedent_io::transport_grid_wire::GridWire) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn antecedent_io::transport_grid_wire::point_evidence_identity(execution: &str, distribution: &antecedent_expr::exact_plan::ExactDistribution, estimate: core::option::Option<&antecedent_estimate::statistical_transport::StatisticalTransportEstimate>) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn antecedent_io::transport_interference_wire::try_interference_estimate_from_wire(value: &antecedent_io_core::transport_interference_wire::InterferenceEstimateWire) -> core::result::Result<antecedent_estimate::interference::InterferenceEstimate, antecedent_io_core::error::IoError>
+pub fn antecedent_io::vector_treatment_artifact::vector_treatment_calibration() -> &'static str
 pub fn antecedent_io::z_transport_artifact::program_variable_name(variable: antecedent_core::ids::VariableId) -> alloc::string::String
 pub mod antecedent_io::adaptive_inference_result_artifact
 pub mod antecedent_io::admg_conditional_transport_artifact
@@ -10818,7 +10819,6 @@ pub use antecedent_io::ObservationSpecWire = antecedent_io_core::ObservationSpec
 pub use antecedent_io::OutSection = antecedent_io_core::OutSection
 pub use antecedent_io::OutcomeContrastWire = antecedent_io_core::OutcomeContrastWire
 pub use antecedent_io::OverlapPolicyWire = antecedent_io_core::OverlapPolicyWire
-pub use antecedent_io::POSTERIOR_ROW_CALIBRATION = antecedent_io_core::POSTERIOR_ROW_CALIBRATION
 pub use antecedent_io::POSTERIOR_ROW_UNCERTAINTY = antecedent_io_core::POSTERIOR_ROW_UNCERTAINTY
 pub use antecedent_io::PRIOR_SOURCE_META_SECTION = antecedent_io_core::PRIOR_SOURCE_META_SECTION
 pub use antecedent_io::PagJson = antecedent_io_core::PagJson
@@ -10981,9 +10981,9 @@ pub use antecedent_io::artifact_identity = antecedent_io_core::artifact_identity
 pub use antecedent_io::assumptions_to_wire = antecedent_io_core::assumptions_to_wire
 pub use antecedent_io::attach_prior_source_meta = antecedent_io_core::attach_prior_source_meta
 pub use antecedent_io::attested_external_estimate = antecedent_io_core::attested_external_estimate
-pub use antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_CALIBRATION = antecedent_io_core::POSTERIOR_ROW_CALIBRATION
 pub use antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_UNCERTAINTY = antecedent_io_core::POSTERIOR_ROW_UNCERTAINTY
 pub use antecedent_io::bayesian_posterior_row_artifact::PosteriorRowResultWire = antecedent_io_core::PosteriorRowWire
+pub use antecedent_io::bayesian_posterior_row_artifact::posterior_row_calibration = antecedent_io_core::posterior_row_calibration
 pub use antecedent_io::bayesian_prior_recalc_artifact = antecedent_io_core::bayesian_prior_recalc_artifact
 pub use antecedent_io::bind_retained_artifact = antecedent_io_core::bind_retained_artifact
 pub use antecedent_io::bridge_artifact = antecedent_io_core::bridge_artifact
@@ -11228,6 +11228,7 @@ pub use antecedent_io::posterior_convert::encode_causal_posterior_bytes = antece
 pub use antecedent_io::posterior_convert::encode_causal_posterior_bytes_with_payload = antecedent_io::encode_causal_posterior_bytes_with_payload
 pub use antecedent_io::posterior_convert::encode_causal_posterior_with_payload = antecedent_io::encode_causal_posterior_with_payload
 pub use antecedent_io::posterior_has_named_effect = antecedent_io_core::posterior_has_named_effect
+pub use antecedent_io::posterior_row_calibration = antecedent_io_core::posterior_row_calibration
 pub use antecedent_io::prior_bank = antecedent_io_core::prior_bank
 pub use antecedent_io::prior_set_identity = antecedent_io_core::prior_set_identity
 pub use antecedent_io::program_digest = antecedent_io_core::program_digest

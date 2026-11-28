@@ -9752,6 +9752,7 @@ pub const antecedent_core::reason_details::preference_choice_model::CANCELLED: &
 pub const antecedent_core::reason_details::preference_choice_model::CONSISTENCY_NOT_POSITIVE: &str
 pub const antecedent_core::reason_details::preference_choice_model::COVARIANCE_NOT_POSITIVE_DEFINITE: &str
 pub const antecedent_core::reason_details::preference_choice_model::DRAWS_MISSING: &str
+pub const antecedent_core::reason_details::preference_choice_model::EXECUTION_BUDGET: &str
 pub const antecedent_core::reason_details::preference_choice_model::FIT_OPTIONS_INVALID: &str
 pub const antecedent_core::reason_details::preference_choice_model::FIT_REFUSED: &str
 pub const antecedent_core::reason_details::preference_choice_model::LEVEL_INVALID: &str

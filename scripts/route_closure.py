@@ -7,11 +7,10 @@ row in `parity/support_graphless.toml`:
   names the record (or several) in `capability_record`. The route is closed only while every
   named record exists in `parity/capability_records.toml` with `status = "supported"` and,
   when the route claims an interval, every named record carries coverage record ids for it
-  or has its interval routes mapped to gate groups in `parity/calibration_routes.toml`.
+  or has coverage records linked to its unit in `parity/unit_index.json`.
   The claim is the route's `capability_claim` (`interval`, `point_only` or `none`); a route
-  that records none claims an interval whenever a named record does. An allocated id or a
-  mapped group with no measured record is reported as an owed measurement, never accepted as
-  measured.
+  that records none claims an interval whenever a named record does. An allocated id with no
+  measured record is reported as an owed measurement, never accepted as measured.
 * `status = "supported"` on a route that is not a `supported.<query>.<graph class>` record: an
   estimator of support-matrix cells. It must name an estimator that
   `parity/support_cells.toml` lists, with its evidence, on a cell of the route's graph class
@@ -32,9 +31,8 @@ METHOD_ROUTE_STATUSES = ("graphless", CAPABILITY, "execution_only", "fitting_gap
 # Statuses that leave a route open: it executes without a support unit.
 OPEN_STATUSES = ("execution_only", "fitting_gap")
 COVERAGE_RECORDS = "parity/coverage_records.toml"
-CALIBRATION_ROUTES = "parity/calibration_routes.toml"
-CALIBRATION_GROUPS = "parity/calibration_groups.toml"
-Groups = dict[str, list[str]]
+UNIT_INDEX = "parity/unit_index.json"
+Linked = dict[str, list[str]]
 
 
 def is_estimator_route(route: dict) -> bool:
@@ -64,28 +62,28 @@ def coverage_ids(record: dict) -> list[str]:
     return list(dict.fromkeys(ids))
 
 
-def claims_interval(record: dict, groups: Groups | None = None) -> bool:
+def claims_interval(record: dict, linked: Linked | None = None) -> bool:
     return (
         record.get("inference_claim") == "interval"
         or bool(coverage_ids(record))
-        or bool((groups or {}).get(str(record.get("id"))))
+        or bool((linked or {}).get(str(record.get("id"))))
     )
 
 
-def route_claim(route: dict, by_id: dict[str, dict], groups: Groups | None = None) -> str:
+def route_claim(route: dict, by_id: dict[str, dict], linked: Linked | None = None) -> str:
     """The route's declared claim, else the strongest claim of the records it names."""
     declared = route.get("capability_claim")
     if declared is not None:
         return str(declared)
     named = [by_id[rid] for rid in record_ids(route) if rid in by_id]
-    if any(claims_interval(record, groups) for record in named):
+    if any(claims_interval(record, linked) for record in named):
         return "interval"
     claims = {str(record.get("inference_claim", "none")) for record in named}
     return "point_only" if "point_only" in claims else "none"
 
 
 def capability_route_problems(
-    route: dict, by_id: dict[str, dict], groups: Groups | None = None
+    route: dict, by_id: dict[str, dict], linked: Linked | None = None
 ) -> list[str]:
     """Why a `capability` route is not closed by the records it names; empty when it is."""
     rid = route["id"]
@@ -96,8 +94,8 @@ def capability_route_problems(
     declared = route.get("capability_claim")
     if declared is not None and declared not in CLAIMS:
         problems.append(f"{rid}: capability_claim {declared!r} is not one of {', '.join(CLAIMS)}")
-    groups = groups or {}
-    interval = route_claim(route, by_id, groups) == "interval"
+    linked = linked or {}
+    interval = route_claim(route, by_id, linked) == "interval"
     for name in named:
         record = by_id.get(name)
         if record is None:
@@ -107,23 +105,23 @@ def capability_route_problems(
             problems.append(
                 f"{rid}: capability record {name} is {record.get('status')!r}, not supported"
             )
-        if interval and not coverage_ids(record) and not groups.get(name):
+        if interval and not coverage_ids(record) and not linked.get(name):
             problems.append(
                 f"{rid}: claims an interval but capability record {name} carries no coverage "
-                "record id and no mapped gate group for it"
+                "record id and has no coverage record linked to its unit"
             )
     return problems
 
 
 def manifest_capability_problems(
-    routes: list[dict], records: list[dict], groups: Groups | None = None
+    routes: list[dict], records: list[dict], linked: Linked | None = None
 ) -> list[str]:
     """Every `capability` route against its records, and stray fields on other routes."""
     by_id = {str(record["id"]): record for record in records}
     problems: list[str] = []
     for route in routes:
         if route.get("status") == CAPABILITY:
-            problems += capability_route_problems(route, by_id, groups)
+            problems += capability_route_problems(route, by_id, linked)
         elif "capability_record" in route or "capability_claim" in route:
             problems.append(
                 f"{route['id']}: capability_record and capability_claim belong to a route "
@@ -132,71 +130,38 @@ def manifest_capability_problems(
     return problems
 
 
-def group_measured(label: str, measured: set[str], group_tests: Groups) -> bool:
-    """Whether a gate group (`<test file>: <test filter>`) has a measured coverage record.
-
-    A record id carries the test function that produced it; a filter is a substring of that
-    name, and a label without a filter is every test of the file's groups."""
-    head, _, test_filter = label.partition(":")
-    test_filter = test_filter.strip()
-    if test_filter:
-        return any(test_filter in cov for cov in measured)
-    names = group_tests.get(head.strip(), [])
-    return any(f".{name}." in cov for name in names for cov in measured)
-
-
 def owed_measurements(
     routes: list[dict],
     records: list[dict],
     measured: set[str],
-    groups: Groups | None = None,
-    group_tests: Groups | None = None,
+    linked: Linked | None = None,
 ) -> list[tuple[str, str]]:
-    """(route id, what is owed) for an interval route: every allocated coverage id and every
-    mapped gate group that has no measured record."""
+    """(route id, what is owed) for an interval route: every allocated coverage id that has
+    no measured record."""
     by_id = {str(record["id"]): record for record in records}
-    groups, group_tests = groups or {}, group_tests or {}
     owed: list[tuple[str, str]] = []
     for route in routes:
-        if route.get("status") != CAPABILITY or route_claim(route, by_id, groups) != "interval":
+        if route.get("status") != CAPABILITY or route_claim(route, by_id, linked) != "interval":
             continue
         for name in record_ids(route):
-            allocated = coverage_ids(by_id.get(name, {}))
-            for cov in allocated:
+            for cov in coverage_ids(by_id.get(name, {})):
                 if cov not in measured:
                     owed.append((route["id"], f"coverage record {cov}"))
-            for label in groups.get(name, []):
-                # A group whose record id the capability record allocates is listed by that id.
-                test_filter = label.partition(":")[2].strip()
-                named = bool(test_filter) and any(test_filter in cov for cov in allocated)
-                if not named and not group_measured(label, measured, group_tests):
-                    owed.append((route["id"], f"gate group {label}"))
     return list(dict.fromkeys(owed))
 
 
-def mapped_groups(root: Path) -> Groups:
-    """Capability record id -> the gate groups its interval routes are mapped to."""
-    import tomllib
+def linked_records(root: Path) -> Linked:
+    """Capability record id -> the coverage records `parity/unit_index.json` links to its unit."""
+    if not (root / UNIT_INDEX).is_file():
+        return {}
+    import unit_index
 
-    path = root / CALIBRATION_ROUTES
-    out: Groups = {}
-    if path.is_file():
-        for row in tomllib.loads(path.read_text(encoding="utf-8")).get("route", []):
-            labels = out.setdefault(str(row.get("record", "")), [])
-            labels += [str(g) for g in row.get("groups", []) if str(g) not in labels]
-    return out
+    return {
+        ident: list(unit["calibration"])
+        for (kind, ident), unit in unit_index.load(root).items()
+        if kind == "capability" and unit["calibration"]
+    }
 
-
-def tests_by_target(root: Path) -> Groups:
-    """Test target -> the tests of its gate groups."""
-    import tomllib
-
-    path = root / CALIBRATION_GROUPS
-    out: Groups = {}
-    if path.is_file():
-        for group in tomllib.loads(path.read_text(encoding="utf-8")).get("group", []):
-            out.setdefault(str(group.get("target", "")), []).extend(group.get("tests", []))
-    return out
 
 
 def measured_coverage_ids(root: Path) -> set[str]:

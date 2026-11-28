@@ -1131,6 +1131,12 @@ python = "antecedent.multi_level_treatment.multi_level_effect"
 reason = "the candidate normal interval the report publishes once a record covers it; tested in python/tests/test_multi_level_treatment.py"
 
 [[entry]]
+rust = "antecedent::analysis::multi_level_treatment::multi_level_treatment_calibration"
+kind = "fn"
+status = "internal"
+reason = "the multi-level treatment route reports this calibration state in each result's calibration field; Python reads it there and has no separate call"
+
+[[entry]]
 rust = "antecedent::analysis::native_claims::native_response_coordinates"
 kind = "fn"
 status = "internal"
@@ -1420,6 +1426,12 @@ kind = "fn"
 status = "bound"
 python = "antecedent.selective_discovery.SampleSplit.evidence_sources"
 reason = "tested in python/tests/test_sample_split_analysis.py"
+
+[[entry]]
+rust = "antecedent::analysis::sample_split_analysis::whole_method_calibration"
+kind = "fn"
+status = "internal"
+reason = "sample-split results carry it as whole_method_calibration (antecedent.selective_discovery); Python reads it there and has no separate call"
 
 [[entry]]
 rust = "antecedent::analysis::sample_split_effect::estimate_effect_on_split"
@@ -2326,6 +2338,12 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
+rust = "antecedent::support::unit_calibration"
+kind = "fn"
+status = "internal"
+reason = "the calibration state of a result's unit; Python reads it on each result through StudyResult::calibration_state and has no separate call"
+
+[[entry]]
 rust = "antecedent::support::support_cell_named"
 kind = "fn"
 status = "internal"
@@ -3132,6 +3150,12 @@ rust = "antecedent::decision_evidence::evidence_from_joint_static_regime"
 kind = "fn"
 status = "bound"
 python = "antecedent.decision_evidence.JointEvidence.from_experimental_design"
+
+[[entry]]
+rust = "antecedent::decision_evidence::derive"
+kind = "fn"
+status = "bound"
+python = "antecedent.decision_evidence.evaluate"
 
 [[entry]]
 rust = "antecedent::decision_evidence::compile_matched_pair_design"
@@ -4194,6 +4218,12 @@ rust = "antecedent::analysis::observational_policy::consume_policy_subsampling"
 kind = "fn"
 status = "bound"
 python = "antecedent.observational_policy.consume_policy_subsampling"
+
+[[entry]]
+rust = "antecedent::analysis::observational_policy::observational_policy_calibration"
+kind = "fn"
+status = "internal"
+reason = "the observational policy route reports this calibration state in each result's calibration field; Python reads it there and has no separate call"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::compile_cluster_sampling_assumption_union"
@@ -6247,3 +6277,9 @@ rust = "antecedent::analysis::composition::CompiledCompactModelRefit"
 kind = "type"
 status = "bound"
 python = "antecedent.composition_bundle.CompiledCompactModelRefit"
+
+[[entry]]
+rust = "antecedent::analysis::observational_survival::observational_survival_calibration"
+kind = "fn"
+status = "internal"
+reason = "the observational survival route reports this calibration state in each result's calibration field; Python reads it there and has no separate call"

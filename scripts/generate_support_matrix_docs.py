@@ -442,30 +442,25 @@ that class came from that discovery strategy.
 def calibration_summary(cells: list[dict]) -> str:
     """One sentence saying how many matrix cells carry interval-coverage records.
 
-    A supported cell is not necessarily a cell whose interval was ever measured;
-    the split by `calibration_reason` keeps that visible.
+    A supported cell is not necessarily a cell whose interval was ever measured: the records
+    the unit index links to each cell keep that visible.
     """
+    import unit_index
+
+    linked = unit_index.matrix_records()
     total = len(cells)
-    recorded = sum(1 for c in cells if c.get("calibration"))
-    not_measured = sum(
-        1 for c in cells if c.get("calibration_reason") == "estimator_grid_not_measured"
-    )
+    recorded = [c for c in cells if linked.get(gate_support.cell_ident(c))]
+    rest = [c for c in cells if not linked.get(gate_support.cell_ident(c))]
+    no_interval = [c for c in rest if c.get("calibration_reason") == "no_interval_reported"]
+    unmeasured = [c for c in rest if c.get("calibration_reason") != "no_interval_reported"]
     gap_coordinates = {
-        (c["query"], c["graph_class"], c["structure"], c["inference"])
-        for c in cells
-        if c.get("calibration_reason") == "estimator_grid_not_measured"
+        (c["query"], c["graph_class"], c["structure"], c["inference"]) for c in unmeasured
     }
-    no_interval = sum(1 for c in cells if c.get("calibration_reason") == "no_interval_reported")
-    other = total - recorded - not_measured - no_interval
-    if other:
-        raise AssertionError(
-            f"{other} matrix cells have neither calibration records nor a known calibration_reason"
-        )
     return (
-        f"Interval calibration of the {total} matrix cells: {recorded} cite coverage "
-        f"records; {not_measured} across {len(gap_coordinates)} distinct coordinates have no "
+        f"Interval calibration of the {total} matrix cells: {len(recorded)} have coverage "
+        f"records; {len(unmeasured)} across {len(gap_coordinates)} distinct coordinates have no "
         "coverage measurement for their estimator "
-        f"(`estimator_grid_not_measured`); {no_interval} report no interval "
+        f"(`not_measured`); {len(no_interval)} report no interval "
         "(`no_interval_reported`). A supported unit therefore does not imply that its "
         "interval coverage was measured, and cited records do not by themselves make "
         "a result `calibrated` (see `result.calibration`)."
@@ -810,13 +805,17 @@ def cell_route_estimator(row: dict, routes: dict[str, dict]) -> str | None:
 
 
 def cell_estimators(
-    row: dict, routes: dict[str, dict], calibration_roles: dict[str, str] | None = None
+    row: dict,
+    routes: dict[str, dict],
+    calibration_roles: dict[str, str] | None = None,
+    records: list[str] | None = None,
 ) -> list[str]:
     """Estimator wire-ids whose evidence ran for this geometric cell.
 
     Union of the supported_routes compiler-plan estimator, explicitly supported
     estimator ids on the evidence row, and estimators implied by unambiguous
-    calibration-record tokens. Never infer an estimator from limitations prose.
+    tokens in the ids of the coverage records the unit index links to the cell.
+    Never infer an estimator from limitations prose.
     """
     out: list[str] = []
     seen: set[str] = set()
@@ -831,7 +830,7 @@ def cell_estimators(
         add(route)
     for wire in row.get("estimators") or []:
         add(wire)
-    for wire in estimators_from_calibration(list(row.get("calibration") or []), calibration_roles):
+    for wire in estimators_from_calibration(list(records or []), calibration_roles):
         add(wire)
     return out
 
@@ -866,6 +865,9 @@ def support_snapshot(
     calibration_roles = {
         row["id"]: row["role"] for row in load("parity/coverage_records.toml").get("record") or []
     }
+    import unit_index
+
+    linked = unit_index.matrix_records()
     supported = []
     for row in cells:
         supported.append(
@@ -876,7 +878,9 @@ def support_snapshot(
                 "inference": row["inference"],
                 "validation": row["validation"],
                 "route_estimator": cell_route_estimator(row, routes),
-                "estimators": cell_estimators(row, routes, calibration_roles),
+                "estimators": cell_estimators(
+                    row, routes, calibration_roles, linked.get(gate_support.cell_ident(row))
+                ),
                 **(statuses or {}).get(
                     gate_support.cell_ident(row), {"status": "supported", "missing_evidence": []}
                 ),
@@ -905,7 +909,15 @@ def unit_status_snapshot(result: dict) -> dict:
     capabilities = [
         {"id": u.ident, **gate_support.derived_status(u)} for u in result["capabilities"]
     ]
-    return {"graphless": graphless, "capabilities": capabilities}
+    import unit_index
+
+    # Read by `StudyResult::calibration_state`; a unit absent here is `not_measured`.
+    calibration = {
+        unit: state
+        for unit, state in sorted(unit_index.calibration_states().items())
+        if state != unit_index.NOT_MEASURED
+    }
+    return {"graphless": graphless, "capabilities": capabilities, "calibration": calibration}
 
 
 def _freeze_cli(version: str) -> int:

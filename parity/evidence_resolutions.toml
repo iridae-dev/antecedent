@@ -1,0 +1,2488 @@
+# ADR 0031 evidence resolutions: baseline evidence that no execution link covers, settled
+# by a reasoned resolution bound to the digests of both sides. Written with
+# `scripts/evidence_links.py resolve`; a stale entry is an error.
+
+[[resolution]]
+item = "capability:cohort_decision.mean_contrast"
+evidence = [
+  "record:cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p4_l90.v2_validation_not_applicable",
+  "record:cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p5_l90.v2_validation_not_applicable",
+  "record:cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_randomized_p3_l90.v2_validation_not_applicable",
+  "record:cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p4_l95.v2_validation_not_applicable",
+  "record:cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p5_l95.v2_validation_not_applicable",
+  "record:cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_high_leverage_cohort_boundary_l95.v2_validation_not_applicable",
+  "record:cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_misspecified_effect_boundary_l95.v2_validation_not_applicable",
+  "record:cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_randomized_p3_l95.v2_validation_not_applicable",
+]
+kind = "merged"
+units = ["capability:cohort_decision.interval"]
+reason = "The cohort coverage records measure the interval of the mean contrast, which the cohort interval unit publishes; the records declare that unit."
+author = "charles"
+baseline_digest = "de17d8ef6815470e"
+unit_digests = { "capability:cohort_decision.interval" = "cead3f8b72476e09" }
+
+[[resolution]]
+item = "capability:composition.release_boundary_fixture"
+evidence = [
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_fifteen_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_fifteen_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_thirty_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_strong_heterogeneity_fifteen_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_strong_heterogeneity_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_strong_heterogeneity_thirty_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_ten_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_thirty_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_twenty_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_twenty_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_fifteen_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_ten_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_thirty_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_studies.v2_validation_not_applicable",
+]
+kind = "narrowed"
+units = ["capability:composition.release_boundary_fixture"]
+reason = "The pooled-mean coverage records measure the pooled interval, which links to evidence_ledger.pooled_interval; this capability never produced that interval."
+author = "charles"
+baseline_digest = "76cff06a1fc4efc2"
+unit_digests = { "capability:composition.release_boundary_fixture" = "e19945b84e31bcb7" }
+
+[[resolution]]
+item = "capability:composition.source_evidence"
+evidence = "pass:antecedent::source_evidence_exact::the_native_means_and_projected_action_utilities_follow_the_hand_derivation"
+kind = "merged"
+units = ["matrix:ResponseCurve/Dag/explicit/Frequentist/none"]
+reason = "Source evidence is the native mean of the composed response curve; the pass executes that cell."
+author = "charles"
+baseline_digest = "b24ff602f9f84605"
+unit_digests = { "matrix:ResponseCurve/Dag/explicit/Frequentist/none" = "c195d12e6e23f629" }
+
+[[resolution]]
+item = "capability:composition.source_projection"
+evidence = "pass:antecedent::suite_07::source_projection::source_projection_original_native_mean_and_affine_utility_match_independent_truth"
+kind = "merged"
+units = ["matrix:ResponseCurve/Dag/explicit/Frequentist/none"]
+reason = "Source projection reads the native response-curve mean; the pass executes that cell."
+author = "charles"
+baseline_digest = "4683376865d362fc"
+unit_digests = { "matrix:ResponseCurve/Dag/explicit/Frequentist/none" = "c195d12e6e23f629" }
+
+[[resolution]]
+item = "capability:counterfactual.transport_sampled"
+evidence = [
+  "record:cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district.v2_validation_not_applicable",
+  "record:cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift.v2_validation_not_applicable",
+  "record:cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint.v2_validation_not_applicable",
+]
+kind = "merged"
+units = ["capability:counterfactual.transport_sampled_interval"]
+reason = "The sampled transport point is the centre of the sampled transport interval; the coverage records measure that interval and declare its unit."
+author = "charles"
+baseline_digest = "03f7532d73a99413"
+unit_digests = { "capability:counterfactual.transport_sampled_interval" = "05beb32eb4010897" }
+
+[[resolution]]
+item = "capability:discovery.learned_rpcmci_replay"
+evidence = "pass:antecedent::rpcmci_regime_learning::independent_changing_graphs_recover_labels_and_replay"
+kind = "split"
+units = ["capability:discovery.structure_posterior"]
+reason = "The independent changing-graphs truth pass executes the structure posterior; the replay unit is evidenced by the portable shared-series pass."
+author = "charles"
+baseline_digest = "b597950799f95ee2"
+unit_digests = { "capability:discovery.structure_posterior" = "92914193f007a4ea" }
+
+[[resolution]]
+item = "capability:discovery.sample_split_effect"
+evidence = "record:cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_weak_edges_boundary_95.v2_validation_not_applicable"
+kind = "same"
+units = ["capability:discovery.sample_split_effect"]
+reason = "At the trace run's replicate count the weak-edge probe resolves no structure, so no replicate reports an interval and no record line is written; the measured record declares discovery.sample_split_effect, as its sibling boundary records do."
+author = "charles"
+baseline_digest = "057715681c31feed"
+unit_digests = { "capability:discovery.sample_split_effect" = "bb60c8003a1cd59d" }
+
+[[resolution]]
+item = "capability:estimate.batch_retarget_covariance"
+evidence = "pass:antecedent::suite_03::cost_expansion_cells::batch_retarget_cost_is_zero_fits_and_counts_claims_contrasts_and_rows"
+kind = "merged"
+units = ["matrix:AverageEffect/Dag/explicit/Frequentist/none"]
+reason = "Batch retargeting reuses the average-effect fit; the cost pass executes that cell."
+author = "charles"
+baseline_digest = "276d26d9cdaa0350"
+unit_digests = { "matrix:AverageEffect/Dag/explicit/Frequentist/none" = "e1380f1447af56fe" }
+
+[[resolution]]
+item = "capability:estimate.categorical_treatment"
+evidence = [
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k2_r1",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k2_r16",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k2_r4",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k3_r1",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k3_r16",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k3_r4",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k4_r1",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k4_r16",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k4_r4",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k5_r1",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k5_r16",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k5_r4",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k6_r1",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k6_r16",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k6_r4",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k7_r1",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k7_r16",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k7_r4",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k8_r1",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k8_r16",
+  "record:cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k8_r4",
+]
+kind = "split"
+units = ["capability:categorical_treatment.compiled_candidate"]
+reason = "Categorical treatment posteriors execute the compiled categorical candidate unit."
+author = "charles"
+baseline_digest = "fbafa3ecd7033732"
+unit_digests = { "capability:categorical_treatment.compiled_candidate" = "8f573796f4e0f71f" }
+
+[[resolution]]
+item = "capability:estimate.randomized_quantile"
+evidence = "record:cov.average_effect.dag.frequentist.analytic_se.l95.randomized_quantile_median_effect_analytic_interval.v2_validation_none"
+kind = "merged"
+units = ["matrix:AverageEffect/Dag/explicit/Frequentist/none"]
+reason = "The randomized quantile interval is computed on the explicit-DAG frequentist average-effect route, which executes and carries the record."
+author = "charles"
+baseline_digest = "cb2ad02076053687"
+unit_digests = { "matrix:AverageEffect/Dag/explicit/Frequentist/none" = "e1380f1447af56fe" }
+
+[[resolution]]
+item = "capability:evidence_ledger.overlap_accounting"
+evidence = [
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_fifteen_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_fifteen_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_thirty_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_strong_heterogeneity_fifteen_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_strong_heterogeneity_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_strong_heterogeneity_thirty_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_ten_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_thirty_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_twenty_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_twenty_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_fifteen_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_ten_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_thirty_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_five_studies.v2_validation_not_applicable",
+  "record:cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_studies.v2_validation_not_applicable",
+]
+kind = "narrowed"
+units = ["capability:evidence_ledger.overlap_accounting"]
+reason = "The pooled-mean coverage records measure the pooled interval, which links to evidence_ledger.pooled_interval; this capability never produced that interval."
+author = "charles"
+baseline_digest = "eeaafa994b7cec90"
+unit_digests = { "capability:evidence_ledger.overlap_accounting" = "b95cd9a175ec58e1" }
+
+[[resolution]]
+item = "capability:gcm.attribute.mechanism_refit"
+evidence = "pass:antecedent::suite_07::temporal_attribution_route_evidence::temporal_attribution_frequentist_known_truth"
+kind = "split"
+units = [
+  "matrix:AnomalyAttribution/TemporalDag/accepted/Frequentist/none",
+  "matrix:AnomalyAttribution/TemporalDag/explicit/Frequentist/cheap",
+  "matrix:AnomalyAttribution/TemporalDag/explicit/Frequentist/full",
+  "matrix:AnomalyAttribution/TemporalDag/explicit/Frequentist/none",
+  "matrix:ChangeAttribution/TemporalDag/explicit/Frequentist/none",
+]
+reason = "Temporal attribution executes the TemporalDag attribution cells."
+author = "charles"
+baseline_digest = "9da8703fc459536a"
+unit_digests = { "matrix:AnomalyAttribution/TemporalDag/accepted/Frequentist/none" = "acdb85f1f8b3be42", "matrix:AnomalyAttribution/TemporalDag/explicit/Frequentist/cheap" = "c6471bc10aaa9816", "matrix:AnomalyAttribution/TemporalDag/explicit/Frequentist/full" = "26b9fa9fd8c89e4c", "matrix:AnomalyAttribution/TemporalDag/explicit/Frequentist/none" = "1d67a27ec47de090", "matrix:ChangeAttribution/TemporalDag/explicit/Frequentist/none" = "12e2eeb09ed10ab2" }
+
+[[resolution]]
+item = "capability:gcm.attribute.mechanism_refit"
+evidence = "pass:antecedent::suite_07::temporal_attribution_route_evidence::temporal_attribution_bayesian_known_truth"
+kind = "split"
+units = [
+  "matrix:AnomalyAttribution/TemporalDag/explicit/Bayesian/none",
+  "matrix:ChangeAttribution/TemporalDag/explicit/Bayesian/none",
+]
+reason = "Temporal attribution executes the TemporalDag attribution cells."
+author = "charles"
+baseline_digest = "9da8703fc459536a"
+unit_digests = { "matrix:AnomalyAttribution/TemporalDag/explicit/Bayesian/none" = "55f0162b04ddac1c", "matrix:ChangeAttribution/TemporalDag/explicit/Bayesian/none" = "18a2462761c02fd4" }
+
+[[resolution]]
+item = "capability:identify.binary_nested_markov"
+evidence = "pass:antecedent::suite_06::recalc_static::verma_checked_scalar_functionals_match_enumerated_latent_scm"
+kind = "merged"
+units = [
+  "capability:recalculation.static_response",
+  "matrix:ResponseCurve/Admg/explicit/Frequentist/none",
+]
+reason = "The Verma functional pass executes nested-Markov identification through the static-response recalculation of the ADMG response cell, which carry its evidence."
+author = "charles"
+baseline_digest = "6fe46668e15422d5"
+unit_digests = { "capability:recalculation.static_response" = "b7053a4d696aa278", "matrix:ResponseCurve/Admg/explicit/Frequentist/none" = "2bea8f27107ce029" }
+
+[[resolution]]
+item = "capability:measurement.model_contract"
+evidence = [
+  "record:cov.measurement_corrected_functional.dag.bayesian.delta_method_wald.l95.measurement_latent_posterior_mean_substitution_wald_l95.v2_validation_not_applicable",
+  "record:cov.measurement_corrected_functional.dag.bayesian.delta_method_wald.l95.measurement_latent_posterior_multiple_imputation_wald_l95.v2_validation_not_applicable",
+  "record:cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_binary_prevalence_wald_l95.v2_validation_not_applicable",
+  "record:cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_binary_risk_difference_wald_l95.v2_validation_not_applicable",
+  "record:cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_classical_error_declared_variance_wald_l95.v2_validation_not_applicable",
+  "record:cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_classical_error_estimated_variance_wald_l95.v2_validation_not_applicable",
+  "record:cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_repeated_measurements_wald_l95.v2_validation_not_applicable",
+]
+kind = "narrowed"
+units = ["capability:measurement.model_contract"]
+reason = "The measurement record belongs to the measurement model it executed; the model contract is the shared interface and claims no interval of its own."
+author = "charles"
+baseline_digest = "f5ea0776a9382478"
+unit_digests = { "capability:measurement.model_contract" = "6375db1d3ab22fad" }
+
+[[resolution]]
+item = "capability:observation_query.finite_law_conditioning"
+evidence = [
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_confounded_signal_l90.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_confounded_signal_l90_draws_8000.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_measured_signal_l90.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_measured_signal_l90_draws_8000.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95_draws_8000.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95_rows_1000_draws_2000.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95_rows_1000_draws_3000.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95_rows_1000_draws_4000.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95_rows_1000_draws_8000.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_measured_signal_l95.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_measured_signal_l95_draws_8000.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_rare_evidence_boundary_l95.v2_validation_not_applicable",
+  "record:cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_sparse_parent_configuration_boundary_l95.v2_validation_not_applicable",
+]
+kind = "merged"
+units = ["capability:observation_query.calibrated_probability"]
+reason = "Finite-law conditioning is the computation the calibrated conditional probability runs; the count-fitted records measure that probability's interval and declare its unit."
+author = "charles"
+baseline_digest = "e8335e7b60508b24"
+unit_digests = { "capability:observation_query.calibrated_probability" = "033300889356dd15" }
+
+[[resolution]]
+item = "capability:recalculation.doubly_robust"
+evidence = "pass:antecedent::suite_06::recalc_dr::dr_existing_score_sources_match_heterogeneous_structural_truth"
+kind = "merged"
+units = ["matrix:AverageEffect/Dag/explicit/Frequentist/none"]
+reason = "Doubly robust recalculation reuses the average-effect cell's score sources; the pass executes that cell."
+author = "charles"
+baseline_digest = "97341cbd1d424533"
+unit_digests = { "matrix:AverageEffect/Dag/explicit/Frequentist/none" = "e1380f1447af56fe" }
+
+[[resolution]]
+item = "capability:recalculation.native_execution_attempts"
+evidence = "pass:antecedent::recalc_attempt_exact_effect::attempts_are_the_hand_enumerated_components_and_the_values_are_the_hand_values"
+kind = "merged"
+units = [
+  "capability:recalculation.selective",
+  "matrix:AverageEffect/Dag/explicit/Frequentist/none",
+]
+reason = "Native execution attempts are a receipt field of selective recalculation; the pass executes the recalculated cell and the selective unit, which carry its evidence."
+author = "charles"
+baseline_digest = "043f910e10ede991"
+unit_digests = { "capability:recalculation.selective" = "39fd3678aaf6a953", "matrix:AverageEffect/Dag/explicit/Frequentist/none" = "e1380f1447af56fe" }
+
+[[resolution]]
+item = "capability:recalculation.receipt"
+evidence = "pass:antecedent::recalc_exact_effect::receipt_counts_for_each_step_equal_the_hand_enumerated_work_and_identities_track_changes"
+kind = "merged"
+units = [
+  "capability:recalculation.selective",
+  "matrix:AverageEffect/Dag/explicit/Frequentist/none",
+]
+reason = "The recalculation receipt is a field of selective recalculation, not an execution of its own; the pass executes the selective unit and the recalculated cell."
+author = "charles"
+baseline_digest = "ebac86798484404a"
+unit_digests = { "capability:recalculation.selective" = "39fd3678aaf6a953", "matrix:AverageEffect/Dag/explicit/Frequentist/none" = "e1380f1447af56fe" }
+
+[[resolution]]
+item = "capability:sensitivity.missing_outcome_departure"
+evidence = [
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p000_0p125",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p125_0p250",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p250_0p375",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p375_0p500",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p000_0p125",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p125_0p250",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p250_0p375",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p375_0p500",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p000_0p125",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p125_0p250",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p250_0p375",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p375_0p500",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p000_0p125",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p125_0p250",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p250_0p375",
+  "record:cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p375_0p500",
+]
+kind = "split"
+units = ["capability:mnar_fixed_shift.compiled_candidate"]
+reason = "The MNAR interval executes the compiled fixed-shift candidate unit."
+author = "charles"
+baseline_digest = "dba91fc74d326de1"
+unit_digests = { "capability:mnar_fixed_shift.compiled_candidate" = "30a7195287782e65" }
+
+[[resolution]]
+item = "matrix:AverageEffect/Dag/explicit/Frequentist/none"
+evidence = [
+  "record:cov.average_effect.dag.frequentist.analytic_se.l95.prepared_adjusted_fixed_target_fisher_interval.v2_validation_none",
+  "record:cov.average_effect.dag.frequentist.analytic_se.l95.prepared_adjusted_fixed_target_hc1_interval.v2_validation_none",
+]
+kind = "split"
+units = ["capability:recalculation.prepared_adjusted"]
+reason = "Prepared adjusted retargeting executes the prepared-adjusted recalculation unit."
+author = "charles"
+baseline_digest = "35d0233116cce0b0"
+unit_digests = { "capability:recalculation.prepared_adjusted" = "d0656b5eb86f2e82" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/accepted/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Admg/accepted/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "c91b56cf759bda36"
+unit_digests = { "matrix:InterferenceQuery/Admg/accepted/Bayesian/cheap" = "6bdae1841944c64a" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/accepted/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Admg/accepted/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "1ddd7643ec942494"
+unit_digests = { "matrix:InterferenceQuery/Admg/accepted/Bayesian/full" = "7699ec9961171a44" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/accepted/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Admg/accepted/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "525bec65bae4b9d5"
+unit_digests = { "matrix:InterferenceQuery/Admg/accepted/Bayesian/none" = "973af7e9fd811545" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/accepted/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "5862e8aff265d983"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/accepted/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "5862e8aff265d983"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/accepted/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "b150416493bfc1d5"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/accepted/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "b150416493bfc1d5"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/accepted/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "1f99b2ce9d14fe8e"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/accepted/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "1f99b2ce9d14fe8e"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/explicit/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap",
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Admg/explicit/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "596dafde78b9f669"
+unit_digests = { "matrix:InterferenceQuery/Admg/explicit/Bayesian/cheap" = "7807b7ce3c45321f" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/explicit/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full",
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Admg/explicit/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "83b8034e6ac50f17"
+unit_digests = { "matrix:InterferenceQuery/Admg/explicit/Bayesian/full" = "0f35cf510b048a54" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/explicit/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none",
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Admg/explicit/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "6b0a9cbfa3cdae2d"
+unit_digests = { "matrix:InterferenceQuery/Admg/explicit/Bayesian/none" = "7332803b9b8846af" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/explicit/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "d76a5c8dae0a17c0"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/explicit/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "d76a5c8dae0a17c0"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/explicit/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "ae09f7d94f154820"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/explicit/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "ae09f7d94f154820"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/explicit/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "5a9a9c2c4c774e82"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/explicit/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "5a9a9c2c4c774e82"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/graph_posterior/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Admg/graph_posterior/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "e7d0d45622c77565"
+unit_digests = { "matrix:InterferenceQuery/Admg/graph_posterior/Bayesian/cheap" = "ed704df8858b1d9d" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/graph_posterior/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Admg/graph_posterior/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "d711d92ed8b2045d"
+unit_digests = { "matrix:InterferenceQuery/Admg/graph_posterior/Bayesian/full" = "03480cd6b7d26b5a" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/graph_posterior/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Admg/graph_posterior/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "c1bf4442da2a17f1"
+unit_digests = { "matrix:InterferenceQuery/Admg/graph_posterior/Bayesian/none" = "ec0aa84e06e54b44" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/graph_posterior/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "133afbd6ceeeeee7"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/graph_posterior/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "133afbd6ceeeeee7"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/graph_posterior/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "d2773809121cbebb"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/graph_posterior/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "d2773809121cbebb"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/graph_posterior/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "09c704004384ba1d"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Admg/graph_posterior/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "09c704004384ba1d"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/accepted/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Cpdag/accepted/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "0bf63057738e67dd"
+unit_digests = { "matrix:InterferenceQuery/Cpdag/accepted/Bayesian/cheap" = "8894068c4c2ec69f" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/accepted/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Cpdag/accepted/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "06fa031c966eeaff"
+unit_digests = { "matrix:InterferenceQuery/Cpdag/accepted/Bayesian/full" = "cbaca16a61e28bb2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/accepted/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Cpdag/accepted/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "3e06e2717a945d23"
+unit_digests = { "matrix:InterferenceQuery/Cpdag/accepted/Bayesian/none" = "94dceafb42fd217a" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/accepted/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "968486b01336834c"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/accepted/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "968486b01336834c"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/accepted/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "b61471b7d227f980"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/accepted/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "b61471b7d227f980"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/accepted/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "838b296d90f52fb3"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/accepted/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "838b296d90f52fb3"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/explicit/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap",
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Cpdag/explicit/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "8dc7cf4778a33e81"
+unit_digests = { "matrix:InterferenceQuery/Cpdag/explicit/Bayesian/cheap" = "0ce81c209891bbdd" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/explicit/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full",
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Cpdag/explicit/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "9c207c0146c77953"
+unit_digests = { "matrix:InterferenceQuery/Cpdag/explicit/Bayesian/full" = "76f592d35b87c8f0" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/explicit/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none",
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Cpdag/explicit/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "b4f392ce3c0a4570"
+unit_digests = { "matrix:InterferenceQuery/Cpdag/explicit/Bayesian/none" = "88f47259e1d28b51" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/explicit/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "5f3501367accc3f1"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/explicit/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "5f3501367accc3f1"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/explicit/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "0513cfd102ffe732"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/explicit/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "0513cfd102ffe732"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/explicit/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "c353f703abdf6044"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/explicit/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "c353f703abdf6044"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/graph_posterior/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Cpdag/graph_posterior/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "bdbb6fe806332219"
+unit_digests = { "matrix:InterferenceQuery/Cpdag/graph_posterior/Bayesian/cheap" = "8095252f558cb7b7" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/graph_posterior/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Cpdag/graph_posterior/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "471d33572ddcbe7a"
+unit_digests = { "matrix:InterferenceQuery/Cpdag/graph_posterior/Bayesian/full" = "7325f95bca555833" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/graph_posterior/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.cpdag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Cpdag/graph_posterior/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "cc459e646c168b0d"
+unit_digests = { "matrix:InterferenceQuery/Cpdag/graph_posterior/Bayesian/none" = "51f6db046ea1d18f" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/graph_posterior/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "8c26bd86f43e4d5a"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/graph_posterior/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "8c26bd86f43e4d5a"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/graph_posterior/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "149eb52bb5e82083"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/graph_posterior/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "149eb52bb5e82083"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/graph_posterior/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "549d2e887a4cd641"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Cpdag/graph_posterior/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "549d2e887a4cd641"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/accepted/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Dag/accepted/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "5a7256b43c6ab787"
+unit_digests = { "matrix:InterferenceQuery/Dag/accepted/Bayesian/cheap" = "7094694c891b87b5" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/accepted/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Dag/accepted/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "2bde829be2d086e6"
+unit_digests = { "matrix:InterferenceQuery/Dag/accepted/Bayesian/full" = "c48aa8f9e51de77e" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/accepted/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Dag/accepted/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "db074ca4dc680546"
+unit_digests = { "matrix:InterferenceQuery/Dag/accepted/Bayesian/none" = "b8c1d707e1b1d371" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/accepted/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "6dca9eb101071560"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/accepted/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "6dca9eb101071560"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/accepted/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "7181692541306fad"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/accepted/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "7181692541306fad"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/accepted/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "333ef22f95dfdb42"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/accepted/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "333ef22f95dfdb42"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/explicit/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap",
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Dag/explicit/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "73693936ce1cfbd4"
+unit_digests = { "matrix:InterferenceQuery/Dag/explicit/Bayesian/cheap" = "3cf69c5f495d0250" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/explicit/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full",
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Dag/explicit/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "007b3c147dadc281"
+unit_digests = { "matrix:InterferenceQuery/Dag/explicit/Bayesian/full" = "70616fec35559a95" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/explicit/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l95.cluster_bayesian_bootstrap_larger_small_arm_credible_interval.v2_validation_none",
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l95.cluster_bayesian_bootstrap_small_cluster_credible_interval.v2_validation_none",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_student_reference_posterior:exposure_contrast_pointwise_95_posterior_quantiles",
+]
+reason = "The cluster-randomized posterior executes the graphless student-reference posterior row."
+author = "charles"
+baseline_digest = "e291d3a95492dce5"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_student_reference_posterior:exposure_contrast_pointwise_95_posterior_quantiles" = "df4864726e00dab1" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/explicit/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "be72b07d35b28109"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/explicit/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "be72b07d35b28109"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/explicit/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "a225fa9a9c74113a"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/explicit/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "a225fa9a9c74113a"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/graph_posterior/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Dag/graph_posterior/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "9f91d93e1cd074b1"
+unit_digests = { "matrix:InterferenceQuery/Dag/graph_posterior/Bayesian/cheap" = "cfddf8f132142f94" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/graph_posterior/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Dag/graph_posterior/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "58895bb7a5ae5288"
+unit_digests = { "matrix:InterferenceQuery/Dag/graph_posterior/Bayesian/full" = "dbdc35a82c042966" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/graph_posterior/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.dag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Dag/graph_posterior/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "de7c47739f22d617"
+unit_digests = { "matrix:InterferenceQuery/Dag/graph_posterior/Bayesian/none" = "5d2e49b298759d1a" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/graph_posterior/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "6a1cc59eb5c1dceb"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/graph_posterior/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "6a1cc59eb5c1dceb"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/graph_posterior/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "511d8bc9007211c8"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/graph_posterior/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "511d8bc9007211c8"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/graph_posterior/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "0eba02f7dc6881f7"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Dag/graph_posterior/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.dag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.dag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "0eba02f7dc6881f7"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/accepted/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Pag/accepted/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "c42dc90d1c10fb59"
+unit_digests = { "matrix:InterferenceQuery/Pag/accepted/Bayesian/cheap" = "36862cecf929be4a" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/accepted/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Pag/accepted/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "bf04fcb792938657"
+unit_digests = { "matrix:InterferenceQuery/Pag/accepted/Bayesian/full" = "bec87805972d59e3" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/accepted/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Pag/accepted/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "56757fd31fe8d20d"
+unit_digests = { "matrix:InterferenceQuery/Pag/accepted/Bayesian/none" = "dc573874fcad2f27" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/accepted/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "e4a0beb84c06749d"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/accepted/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "e4a0beb84c06749d"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/accepted/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "47c1a5c869d78755"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/accepted/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "47c1a5c869d78755"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/accepted/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "a896fcb641f2b165"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/accepted/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "a896fcb641f2b165"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/explicit/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap",
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Pag/explicit/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "d5f678829602d3eb"
+unit_digests = { "matrix:InterferenceQuery/Pag/explicit/Bayesian/cheap" = "9ae394df1284f68c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/explicit/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full",
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Pag/explicit/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "02bedfd2ac611fda"
+unit_digests = { "matrix:InterferenceQuery/Pag/explicit/Bayesian/full" = "9dc520f8b10996a2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/explicit/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none",
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Pag/explicit/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "e882bf4917a7f2d9"
+unit_digests = { "matrix:InterferenceQuery/Pag/explicit/Bayesian/none" = "95b294ac0ddc61e2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/explicit/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "0a1eb7eb103cd5c9"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/explicit/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "0a1eb7eb103cd5c9"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/explicit/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "2ed0153b93aadd3e"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/explicit/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "2ed0153b93aadd3e"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/explicit/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "c675228f4a99fe6c"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/explicit/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "c675228f4a99fe6c"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/graph_posterior/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Pag/graph_posterior/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "9a46108b14a70d8a"
+unit_digests = { "matrix:InterferenceQuery/Pag/graph_posterior/Bayesian/cheap" = "9d19440630677c01" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/graph_posterior/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Pag/graph_posterior/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "1c751e8688ecb76f"
+unit_digests = { "matrix:InterferenceQuery/Pag/graph_posterior/Bayesian/full" = "0c30bd5faabcca76" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/graph_posterior/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.pag.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/Pag/graph_posterior/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "55e79247d61b4736"
+unit_digests = { "matrix:InterferenceQuery/Pag/graph_posterior/Bayesian/none" = "fec797a4f3cf3961" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/graph_posterior/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "3cd1c4ba29182a5d"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/graph_posterior/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "3cd1c4ba29182a5d"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/graph_posterior/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "58561fb01c2a3335"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/graph_posterior/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "58561fb01c2a3335"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/graph_posterior/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "564c3f9303ff2a40"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/Pag/graph_posterior/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.pag.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.pag.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "564c3f9303ff2a40"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/accepted/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/TemporalAdmg/accepted/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "3a68d452876897bf"
+unit_digests = { "matrix:InterferenceQuery/TemporalAdmg/accepted/Bayesian/cheap" = "0f4721ed566bb7ba" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/accepted/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/TemporalAdmg/accepted/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "0ce469bccd462467"
+unit_digests = { "matrix:InterferenceQuery/TemporalAdmg/accepted/Bayesian/full" = "653b37d2495c646a" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/accepted/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/TemporalAdmg/accepted/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "b13d76d2b5c7530b"
+unit_digests = { "matrix:InterferenceQuery/TemporalAdmg/accepted/Bayesian/none" = "9f7dafeaafb0f58b" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/accepted/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "af632b5654e58729"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/accepted/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "af632b5654e58729"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/accepted/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "aa57cf0ca6f7f234"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/accepted/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "aa57cf0ca6f7f234"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/accepted/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "e2851ac6d6645763"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/accepted/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "e2851ac6d6645763"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/explicit/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap",
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/TemporalAdmg/explicit/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "a0b278f4b67ed2da"
+unit_digests = { "matrix:InterferenceQuery/TemporalAdmg/explicit/Bayesian/cheap" = "2d8ac8af7d7b6be0" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/explicit/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full",
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/TemporalAdmg/explicit/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "e45a9c6a9991ba71"
+unit_digests = { "matrix:InterferenceQuery/TemporalAdmg/explicit/Bayesian/full" = "2d2d481bd0281fe5" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/explicit/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none",
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/TemporalAdmg/explicit/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "99fe082846140dc8"
+unit_digests = { "matrix:InterferenceQuery/TemporalAdmg/explicit/Bayesian/none" = "e5ec97ce00cd047b" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/explicit/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "18252cb338689c03"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/explicit/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "18252cb338689c03"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/explicit/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "3ab4c71e3612784c"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/explicit/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "3ab4c71e3612784c"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/explicit/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "17c2ebffb03b1281"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/explicit/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "17c2ebffb03b1281"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Bayesian/cheap"
+evidence = [
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Bayesian/cheap"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "b4abea2c88b1b493"
+unit_digests = { "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Bayesian/cheap" = "7732133d45b7a293" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Bayesian/full"
+evidence = [
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Bayesian/full"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "82050ec38e181491"
+unit_digests = { "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Bayesian/full" = "25805b6fb86095b6" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Bayesian/none"
+evidence = [
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l90.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.temporal_admg.bayesian.posterior_quantile.l95.interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "narrowed"
+units = ["matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Bayesian/none"]
+reason = "The cluster Bayesian bootstrap (Dirichlet weights over clusters) is not supported at 50 or more clusters per arm; the cell no longer claims this coordinate."
+author = "charles"
+baseline_digest = "ebec0a3fb6278932"
+unit_digests = { "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Bayesian/none" = "8cac2bbf69629379" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "53109bf9cde57bd2"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Frequentist/cheap"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "53109bf9cde57bd2"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "ac1736fa276d3c01"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Frequentist/full"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "ac1736fa276d3c01"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_cluster_neyman_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "6cdc83726de9e2e7"
+unit_digests = { "graphless:interference:cluster_randomization_total:cluster_total_neyman_welch:exposure_contrast_pointwise_95_student_interval" = "eff8b0e8190edaa2" }
+
+[[resolution]]
+item = "matrix:InterferenceQuery/TemporalAdmg/graph_posterior/Frequentist/none"
+evidence = [
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l90.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.interference_query.temporal_admg.frequentist.analytic_se.l95.interference_admg_given_observational_ipw_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "split"
+units = [
+  "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+]
+reason = "The interference grid coordinate executes the graphless exposure-contrast row; the matrix cell routes onto it, so the record is that row's evidence."
+author = "charles"
+baseline_digest = "6cdc83726de9e2e7"
+unit_digests = { "graphless:interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval" = "acc997647fac746c" }
+
+[[resolution]]
+item = "matrix:Counterfactual/Admg/accepted/Bayesian/cheap"
+evidence = [
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "same"
+units = ["matrix:Counterfactual/Admg/accepted/Bayesian/cheap"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "a792e904011bef10"
+unit_digests = { "matrix:Counterfactual/Admg/accepted/Bayesian/cheap" = "2d7159ff3752f27c" }
+
+[[resolution]]
+item = "matrix:Counterfactual/Admg/accepted/Bayesian/full"
+evidence = [
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "same"
+units = ["matrix:Counterfactual/Admg/accepted/Bayesian/full"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "4a16d7a606d936fa"
+unit_digests = { "matrix:Counterfactual/Admg/accepted/Bayesian/full" = "ad9c1efb6805a494" }
+
+[[resolution]]
+item = "matrix:Counterfactual/Admg/accepted/Bayesian/none"
+evidence = [
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "same"
+units = ["matrix:Counterfactual/Admg/accepted/Bayesian/none"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "57b16d2d408ae046"
+unit_digests = { "matrix:Counterfactual/Admg/accepted/Bayesian/none" = "3a3fb645091ae205" }
+
+[[resolution]]
+item = "matrix:Counterfactual/Admg/explicit/Bayesian/cheap"
+evidence = [
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_cheap",
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_cheap",
+]
+kind = "same"
+units = ["matrix:Counterfactual/Admg/explicit/Bayesian/cheap"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "ac548a3f0df3f992"
+unit_digests = { "matrix:Counterfactual/Admg/explicit/Bayesian/cheap" = "bfc2998963d86817" }
+
+[[resolution]]
+item = "matrix:Counterfactual/Admg/explicit/Bayesian/full"
+evidence = [
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_full",
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_full",
+]
+kind = "same"
+units = ["matrix:Counterfactual/Admg/explicit/Bayesian/full"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "eec603e18d57d07b"
+unit_digests = { "matrix:Counterfactual/Admg/explicit/Bayesian/full" = "2c5c1ae466ddf668" }
+
+[[resolution]]
+item = "matrix:Counterfactual/Admg/explicit/Bayesian/none"
+evidence = [
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_none",
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_none",
+]
+kind = "same"
+units = ["matrix:Counterfactual/Admg/explicit/Bayesian/none"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "873b9a48c851ed73"
+unit_digests = { "matrix:Counterfactual/Admg/explicit/Bayesian/none" = "ff2636f5f2772dd9" }
+
+[[resolution]]
+item = "matrix:Counterfactual/Admg/graph_posterior/Bayesian/cheap"
+evidence = [
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "same"
+units = ["matrix:Counterfactual/Admg/graph_posterior/Bayesian/cheap"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "5aa7791584c6860e"
+unit_digests = { "matrix:Counterfactual/Admg/graph_posterior/Bayesian/cheap" = "42e03f8a7115b942" }
+
+[[resolution]]
+item = "matrix:Counterfactual/Admg/graph_posterior/Bayesian/full"
+evidence = [
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "same"
+units = ["matrix:Counterfactual/Admg/graph_posterior/Bayesian/full"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "6a6f23b6a19adfda"
+unit_digests = { "matrix:Counterfactual/Admg/graph_posterior/Bayesian/full" = "a0f866684a156496" }
+
+[[resolution]]
+item = "matrix:Counterfactual/Admg/graph_posterior/Bayesian/none"
+evidence = [
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.counterfactual.admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "same"
+units = ["matrix:Counterfactual/Admg/graph_posterior/Bayesian/none"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "b2bdd2eea49301c6"
+unit_digests = { "matrix:Counterfactual/Admg/graph_posterior/Bayesian/none" = "824210601c1a07da" }
+
+[[resolution]]
+item = "matrix:Counterfactual/TemporalAdmg/accepted/Bayesian/cheap"
+evidence = [
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l90.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_cheap.v2_structure_accepted",
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l95.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_cheap.v2_structure_accepted",
+]
+kind = "same"
+units = ["matrix:Counterfactual/TemporalAdmg/accepted/Bayesian/cheap"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "3df45b5d6539cd80"
+unit_digests = { "matrix:Counterfactual/TemporalAdmg/accepted/Bayesian/cheap" = "a1f8dcf3157c3915" }
+
+[[resolution]]
+item = "matrix:Counterfactual/TemporalAdmg/accepted/Bayesian/full"
+evidence = [
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l90.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_full.v2_structure_accepted",
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l95.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_full.v2_structure_accepted",
+]
+kind = "same"
+units = ["matrix:Counterfactual/TemporalAdmg/accepted/Bayesian/full"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "ad03090b1fafa224"
+unit_digests = { "matrix:Counterfactual/TemporalAdmg/accepted/Bayesian/full" = "b106868a955606d6" }
+
+[[resolution]]
+item = "matrix:Counterfactual/TemporalAdmg/accepted/Bayesian/none"
+evidence = [
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l90.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted",
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l95.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted",
+]
+kind = "same"
+units = ["matrix:Counterfactual/TemporalAdmg/accepted/Bayesian/none"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "330f0581e7065e45"
+unit_digests = { "matrix:Counterfactual/TemporalAdmg/accepted/Bayesian/none" = "04bdd5399fbf3a2c" }
+
+[[resolution]]
+item = "matrix:Counterfactual/TemporalAdmg/explicit/Bayesian/cheap"
+evidence = [
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l90.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_cheap",
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l95.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_cheap",
+]
+kind = "same"
+units = ["matrix:Counterfactual/TemporalAdmg/explicit/Bayesian/cheap"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "007fe3e8a37eb629"
+unit_digests = { "matrix:Counterfactual/TemporalAdmg/explicit/Bayesian/cheap" = "7d459a39c5a280eb" }
+
+[[resolution]]
+item = "matrix:Counterfactual/TemporalAdmg/explicit/Bayesian/full"
+evidence = [
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l90.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_full",
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l95.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_full",
+]
+kind = "same"
+units = ["matrix:Counterfactual/TemporalAdmg/explicit/Bayesian/full"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "fb9283c7241317ee"
+unit_digests = { "matrix:Counterfactual/TemporalAdmg/explicit/Bayesian/full" = "f0485cac6b1e61e8" }
+
+[[resolution]]
+item = "matrix:Counterfactual/TemporalAdmg/explicit/Bayesian/none"
+evidence = [
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l90.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_none",
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l95.counterfactual_temporal_admg_given_bayesian_coverage.v2_validation_none",
+]
+kind = "same"
+units = ["matrix:Counterfactual/TemporalAdmg/explicit/Bayesian/none"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "f1717c86635af8bb"
+unit_digests = { "matrix:Counterfactual/TemporalAdmg/explicit/Bayesian/none" = "e103538f78ca926f" }
+
+[[resolution]]
+item = "matrix:Counterfactual/TemporalAdmg/graph_posterior/Bayesian/cheap"
+evidence = [
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+]
+kind = "same"
+units = ["matrix:Counterfactual/TemporalAdmg/graph_posterior/Bayesian/cheap"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "acb09945722dd410"
+unit_digests = { "matrix:Counterfactual/TemporalAdmg/graph_posterior/Bayesian/cheap" = "3b50b887e637c5aa" }
+
+[[resolution]]
+item = "matrix:Counterfactual/TemporalAdmg/graph_posterior/Bayesian/full"
+evidence = [
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_graph_posterior",
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_graph_posterior",
+]
+kind = "same"
+units = ["matrix:Counterfactual/TemporalAdmg/graph_posterior/Bayesian/full"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "e3650c231e358515"
+unit_digests = { "matrix:Counterfactual/TemporalAdmg/graph_posterior/Bayesian/full" = "fc7b74b8256b170b" }
+
+[[resolution]]
+item = "matrix:Counterfactual/TemporalAdmg/graph_posterior/Bayesian/none"
+evidence = [
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior",
+  "record:cov.counterfactual.temporal_admg.bayesian.posterior_quantile.l95.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior",
+]
+kind = "same"
+units = ["matrix:Counterfactual/TemporalAdmg/graph_posterior/Bayesian/none"]
+reason = "These records stay on the cells they measure. Refreshing that link would re-run the Bayesian cross-world posterior, which is not part of closing the record."
+author = "charles"
+baseline_digest = "ee2a41b6ff8c51a9"
+unit_digests = { "matrix:Counterfactual/TemporalAdmg/graph_posterior/Bayesian/none" = "d3b69171332238b3" }

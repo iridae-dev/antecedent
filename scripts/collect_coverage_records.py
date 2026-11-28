@@ -7,9 +7,9 @@ One command after a calibration run:
 
 It reads `target/calibration-records/*.log` (written by
 `scripts/calibration_groups.py run`), writes `parity/coverage_records.toml` stamped
-with the SHA of the commit the logs were measured at, rewrites the
-`calibration` / `calibration_reason` pair for each already-bound supported support
-cell using only its existing record IDs, refreshes estimator rows, and regenerates
+with the SHA of the commit the logs were measured at, validates the supported cells'
+scientific calibration ownership (records attach to units by execution,
+`parity/unit_index.json`, never here), refreshes estimator rows, and regenerates
 `crates/antecedent-io-core/data/coverage_records.json`
 (loaded by `crates/antecedent-io-core/src/coverage_records_data.rs`;
 `parity/coverage_records.toml` remains the registry).
@@ -247,9 +247,6 @@ ESTIMATOR_ROW_IDS = {
     "estimate.temporal_sequential": {"temporal.sequential.gcomp"},
     "estimate.mediation.linear": {"mediation.linear", "temporal.mediation"},
 }
-
-NO_INTERVAL_QUERIES = {"Counterfactual", "AnomalyAttribution", "ChangeAttribution"}
-
 
 # Sample-size grid points every record is measured at
 # (`GRID_POINTS` in crates/antecedent/tests/common/calibration.rs).
@@ -1259,16 +1256,6 @@ def write_registry(records: dict[str, dict], out: Path = OUT) -> None:
 REPORTED_LEVEL = 0.95
 
 
-def all_boundary_at_reported_level(ids: list[str], records: dict[str, dict]) -> bool:
-    """Whether the cell's records measure the reported level and none of them passes it."""
-    at_level = [
-        records[rid] for rid in ids if abs(float(records[rid]["nominal"]) - REPORTED_LEVEL) < 1e-9
-    ]
-    return bool(at_level) and all(
-        rec["boundary"] and "confirmed_passing_range" not in rec for rec in at_level
-    )
-
-
 def replace_pair(
     block: str, calibration: list[str] | None, reason: str | None, boundary_only: bool = False
 ) -> str:
@@ -1446,40 +1433,16 @@ def supported_record_matches(cell: dict, record: dict) -> bool:
     )
 
 
-def supported_cell_calibration_problems(cell: dict, records: dict[str, dict]) -> list[str]:
-    """Require all owned coordinate records and refuse foreign/missing bindings.
-
-    Ownership is declared by the support cell, not inferred from a new passing
-    record. Posterior engines of another estimator cannot upgrade that cell.
-    """
-    bound = cell.get("calibration", [])
-    errors = []
-    for rid in bound:
-        record = records.get(rid)
-        if record is None:
-            errors.append(f"unknown bound record {rid}")
-        elif not supported_record_matches(cell, record):
-            errors.append(f"bound record {rid} has foreign estimator or scientific coordinate")
-    owned = {rid for rid, record in records.items() if supported_record_matches(cell, record)}
-    missing = sorted(owned - set(bound))
-    if missing:
-        errors.append(f"missing required owned records {missing}")
-    return errors
-
-
 def sync_supported_cells(
     records: dict[str, dict],
     only_cells: dict[tuple[str, str, str, str, str], list[str]] | None = None,
 ) -> int:
-    # Collection refreshes measurements, not public-route ownership. New bindings
-    # require explicit --only-cell authorization and estimator compatibility.
-    cells = load_toml(SUPPORTED).get("cell", [])
-    text = read_text(SUPPORTED)
-    blocks = text.split("[[cell]]")
-    out = [blocks[0]]
-    changed = 0
+    """Validate the supported cells' scientific calibration ownership; write nothing.
+
+    A cell's records are the ones whose test executed it (`parity/unit_index.json`), so a
+    cell binds no list. `--only-cell` names cells and the records they must own."""
     seen: set[tuple[str, str, str, str, str]] = set()
-    for block, cell in zip(blocks[1:], cells, strict=True):
+    for cell in load_toml(SUPPORTED).get("cell", []):
         cell_key = (
             cell["query"],
             cell["graph_class"],
@@ -1488,69 +1451,20 @@ def sync_supported_cells(
             cell["validation"],
         )
         if only_cells is not None and cell_key not in only_cells:
-            out.append(block)
             continue
         seen.add(cell_key)
-        evidence_errors = calibration_estimator_evidence_problems(cell)
-        if evidence_errors:
-            raise SystemExit(
-                f"supported cell {cell_key}: invalid scientific ownership: {evidence_errors}"
-            )
-        if only_cells is None:
-            ids = list(cell.get("calibration", []))
-            missing = [rid for rid in ids if rid not in records]
-            if missing:
-                raise SystemExit(
-                    f"supported cell {cell_key}: bound calibration records absent: {missing}"
-                )
-            incompatible = [rid for rid in ids if not supported_record_matches(cell, records[rid])]
-            if incompatible:
-                raise SystemExit(
-                    f"supported cell {cell_key}: bound records not owned by the supported cell: {incompatible}"
-                )
-            if not ids:
-                # A not_measured cell must not acquire a claim from an unrelated
-                # new estimator sharing broad support axes.
-                out.append(block)
-                continue
-        else:
-            ids = sorted(only_cells[cell_key])
-            for rid in ids:
-                rec = records.get(rid)
-                if rec is None or (
-                    rec["query"],
-                    rec["graph_class"],
-                    rec["inference"],
-                    rec["structure"],
-                ) != (
-                    cell["query"],
-                    cell["graph_class"],
-                    cell["inference"],
-                    supported_record_structure(cell, rec),
-                ):
-                    raise SystemExit(f"--only-cell {cell_key}: incompatible or absent record {rid}")
-                if not supported_record_matches(cell, rec):
-                    raise SystemExit(
-                        f"--only-cell {cell_key}: record {rid} estimator {rec.get('estimator')!r} "
-                        "is not owned by the supported cell"
-                    )
-        # A point-only cell states `no_interval_reported` itself and keeps it: the
-        # runtime publishes no interval there, so there is nothing to measure.
-        # A cell that states `estimator_grid_not_measured` reports an interval with no
-        # record yet (a temporal or posterior twin of a point-only query); the query
-        # family does not make it point only.
-        point_only = cell.get("calibration_reason") == "no_interval_reported" or (
-            cell["query"] in NO_INTERVAL_QUERIES
-            and cell.get("calibration_reason") != "estimator_grid_not_measured"
-        )
-        reason = "no_interval_reported" if not ids and point_only else "estimator_grid_not_measured"
-        new_block = replace_pair(block, ids, reason, all_boundary_at_reported_level(ids, records))
-        changed += int(new_block != block)
-        out.append(new_block)
+        errors = calibration_estimator_evidence_problems(cell)
+        if "calibration" in cell:
+            errors.append("binds a calibration list; records attach by execution")
+        for rid in (only_cells or {}).get(cell_key, []):
+            rec = records.get(rid)
+            if rec is None or not supported_record_matches(cell, rec):
+                errors.append(f"record {rid} is absent or not owned by the cell")
+        if errors:
+            raise SystemExit(f"supported cell {cell_key}: {errors}")
     if only_cells is not None and seen != only_cells.keys():
         raise SystemExit(f"unknown --only-cell coordinates: {sorted(only_cells.keys() - seen)}")
-    write_text(SUPPORTED, "[[cell]]".join(out))
-    return changed
+    return 0
 
 
 def sync_estimator_rows(records: dict[str, dict]) -> int:
@@ -1811,10 +1725,8 @@ def main() -> int:
     write_registry(records)
     print(f"wrote {len(records)} records to {OUT.relative_to(ROOT)} at {sha}")
     if args.append_attested:
-        cells = sync_supported_cells(records, only_cells)
-        print(
-            f"appended {len(records) - len(existing)} records; synced {cells} selected supported cells"
-        )
+        sync_supported_cells(records, only_cells)
+        print(f"appended {len(records) - len(existing)} records; validated the selected supported cells")
         subprocess.run([sys.executable, str(GENERATOR)], cwd=ROOT, check=True)
         return 0
     previous = (
@@ -1828,9 +1740,9 @@ def main() -> int:
     )
     print(f"wrote the record-less group ledger to {GATES.relative_to(ROOT)}")
     if not args.no_cells:
-        cells = sync_supported_cells(records)
+        sync_supported_cells(records)
         rows = sync_estimator_rows(records)
-        print(f"rewrote the calibration pair on {cells} supported cells and {rows} estimator rows")
+        print(f"validated the supported cells; rewrote the calibration pair on {rows} estimator rows")
     if args.defer_generated:
         print("deferred generated support assets; evidence registries are preserved")
     else:

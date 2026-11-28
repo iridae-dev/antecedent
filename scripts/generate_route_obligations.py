@@ -25,6 +25,7 @@ from _repo import ensure_scripts_on_path, load_toml
 
 ensure_scripts_on_path()
 import gate_recipe_obligations as gate  # noqa: E402
+from gate_support import cell_ident  # noqa: E402
 
 OUTPUT = "parity/route_obligations.toml"
 MATRIX = "crates/antecedent/data/support_matrix.json"
@@ -58,8 +59,15 @@ def load_sources(root: Path = ROOT) -> dict:
     def toml(rel: str) -> dict:
         return load_toml(root / rel)
 
+    import unit_index
+
     axes = toml("parity/support_axes.toml")
     return {
+        "linked": unit_index.matrix_records(root),
+        "boundary": {
+            str(r["id"]) for r in toml("parity/coverage_records.toml").get("record", [])
+            if r.get("boundary")
+        },
         "supported": toml("parity/support_cells.toml").get("cell", []),
         "closed": toml("parity/support_refusal_reasons.toml").get("closed", []),
         "na": toml("parity/support_n_a.toml").get("n_a", []),
@@ -74,15 +82,22 @@ def load_sources(root: Path = ROOT) -> dict:
     }
 
 
-def supported_row(cell: dict, matrix_cell: dict | None) -> dict:
+def uncertainty(cell: dict, records: list[str], boundary: set[str]) -> str:
+    if cell.get("calibration_reason") == "no_interval_reported":
+        return "no_interval_reported"
+    if not records:
+        return "not_measured"
+    return "boundary_record" if boundary.intersection(records) else "coverage_records"
+
+
+def supported_row(cell: dict, matrix_cell: dict | None, records: list[str] = (),
+                  boundary: set[str] = frozenset()) -> dict:
     key = gate.coordinate(cell)
     citations = [
         f"{e['estimator']} = {e['test']}::{e['assertion']}"
         for e in cell.get("checked_execution") or []
         if isinstance(e, dict)
     ]
-    records = list(cell.get("calibration") or [])
-    reason = cell.get("calibration_reason") or ""
     reach = [cell.get("evidence_test") or ""]
     reach += [e["test"] for e in cell.get("checked_execution") or [] if isinstance(e, dict)]
     fixture = cell.get("known_truth_fixture") or ""
@@ -103,15 +118,19 @@ def supported_row(cell: dict, matrix_cell: dict | None) -> dict:
                 fixture,
             ]
         ),
-        "uncertainty": reason or ("coverage_records" if records else ""),
+        "uncertainty": uncertainty(cell, list(records), boundary),
         "evidence_reachability": sorted(set(reach)) + ([fixture] if fixture else []),
     }
 
 
 def build(sources: dict) -> list[dict]:
     matrix = {gate.coordinate(c): c for c in sources["matrix"].get("supported") or []}
-    rows = [supported_row(c, matrix.get(gate.coordinate(c))) for c in sources["supported"]]
-    return rows
+    linked = sources.get("linked", {})
+    boundary = sources.get("boundary", set())
+    return [
+        supported_row(c, matrix.get(gate.coordinate(c)), linked.get(cell_ident(c), []), boundary)
+        for c in sources["supported"]
+    ]
 
 
 def fields_of(row: dict) -> tuple[str, ...]:

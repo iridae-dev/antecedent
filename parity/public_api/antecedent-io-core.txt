@@ -507,6 +507,7 @@ impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::MultiA
 impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
+impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision
 impl core::clone::Clone for antecedent_io_core::analysis_wire::HedgeProblemWire
 impl core::clone::Clone for antecedent_io_core::analysis_wire::OriginalRefutationScopeWire
 impl core::clone::Clone for antecedent_io_core::analysis_wire::RefutationScopeWire
@@ -1240,6 +1241,7 @@ impl core::cmp::Eq for antecedent_io_core::adaptive_monitoring_contract_artifact
 impl core::cmp::Eq for antecedent_io_core::adaptive_monitoring_contract_artifact::ReadingWire
 impl core::cmp::Eq for antecedent_io_core::adaptive_monitoring_contract_artifact::RuleWire
 impl core::cmp::Eq for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
+impl core::cmp::Eq for antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision
 impl core::cmp::Eq for antecedent_io_core::analysis_wire::HedgeProblemWire
 impl core::cmp::Eq for antecedent_io_core::analysis_wire::OriginalRefutationScopeWire
 impl core::cmp::Eq for antecedent_io_core::analysis_wire::RefutationScopeWire
@@ -1896,6 +1898,7 @@ impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::Mult
 impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
+impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision
 impl core::cmp::PartialEq for antecedent_io_core::analysis_wire::HedgeProblemWire
 impl core::cmp::PartialEq for antecedent_io_core::analysis_wire::OriginalRefutationScopeWire
 impl core::cmp::PartialEq for antecedent_io_core::analysis_wire::RefutationScopeWire
@@ -2936,6 +2939,7 @@ impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::MultiAct
 impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
+impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision
 impl core::fmt::Debug for antecedent_io_core::analysis_wire::HedgeProblemWire
 impl core::fmt::Debug for antecedent_io_core::analysis_wire::OriginalRefutationScopeWire
 impl core::fmt::Debug for antecedent_io_core::analysis_wire::RefutationScopeWire
@@ -4061,6 +4065,7 @@ impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::Mult
 impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
+impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_wire::OriginalRefutationScopeWire [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
@@ -4977,6 +4982,7 @@ impl core::marker::Send for antecedent_io_core::analysis_result_artifact::MultiA
 impl core::marker::Send for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::marker::Send for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Send for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
+impl core::marker::Send for antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision [auto]
 impl core::marker::Send for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
 impl core::marker::Send for antecedent_io_core::analysis_wire::OriginalRefutationScopeWire [auto]
 impl core::marker::Send for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
@@ -5888,6 +5894,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_a
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_wire::HedgeProblemWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_wire::OriginalRefutationScopeWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_wire::RefutationScopeWire
@@ -6739,6 +6746,7 @@ impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::MultiA
 impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
+impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_wire::OriginalRefutationScopeWire [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
@@ -7662,6 +7670,7 @@ impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::Multi
 impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
+impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_wire::OriginalRefutationScopeWire [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
@@ -8586,6 +8595,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_re
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_wire::OriginalRefutationScopeWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
@@ -9508,6 +9518,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_resul
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::ObservedWindowWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_wire::OriginalRefutationScopeWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
@@ -10767,6 +10778,7 @@ impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io_core::container
 impl<'a> core::clone::Clone for antecedent_io_core::ScoreTableKey<'a>
 impl<'a> core::clone::Clone for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a>
 impl<'a> core::clone::Clone for antecedent_io_core::capacity_account::ResidentWeightedRows<'a>
+impl<'a> core::clone::Clone for antecedent_io_core::compiled_study::StudyParts<'a>
 impl<'a> core::clone::Clone for antecedent_io_core::container::StreamWork<'a>
 impl<'a> core::clone::Clone for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::clone::Clone for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
@@ -10782,6 +10794,7 @@ impl<'a> core::fmt::Debug for antecedent_io_core::feature_version::RequestedVers
 impl<'a> core::fmt::Debug for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::ScoreTableKey<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a>
+impl<'a> core::marker::Copy for antecedent_io_core::compiled_study::StudyParts<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::container::StreamWork<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
@@ -11633,7 +11646,6 @@ pub const antecedent_io_core::OBSERVATION_QUERY_JOINT_MEASURED_FEATURE: &str
 pub const antecedent_io_core::OBSERVATION_QUERY_JOINT_MEASURED_VERSION: u32
 pub const antecedent_io_core::OVERLAP_LIMITED_DIAGNOSTIC: &str
 pub const antecedent_io_core::PARAMETER_DRAWS_READING: &str
-pub const antecedent_io_core::POSTERIOR_ROW_CALIBRATION: &str
 pub const antecedent_io_core::POSTERIOR_ROW_UNCERTAINTY: &str
 pub const antecedent_io_core::PRIOR_SOURCE_META_SECTION: &str
 pub const antecedent_io_core::PROPAGATION_CHAIN_FEATURE: &str
@@ -11916,6 +11928,7 @@ pub const antecedent_io_core::transported_counterfactual_artifact::MAX_TRANSPORT
 pub const antecedent_io_core::transported_counterfactual_artifact::TRANSPORTED_COUNTERFACTUAL_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::transported_counterfactual_artifact::TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION: u16
 pub const antecedent_io_core::transported_counterfactual_artifact::TRANSPORTED_COUNTERFACTUAL_INFERENCE_CLAIM: &str
+pub const antecedent_io_core::unit_calibration::NOT_MEASURED: &str
 pub const fn antecedent_io_core::artifact_codec::search_bounds(stored_operations: usize, stored_depth: usize, limit: antecedent_core::search::SearchLimits) -> core::option::Option<&'static str>
 pub const fn antecedent_io_core::artifact_codec::stored_law_bounds(stored_support_rows: usize, max_support_rows: usize, law_count: usize, max_laws: usize) -> core::option::Option<&'static str>
 pub const fn antecedent_io_core::container::stream_decoder_workspace_bytes() -> u64
@@ -13289,6 +13302,7 @@ pub field antecedent_io_core::RandomizedEffectQueryWire::second_factor_arms: cor
 pub field antecedent_io_core::RandomizedEffectQueryWire::second_factor_assignment: alloc::vec::Vec<bool>
 pub field antecedent_io_core::RandomizedEffectQueryWire::treated_per_row: alloc::vec::Vec<usize>
 pub field antecedent_io_core::RandomizedEffectQueryWire::treatment_arms: (alloc::string::String, alloc::string::String)
+pub field antecedent_io_core::RandomizedEffectWire::adjustment_coefficient: core::option::Option<f64>
 pub field antecedent_io_core::RandomizedEffectWire::assignment_design: alloc::string::String
 pub field antecedent_io_core::RandomizedEffectWire::assignment_units: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io_core::RandomizedEffectWire::blocks: alloc::vec::Vec<alloc::string::String>
@@ -13878,6 +13892,11 @@ pub field antecedent_io_core::analysis_result_artifact::rollout_support::DidRoll
 pub field antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec::nuisance: &'a str
 pub field antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec::scheme: core::option::Option<&'a str>
 pub field antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec::two_period: bool
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision::admitted: bool
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision::design: &'static str
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision::family: &'static str
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision::inference_claim: &'static str
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision::method: alloc::string::String
 pub field antecedent_io_core::analysis_wire::HedgeProblemWire::bidirected: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io_core::analysis_wire::HedgeProblemWire::directed: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io_core::analysis_wire::HedgeProblemWire::outcomes: alloc::vec::Vec<u32>
@@ -17102,9 +17121,12 @@ pub fn antecedent_io_core::analysis_result_artifact::encode_analysis_result_arti
 pub fn antecedent_io_core::analysis_result_artifact::encode_analysis_result_artifact_with_provenance(result: &antecedent_io_core::AnalysisResultWire, variable_names: alloc::vec::Vec<alloc::string::String>, artifact_id: &str, contract: core::option::Option<&antecedent_io_core::AnalysisResultContractWire>, source: core::option::Option<&antecedent_io_core::SourceWitnessWire>, provenance: core::option::Option<&antecedent_io_core::MethodProvenanceWire>) -> core::result::Result<antecedent_io_core::EncodedArtifact, antecedent_io_core::IoError>
 pub fn antecedent_io_core::analysis_result_artifact::identified_set_interval_from_wire(wire: &antecedent_io_core::IdentifiedSetIntervalWire) -> core::result::Result<antecedent_stats::identified_set::IdentifiedSetInterval, antecedent_io_core::IoError>
 pub fn antecedent_io_core::analysis_result_artifact::identified_set_interval_to_wire(interval: &antecedent_stats::identified_set::IdentifiedSetInterval) -> core::result::Result<antecedent_io_core::IdentifiedSetIntervalWire, antecedent_io_core::IoError>
+pub fn antecedent_io_core::analysis_result_artifact::posterior_row_calibration(estimator: &str) -> &'static str
 pub fn antecedent_io_core::analysis_result_artifact::rederive_rollout_summary(wire: &antecedent_io_core::analysis_result_artifact::QuasiRolloutWire) -> core::option::Option<f64>
+pub fn antecedent_io_core::analysis_result_artifact::rollout_support::did_rollout_row(spec: antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'_>, section: &antecedent_io_core::analysis_result_artifact::QuasiRolloutWire) -> core::option::Option<antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision>
 pub fn antecedent_io_core::analysis_result_artifact::rollout_support::did_rollout_row_admits(spec: antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'_>, section: &antecedent_io_core::analysis_result_artifact::QuasiRolloutWire) -> bool
 pub fn antecedent_io_core::analysis_result_artifact::rollout_support::local_design_row_admits(selected_bandwidth: bool, section: &antecedent_io_core::analysis_result_artifact::QuasiRolloutWire) -> bool
+pub fn antecedent_io_core::analysis_result_artifact::rollout_support::synthetic_rollout_row(section: &antecedent_io_core::analysis_result_artifact::QuasiRolloutWire) -> core::option::Option<antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision>
 pub fn antecedent_io_core::analysis_result_artifact::rollout_support::synthetic_rollout_row_admits(section: &antecedent_io_core::analysis_result_artifact::QuasiRolloutWire) -> bool
 pub fn antecedent_io_core::analysis_result_artifact::stated_section_rows::section_row_stated(result: &antecedent_io_core::AnalysisResultWire, code: &str) -> bool
 pub fn antecedent_io_core::analysis_wire::diagnostic_from_wire(w: &antecedent_io_core::DiagnosticWire) -> core::result::Result<antecedent_core::diagnostic::Diagnostic, antecedent_io_core::IoError>
@@ -17381,6 +17403,7 @@ pub fn antecedent_io_core::graphless_support::design_posterior_row_statement(key
 pub fn antecedent_io_core::graphless_support::estimated_cuped_fields(covariate: u32) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn antecedent_io_core::graphless_support::graphless_admits(key: antecedent_io_core::graphless_support::GraphlessSupportKey<'_>, observed: antecedent_io_core::graphless_support::GraphlessAssignmentSupport) -> bool
 pub fn antecedent_io_core::graphless_support::graphless_admits_resampled(key: antecedent_io_core::graphless_support::GraphlessSupportKey<'_>, observed: antecedent_io_core::graphless_support::GraphlessAssignmentSupport, resampled: antecedent_io_core::graphless_support::GraphlessResampleSupport) -> bool
+pub fn antecedent_io_core::graphless_support::graphless_missing_evidence(key: antecedent_io_core::graphless_support::GraphlessSupportKey<'_>) -> &'static [&'static str]
 pub fn antecedent_io_core::identification_digest(wire: &antecedent_io_core::IdentificationIdentityWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
 pub fn antecedent_io_core::identification_product_digest(result: &antecedent_identify::result::IdentificationResult, search_capped: bool) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
 pub fn antecedent_io_core::identification_product_digest_wire(wire: &antecedent_io_core::IdentificationProductWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
@@ -17505,6 +17528,8 @@ pub fn antecedent_io_core::transport_certificate::read_bounded_transport_artifac
 pub fn antecedent_io_core::transport_certificate::structural_reasoning(outcome: &antecedent_io_core::transport_certificate::CertificateOutcome) -> antecedent_io_core::ReasoningSectionWire
 pub fn antecedent_io_core::transport_identification_from_wire(value: &antecedent_io_core::TransportIdentificationWire) -> core::result::Result<antecedent_identify::transport::TransportIdentification, antecedent_io_core::IoError>
 pub fn antecedent_io_core::transport_identification_to_wire(value: &antecedent_identify::transport::TransportIdentification) -> antecedent_io_core::TransportIdentificationWire
+pub fn antecedent_io_core::unit_calibration::capability(id: &str) -> &'static str
+pub fn antecedent_io_core::unit_calibration::unit(kind: &str, id: &str) -> &'static str
 pub mod antecedent_io_core::adaptive_monitoring_contract_artifact
 pub mod antecedent_io_core::admitted_json
 pub mod antecedent_io_core::analysis_result_artifact
@@ -17619,6 +17644,7 @@ pub mod antecedent_io_core::transport_proof
 pub mod antecedent_io_core::transport_query_wire
 pub mod antecedent_io_core::transport_revalidation_artifact
 pub mod antecedent_io_core::transported_counterfactual_artifact
+pub mod antecedent_io_core::unit_calibration
 pub mod antecedent_io_core::wire
 pub static antecedent_io_core::coverage_records_data::ATTESTING_RECORD_IDS: antecedent_io_core::coverage_records_data::StaticTable<&str>
 pub static antecedent_io_core::coverage_records_data::INTERVAL_METHOD_REASONS: antecedent_io_core::coverage_records_data::StaticTable<(antecedent_core::interval::IntervalMethod, core::option::Option<&'static str>)>
@@ -17912,6 +17938,7 @@ pub struct antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 pub struct antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 pub struct antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 pub struct antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a>
+pub struct antecedent_io_core::analysis_result_artifact::rollout_support::RolloutRowDecision
 pub struct antecedent_io_core::analysis_wire::BorrowedIdentificationWire has private fields
 pub struct antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a>
 pub struct antecedent_io_core::analysis_wire::HedgeProblemWire
@@ -18468,7 +18495,6 @@ pub use antecedent_io_core::analysis_result_artifact::LocalPolynomialRatioWire =
 pub use antecedent_io_core::analysis_result_artifact::LongitudinalRegimeWire = antecedent_io_core::LongitudinalRegimeWire
 pub use antecedent_io_core::analysis_result_artifact::MediationPosteriorSummaryWire = antecedent_io_core::MediationPosteriorSummaryWire
 pub use antecedent_io_core::analysis_result_artifact::OutcomeContrastWire = antecedent_io_core::OutcomeContrastWire
-pub use antecedent_io_core::analysis_result_artifact::POSTERIOR_ROW_CALIBRATION = antecedent_io_core::POSTERIOR_ROW_CALIBRATION
 pub use antecedent_io_core::analysis_result_artifact::POSTERIOR_ROW_UNCERTAINTY = antecedent_io_core::POSTERIOR_ROW_UNCERTAINTY
 pub use antecedent_io_core::analysis_result_artifact::PanelDidWire = antecedent_io_core::PanelDidWire
 pub use antecedent_io_core::analysis_result_artifact::PolicyValueWire = antecedent_io_core::PolicyValueWire
@@ -18895,6 +18921,7 @@ pub use antecedent_io_core::posterior::decode_posterior_meta_from_path_expecting
 pub use antecedent_io_core::posterior::decode_posterior_meta_from_seek = antecedent_io_core::decode_posterior_meta_from_seek
 pub use antecedent_io_core::posterior::decode_posterior_meta_from_seek_expecting = antecedent_io_core::decode_posterior_meta_from_seek_expecting
 pub use antecedent_io_core::posterior::encode_posterior_artifact = antecedent_io_core::encode_posterior_artifact
+pub use antecedent_io_core::posterior_row_calibration = antecedent_io_core::analysis_result_artifact::posterior_row_calibration
 pub use antecedent_io_core::prior_bank::CompatibilityRejectReason = antecedent_io_core::CompatibilityRejectReason
 pub use antecedent_io_core::prior_bank::CompatibilityReport = antecedent_io_core::CompatibilityReport
 pub use antecedent_io_core::prior_bank::DesignVariableRole = antecedent_io_core::DesignVariableRole
@@ -19966,9 +19993,9 @@ pub variant antecedent_io_core::bridge_image_artifact::BridgeImageRequest::Joint
 pub variant antecedent_io_core::bridge_image_artifact::BridgeImageRequest::TrialConfidence(alloc::boxed::Box<antecedent_io_core::bridge_trial_interval::TrialBridgeExperiment>)
 pub variant antecedent_io_core::bridge_image_artifact::BridgeImageResult::IdentifiedSet(antecedent_contract::bridge::identified_set::BridgedIdentifiedSet)
 pub variant antecedent_io_core::bridge_image_artifact::BridgeImageResult::IntervalThreshold(antecedent_io_core::bridge_image_artifact::BridgeIntervalDecision)
-pub variant antecedent_io_core::bridge_image_artifact::BridgeImageResult::JointOutcomes(antecedent_io_core::bridge_joint_outcomes::JointOutcomeImage)
-pub variant antecedent_io_core::bridge_image_artifact::BridgeImageResult::JointPosterior(antecedent_io_core::bridge_posterior_interval::PosteriorBridgeInterval)
-pub variant antecedent_io_core::bridge_image_artifact::BridgeImageResult::TrialConfidence(antecedent_io_core::bridge_trial_interval::TrialBridgeConfidenceInterval)
+pub variant antecedent_io_core::bridge_image_artifact::BridgeImageResult::JointOutcomes(alloc::boxed::Box<antecedent_io_core::bridge_joint_outcomes::JointOutcomeImage>)
+pub variant antecedent_io_core::bridge_image_artifact::BridgeImageResult::JointPosterior(alloc::boxed::Box<antecedent_io_core::bridge_posterior_interval::PosteriorBridgeInterval>)
+pub variant antecedent_io_core::bridge_image_artifact::BridgeImageResult::TrialConfidence(alloc::boxed::Box<antecedent_io_core::bridge_trial_interval::TrialBridgeConfidenceInterval>)
 pub variant antecedent_io_core::bridge_interval_decision::BridgeIntervalReading::PosteriorCredible
 pub variant antecedent_io_core::bridge_interval_decision::BridgeIntervalReading::SamplingConfidence
 pub variant antecedent_io_core::bridge_interval_decision::BridgeIntervalReading::SamplingNominal

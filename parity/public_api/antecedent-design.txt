@@ -10569,12 +10569,10 @@ pub const antecedent_design::decision_transported_source::TRANSPORTED_RESPONSE_I
 pub const antecedent_design::decision_transported_source::TRANSPORTED_RESPONSE_VERSION: u16
 pub const antecedent_design::design_ranking_artifact::DESIGN_RANKING_ARTIFACT_KIND: &str
 pub const antecedent_design::design_ranking_artifact::DESIGN_RANKING_ARTIFACT_VERSION: u32
-pub const antecedent_design::design_ranking_artifact::DESIGN_RANKING_CALIBRATION: &str
 pub const antecedent_design::design_ranking_artifact::DESIGN_RANKING_CLAIM_LINK_ID: &str
 pub const antecedent_design::design_ranking_artifact::MAX_DESIGN_RANKING_ARTIFACT_BYTES: usize
 pub const antecedent_design::design_ranking_artifact::MAX_RANKING_CANDIDATES: usize
 pub const antecedent_design::evidence_plan::PLAN_BUDGET_STATEMENT: &str
-pub const antecedent_design::evidence_plan::PLAN_CALIBRATION: &str
 pub const antecedent_design::evidence_plan::PLAN_RANKING_GUARANTEE: &str
 pub const antecedent_design::evidence_plan::SUBSET_VALUE_NOTE: &str
 pub const antecedent_design::evidence_plan_artifact::EVIDENCE_PLAN_ARTIFACT_KIND: &str
@@ -10624,7 +10622,6 @@ pub const antecedent_design::planning::DECLARE_CONTROL_MEAN: antecedent_core::re
 pub const antecedent_design::planning::DECLARE_EXPOSURE_MODEL: antecedent_core::refusal::NextAttempt
 pub const antecedent_design::planning::DECLARE_WASHOUT: antecedent_core::refusal::NextAttempt
 pub const antecedent_design::planning::MAX_SIMULATION_REPLICATES: u32
-pub const antecedent_design::planning::PLANNING_CALIBRATION: &str
 pub const antecedent_design::planning::PLANNING_NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 8]
 pub const antecedent_design::planning::PRESPECIFY_STOPPING_RULE: antecedent_core::refusal::NextAttempt
 pub const antecedent_design::planning::RELAX_TARGET: antecedent_core::refusal::NextAttempt
@@ -13885,10 +13882,10 @@ pub fn <antecedent_design::DurableStudyCandidate>::fn proposed_regimes(&self, fi
 pub fn <antecedent_design::DurableStudyCandidate>::fn semantic_id(&self) -> alloc::sync::Arc<str>
 pub fn <antecedent_design::DurableStudyCandidate>::fn semantic_id_v1(&self) -> alloc::sync::Arc<str>
 pub fn <antecedent_design::DurableStudyCandidate>::fn validate(&self) -> core::result::Result<(), antecedent_design::StudyCandidateError>
-pub fn <antecedent_design::EvidencePlan>::const fn calibration(&self) -> &'static str
 pub fn <antecedent_design::EvidencePlan>::const fn ranking_guarantee(&self) -> &'static str
 pub fn <antecedent_design::EvidencePlan>::fn accepts_identity(&self, stored: &str) -> bool
 pub fn <antecedent_design::EvidencePlan>::fn build(inputs: antecedent_design::PlanInputs<'_>, unverified: alloc::vec::Vec<antecedent_design::UnverifiedRoute>) -> core::result::Result<Self, antecedent_design::EvidencePlanError>
+pub fn <antecedent_design::EvidencePlan>::fn calibration(&self) -> &'static str
 pub fn <antecedent_design::EvidencePlan>::fn closing(&self) -> impl core::iter::traits::iterator::Iterator<Item = &antecedent_design::PlanOption>
 pub fn <antecedent_design::EvidencePlan>::fn identity(&self) -> alloc::string::String
 pub fn <antecedent_design::EvidencePlan>::fn identity_v1(&self) -> alloc::string::String
@@ -14799,6 +14796,7 @@ pub fn antecedent_design::candidate_generation::verified_unlocks(report: &antece
 pub fn antecedent_design::choice_evsi::rank_hierarchical_studies(prior: &antecedent_stats::adaptive_inference::hierarchical_choice::HierarchicalChoicePrior, respondents: &[alloc::vec::Vec<u32>], values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent_design::choice_evsi::ChoiceEvsiError>
 pub fn antecedent_design::choice_evsi::rank_studies(alpha: &[f64], values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], seed: u64) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent_design::choice_evsi::ChoiceEvsiError>
 pub fn antecedent_design::choice_evsi::rank_studies_with_context(alpha: &[f64], values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent_design::choice_evsi::ChoiceEvsiError>
+pub fn antecedent_design::choice_evsi::study_rank_calibration() -> &'static str
 pub fn antecedent_design::choice_record::choice_features(model: &antecedent_design::preference_model::ValueModel, records: &antecedent_design::choice_record::ChoiceRecordSet) -> core::result::Result<antecedent_design::choice_record::ChoiceFeatures, antecedent_design::choice_record::ChoiceRecordError>
 pub fn antecedent_design::choice_record::choice_features_at(model: &antecedent_design::preference_model::ValueModel, records: &antecedent_design::choice_record::ChoiceRecordSet, parameters: &[f64]) -> core::result::Result<antecedent_design::choice_record::ChoiceFeatures, antecedent_design::choice_record::ChoiceRecordError>
 pub fn antecedent_design::cohort_decision_input::cohort_decision_input(id: &str, source: &antecedent_io_core::cohort_decision::CohortDecisionSource, requirement: antecedent_design::composition_boundary::TrustRequirement) -> core::result::Result<antecedent_design::composition_boundary::DecisionInput, antecedent_design::composition_boundary::BoundaryError>
@@ -14903,8 +14901,10 @@ pub fn antecedent_design::design_ranking_artifact::consume_wire_with_limits(wire
 pub fn antecedent_design::design_ranking_artifact::consume_wire_with_receipts(wire: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire, expectation: &antecedent_design::design_ranking_artifact::ConsumeExpectation, verified_candidates: &alloc::collections::btree::set::BTreeSet<alloc::string::String>) -> core::result::Result<antecedent_design::design_ranking_artifact::ConsumedDesignRanking, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 pub fn antecedent_design::design_ranking_artifact::consume_with_limits(bytes: &[u8], expectation: &antecedent_design::design_ranking_artifact::ConsumeExpectation, limits: &antecedent_design::design_ranking_artifact::DesignRankingReadLimits) -> core::result::Result<antecedent_design::design_ranking_artifact::ConsumedDesignRanking, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 pub fn antecedent_design::design_ranking_artifact::consume_with_limits_expecting(bytes: &[u8], expectation: &antecedent_design::design_ranking_artifact::ConsumeExpectation, limits: &antecedent_design::design_ranking_artifact::DesignRankingReadLimits, retained: &antecedent_io_core::retained_artifact::RetainedArtifactIdentity) -> core::result::Result<antecedent_design::design_ranking_artifact::ConsumedDesignRanking, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
+pub fn antecedent_design::design_ranking_artifact::design_ranking_calibration() -> &'static str
 pub fn antecedent_design::design_ranking_artifact::seal<A: core::clone::Clone>(inputs: &antecedent_design::design_ranking_artifact::SealInputs<'_, A>) -> core::result::Result<antecedent_design::design_ranking_artifact::DesignRankingArtifactWire, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 pub fn antecedent_design::design_ranking_artifact::seal_with_context<A: core::clone::Clone>(inputs: &antecedent_design::design_ranking_artifact::SealInputs<'_, A>, evaluation: &antecedent_design::evsi::EvaluatedEvsi, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::design_ranking_artifact::DesignRankingArtifactWire, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
+pub fn antecedent_design::evidence_plan::plan_calibration() -> &'static str
 pub fn antecedent_design::evsi::evaluate_evsi<A: core::clone::Clone + core::marker::Sync>(problem: &antecedent_design::DecisionProblem<A, f64>, prior: &antecedent_design::DecisionPrior<f64>, request: &antecedent_design::evsi::EvsiRequest, cancellation: &antecedent_core::execution::cancel::CancellationToken) -> core::result::Result<antecedent_design::evsi::EvsiReport, antecedent_design::evsi::EvsiError>
 pub fn antecedent_design::evsi::evaluate_evsi_with_context<A: core::clone::Clone + core::marker::Sync>(problem: &antecedent_design::DecisionProblem<A, f64>, prior: &antecedent_design::DecisionPrior<f64>, request: &antecedent_design::evsi::EvsiRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::evsi::EvaluatedEvsi, antecedent_design::evsi::EvsiError>
 pub fn antecedent_design::evsi::evaluate_evsi_with_evidence<A: core::clone::Clone + core::marker::Sync>(problem: &antecedent_design::DecisionProblem<A, f64>, prior: &antecedent_design::DecisionPrior<f64>, request: &antecedent_design::evsi::EvsiRequest, evidence: &antecedent_design::evsi::EvsiEvidence<'_>, cancellation: &antecedent_core::execution::cancel::CancellationToken) -> core::result::Result<antecedent_design::evsi::EvsiReport, antecedent_design::evsi::EvsiError>
@@ -14945,6 +14945,7 @@ pub fn antecedent_design::plan_studies(graph: &antecedent_graph::admg::Admg, rou
 pub fn antecedent_design::plan_z_transport_evidence(snapshot: &alloc::sync::Arc<antecedent_design::ZTransportFailureSnapshot>, spec: &antecedent_design::ZTransportPlanSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::ZTransportPlanResult, antecedent_design::ZTransportPlanningError>
 pub fn antecedent_design::planning::allocate(total: u64, weights: &[f64]) -> alloc::vec::Vec<u64>
 pub fn antecedent_design::planning::plan_analytic(request: &antecedent_design::planning::PlanningRequest) -> core::result::Result<antecedent_design::planning::PlanningResult, antecedent_design::planning::PlanningRefusal>
+pub fn antecedent_design::planning::planning_calibration() -> &'static str
 pub fn antecedent_design::planning::try_allocate(total: u64, weights: &[f64]) -> core::result::Result<alloc::vec::Vec<u64>, antecedent_design::planning::PlanningRefusal>
 pub fn antecedent_design::preference_certified::evaluate_preference_certified(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent_io_core::distribution_artifact::DistributionArtifact, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_certified::CertifiedOptions) -> core::result::Result<antecedent_design::preference_certified::CertifiedPreferenceResult, antecedent_design::preference_certified::PreferenceCertifiedError>
 pub fn antecedent_design::preference_certified::evaluate_preference_certified_structural(contract: &antecedent_design::preference_contract::PreferenceContract, atoms: &[antecedent_design::decision_structural::StructuralAtom], measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_certified::CertifiedOptions) -> core::result::Result<antecedent_design::preference_certified::StructuralCertifiedResult, antecedent_design::preference_certified::PreferenceCertifiedError>
@@ -16439,7 +16440,7 @@ pub variant antecedent_design::adaptive_policy_search::StandingRequest::FittedMo
 pub variant antecedent_design::adaptive_policy_search::StandingRequest::IdentifiedPolicyEffect
 pub variant antecedent_design::adaptive_trial_transport::TrialMechanism::OutcomeGivenStratumAndArm
 pub variant antecedent_design::adaptive_trial_transport::TrialMechanism::StratumLaw
-pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Budget { receipt: antecedent_core::search::SearchReceipt, summary: alloc::string::String }
+pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Budget { receipt: alloc::boxed::Box<antecedent_core::search::SearchReceipt>, summary: alloc::string::String }
 pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Cancelled
 pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Invalid(alloc::string::String)
 pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Resource(alloc::string::String)
@@ -17221,7 +17222,7 @@ pub variant antecedent_design::preference_artifact::PreferenceArtifactError::Con
 pub variant antecedent_design::preference_artifact::PreferenceArtifactError::Contract(antecedent_design::preference_contract::PreferenceContractError)
 pub variant antecedent_design::preference_artifact::PreferenceArtifactError::ContractExpected
 pub variant antecedent_design::preference_artifact::PreferenceArtifactError::Encode(antecedent_io_core::error::IoError)
-pub variant antecedent_design::preference_artifact::PreferenceArtifactError::Evaluation(antecedent_design::preference_evaluation::PreferenceEvaluationError)
+pub variant antecedent_design::preference_artifact::PreferenceArtifactError::Evaluation(alloc::boxed::Box<antecedent_design::preference_evaluation::PreferenceEvaluationError>)
 pub variant antecedent_design::preference_artifact::PreferenceArtifactError::IdentityExpected
 pub variant antecedent_design::preference_artifact::PreferenceArtifactError::Malformed { what: alloc::string::String }
 pub variant antecedent_design::preference_artifact::PreferenceArtifactError::ReplayMismatch { field: &'static str }
@@ -17276,6 +17277,7 @@ pub variant antecedent_design::preference_choice_model::ChoiceModelError::Cancel
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::ConsistencyNotPositive { decider: core::option::Option<alloc::string::String>, consistency: f64 }
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::CovarianceNotPositiveDefinite { decider: core::option::Option<alloc::string::String>, kind: antecedent_design::preference_choice_model::CovarianceKind }
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::DrawsMissing
+pub variant antecedent_design::preference_choice_model::ChoiceModelError::ExecutionBudget { receipt: alloc::boxed::Box<antecedent_core::search::SearchReceipt> }
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::Fit { decider: core::option::Option<alloc::string::String>, error: antecedent_stats::glm::conditional_logit::ConditionalLogitError }
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::FitOptionsInvalid
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::LevelInvalid { level: f64 }
@@ -17497,7 +17499,7 @@ pub variant antecedent_design::program_search::OperationalReason::Restriction(al
 pub variant antecedent_design::program_search::ProgramFeasibility::Feasible
 pub variant antecedent_design::program_search::ProgramFeasibility::Operational(antecedent_design::program_search::OperationalReason)
 pub variant antecedent_design::program_search::ProgramFeasibility::Risk(alloc::vec::Vec<alloc::string::String>)
-pub variant antecedent_design::program_search::ProgramSearchError::Budget { receipt: antecedent_core::search::SearchReceipt, summary: alloc::string::String }
+pub variant antecedent_design::program_search::ProgramSearchError::Budget { receipt: alloc::boxed::Box<antecedent_core::search::SearchReceipt>, summary: alloc::string::String }
 pub variant antecedent_design::program_search::ProgramSearchError::Cancelled
 pub variant antecedent_design::program_search::ProgramSearchError::Invalid(alloc::string::String)
 pub variant antecedent_design::program_search::ProgramSearchError::Resource(alloc::string::String)

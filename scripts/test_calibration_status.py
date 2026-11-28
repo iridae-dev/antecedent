@@ -6,7 +6,6 @@ from __future__ import annotations
 import io
 import json
 import sys
-import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -117,7 +116,6 @@ class CommandTests(unittest.TestCase):
         with (
             patch.object(status, "load_records", return_value=records),
             patch.object(status, "interval_routes", return_value=list(routes)),
-            patch.object(status, "load_route_map", return_value={}),
             patch.object(status, "load_attestations", return_value=[]),
             patch.object(status, "ledger_rows", return_value=[]),
             patch.object(status, "backlog_rows", return_value=[]),
@@ -140,31 +138,31 @@ class CommandTests(unittest.TestCase):
 
     def test_owed_lists_every_owed_record_and_route(self):
         routes = [
-            route_row("r", "mapped", NOT_MEASURED, groups=["g_file: filter"]),
+            route_row("r", "unlinked", NOT_MEASURED),
             route_row("r", "slot", NOT_MEASURED, slots=["cov.slot"]),
             route_row("r", "done", status.CALIBRATED),
         ]
         self.assertEqual(
             self.run_status("--owed", routes=routes)[1].split(),
-            ["b", "route:r/mapped", "cov.slot"],
+            ["b", "route:r/unlinked", "cov.slot"],
         )
 
     def test_the_summary_counts_the_owed_items_by_reason(self):
-        routes = [route_row("r", "mapped", NOT_MEASURED, groups=["g_file"])]
+        routes = [route_row("r", "unlinked", NOT_MEASURED)]
         text = self.run_status(routes=routes)[1]
         self.assertIn("flagged: 2 item(s): 1 no_record, 1 inputs_changed, 0 probe_mismatch", text)
         self.assertIn("(0 record(s) have no manifest)", text)
 
     def test_json_lists_the_owed_items_with_their_reasons(self):
-        routes = [route_row("r", "mapped", NOT_MEASURED, groups=["g_file: f"])]
+        routes = [route_row("r", "unlinked", NOT_MEASURED)]
         data = json.loads(self.run_status("--json", routes=routes)[1])
         self.assertEqual(data["owed_by_reason"], {"no_record": 1, "inputs_changed": 1, "probe_mismatch": 0,
                                                     "missing_gate": 0, "stale_gate": 0})
         self.assertEqual(
             [(i["id"], i["reason"]) for i in data["owed"]],
-            [("b", "inputs_changed"), ("route:r/mapped", "no_record")],
+            [("b", "inputs_changed"), ("route:r/unlinked", "no_record")],
         )
-        self.assertEqual(data["owed"][1]["groups"], ["g_file: f"])
+        self.assertTrue(data["owed"][1]["unwired"])
 
     def test_json_carries_counts_and_per_record_status(self):
         data = json.loads(self.run_status("--json")[1])
@@ -175,13 +173,12 @@ class CommandTests(unittest.TestCase):
 NOT_MEASURED = status.NOT_MEASURED
 
 
-def route_row(record_id, route, state, groups=(), slots=()):
+def route_row(record_id, route, state, slots=()):
     return {
         "record": record_id,
         "route": route,
         "allocated": len(slots),
         "measured": 0,
-        "mapped_groups": list(groups),
         "missing_slots": list(slots),
         "state": state,
     }
@@ -207,12 +204,12 @@ class OwedItemTests(unittest.TestCase):
     def test_a_covering_probe_makes_the_record_current_and_not_owed(self):
         self.assertEqual(self.owed([record("a", fingerprint=OLD)], rows=[row("a")]), [])
 
-    def test_a_route_without_a_record_is_owed_with_the_groups_that_measure_it(self):
-        routes = [route_row("cap", "measured", status.CALIBRATED), route_row("cap", "new", NOT_MEASURED, groups=["f: t"])]
+    def test_a_route_without_a_record_is_owed_and_unwired(self):
+        routes = [route_row("cap", "measured", status.CALIBRATED), route_row("cap", "new", NOT_MEASURED)]
         (item,) = self.owed([], routes=routes)
         self.assertEqual(
             (item["id"], item["reason"], item["groups"], item["unwired"]),
-            ("route:cap/new", "no_record", ["f: t"], False),
+            ("route:cap/new", "no_record", [], True),
         )
 
     def test_an_allocated_record_that_does_not_exist_is_an_owed_slot_once(self):
@@ -231,12 +228,16 @@ class OwedItemTests(unittest.TestCase):
         self.assertEqual(self.owed([], routes=[route_row("cap", "refuses", status.NO_INTERVAL)]), [])
 
     def test_the_counts_cover_every_reason(self):
-        items = self.owed([record("a", fingerprint=OLD)], routes=[route_row("c", "n", NOT_MEASURED, groups=["f"])])
+        items = self.owed([record("a", fingerprint=OLD)], routes=[route_row("c", "n", NOT_MEASURED)])
         self.assertEqual(status.owed_counts(items), {"no_record": 1, "inputs_changed": 1, "probe_mismatch": 0,
                                                     "missing_gate": 0, "stale_gate": 0})
 
 
-class RouteMapTests(unittest.TestCase):
+def unit(linked=(), calibration="not_measured"):
+    return {"calibration": list(linked), "state": {"support": "supported", "calibration": calibration}}
+
+
+class UnitIndexRouteTests(unittest.TestCase):
     CAPABILITY = [
         {
             "id": "cap",
@@ -245,40 +246,43 @@ class RouteMapTests(unittest.TestCase):
             "routes": [
                 {"name": "analytic", "status": "supported"},
                 {"name": "bootstrap", "status": "supported"},
-                {"name": "refuses", "status": "supported"},
-                {"name": "lost", "status": "supported"},
             ],
         }
     ]
 
-    def rows(self, records, route_map):
-        return {r["route"]: r for r in status.interval_routes(self.CAPABILITY, records, route_map)}
+    def rows(self, records, index):
+        return {r["route"]: r for r in status.interval_routes(self.CAPABILITY, records, index)}
 
-    def test_a_mapped_route_is_measured_by_the_records_of_its_groups(self):
-        mapped = {("cap", "bootstrap"): {"groups": [("boot_calibration", "")], "no_interval": ""}}
-        rows = self.rows([{"id": "cov.allocated", "test": "crates/c/tests/other.rs::t"}], mapped)
+    def test_a_route_is_measured_by_the_records_linked_to_its_unit(self):
+        index = {("capability", "cap"): unit(["cov.boot"])}
+        rows = self.rows([{"id": "cov.allocated"}], index)
         self.assertEqual(rows["bootstrap"]["state"], status.NOT_MEASURED)
-        self.assertEqual(rows["bootstrap"]["mapped_groups"], ["boot_calibration"])
-        records = [{"id": "cov.allocated", "test": "crates/c/tests/other.rs::t"}, {"id": "cov.boot", "test": "crates/c/tests/boot_calibration.rs::t"}]
-        self.assertEqual(self.rows(records, mapped)["bootstrap"]["state"], status.CALIBRATED)
+        self.assertEqual(rows["bootstrap"]["missing_slots"], [])
+        records = [{"id": "cov.allocated"}, {"id": "cov.boot"}]
+        self.assertEqual(self.rows(records, index)["bootstrap"]["state"], status.CALIBRATED)
         below = [records[0], records[1] | {"boundary": True}]
-        self.assertEqual(self.rows(below, mapped)["bootstrap"]["state"], status.MEASURED_BELOW_NOMINAL)
+        self.assertEqual(self.rows(below, index)["bootstrap"]["state"], status.MEASURED_BELOW_NOMINAL)
 
-    def test_an_unmapped_route_keeps_the_allocation_of_its_capability_record(self):
-        rows = self.rows([{"id": "cov.allocated"}], {})
-        self.assertEqual(rows["analytic"]["state"], status.CALIBRATED)
-        rows = self.rows([], {})
-        self.assertEqual(rows["analytic"]["state"], status.NOT_MEASURED)
-        self.assertEqual(rows["analytic"]["missing_slots"], ["cov.allocated"])
+    def test_a_record_outside_the_index_keeps_its_allocation(self):
+        for index in (None, {}):
+            with self.subTest(index=index):
+                self.assertEqual(self.rows([{"id": "cov.allocated"}], index)["analytic"]["state"], status.CALIBRATED)
+                rows = self.rows([], index)
+                self.assertEqual(rows["analytic"]["state"], status.NOT_MEASURED)
+                self.assertEqual(rows["analytic"]["missing_slots"], ["cov.allocated"])
 
-    def test_a_route_with_no_allocation_no_record_and_no_group_is_unmapped(self):
+    def test_a_unit_with_no_linked_record_reads_its_stated_calibration(self):
+        self.assertEqual(self.rows([], {("capability", "cap"): unit()})["analytic"]["state"], status.NOT_MEASURED)
+        index = {("capability", "cap"): unit(calibration="estimator_grid_not_measured")}
+        self.assertEqual(self.rows([], index)["analytic"]["state"], status.NOT_MEASURED)
+        self.assertEqual(self.rows([], {("capability", "cap"): unit(calibration="")})["analytic"]["state"], status.UNMAPPED)
+        index = {("capability", "cap"): unit(calibration=status.NO_INTERVAL_REPORTED)}
+        self.assertEqual(self.rows([], index)["analytic"]["state"], status.NO_INTERVAL)
+
+    def test_a_route_with_no_allocation_and_no_index_is_unmapped(self):
         capability = [{"id": "c", "inference_claim": "interval", "routes": [{"name": "r", "status": "supported"}]}]
-        (row_,) = status.interval_routes(capability, [], {})
+        (row_,) = status.interval_routes(capability, [])
         self.assertEqual(row_["state"], status.UNMAPPED)
-
-    def test_a_route_declared_to_publish_no_interval_is_no_interval(self):
-        rows = self.rows([], {("cap", "refuses"): {"groups": [], "no_interval": "refuses the request"}})
-        self.assertEqual(rows["refuses"]["state"], status.NO_INTERVAL)
 
     def test_the_header_counts_every_state_including_not_measured_and_unmapped(self):
         capability = [{"id": "c", "inference_claim": "interval", "routes": [{"name": "r", "status": "supported"}]}]
@@ -287,63 +291,11 @@ class RouteMapTests(unittest.TestCase):
             patch.object(status, "read_text", return_value=""),
             patch.object(status.tomllib, "loads", return_value={"record": capability}),
             patch.object(status, "load_records", return_value=[]),
-            patch.object(status, "load_route_map", return_value={}),
             patch.object(status, "load_unit_index", return_value=None),
             redirect_stdout(out),
         ):
             self.assertEqual(status.main(["intervals"]), 0)
         self.assertIn("0 not_measured, 1 unmapped", out.getvalue())
-
-    def test_the_route_file_loads_groups_and_reasons(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "routes.toml"
-            path.write_text(
-                '[[route]]\nrecord="cap"\nroutes=["a","b"]\ngroups=["f: t","g"]\n'
-                '[[route]]\nrecord="cap"\nroutes=["c"]\nno_interval="refuses"\n',
-                encoding="utf-8",
-            )
-            loaded = status.load_route_map(path)
-        self.assertEqual(loaded[("cap", "a")]["groups"], [("f", "t"), ("g", "")])
-        self.assertIs(loaded[("cap", "a")], loaded[("cap", "b")])
-        self.assertEqual(loaded[("cap", "c")]["no_interval"], "refuses")
-
-    def test_the_route_file_shape_is_checked(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "parity").mkdir()
-            (root / "crates" / "c" / "tests").mkdir(parents=True)
-            (root / "crates" / "c" / "tests" / "real_calibration.rs").write_text("", encoding="utf-8")
-            (root / "parity" / "calibration_routes.toml").write_text(
-                '[[route]]\nrecord="cap"\nroutes=["a"]\ngroups=["real_calibration: t"]\n'
-                '[[route]]\nrecord="cap"\nroutes=["a"]\ngroups=["ghost_calibration"]\n'
-                '[[route]]\nrecord="cap"\nroutes=["b"]\n'
-                '[[route]]\nrecord="cap"\nroutes=["c"]\ngroups=["real_calibration"]\nno_interval="x"\n',
-                encoding="utf-8",
-            )
-            problems = status.route_map_problems(root)
-        text = "\n".join(problems)
-        self.assertIn("mapped twice", text)
-        self.assertIn("ghost_calibration", text)
-        self.assertEqual(len([p for p in problems if "either `groups` or `no_interval`" in p]), 2)
-
-    def test_the_shipped_route_map_is_well_formed_and_names_real_routes(self):
-        self.assertEqual(status.route_map_problems(), [])
-        capability = status.tomllib.loads(status.CAPABILITY_RECORDS.read_bytes().decode("utf-8"))["record"]
-        names = {(str(r["id"]), str(x.get("name"))) for r in capability for x in r.get("routes") or []}
-        rows = status.tomllib.loads(
-            (status.ROOT / "parity" / "support_graphless.toml").read_text(encoding="utf-8")
-        )["support"]
-        prefixes = {f"graphless.{r['family']}.{r['design']}.{r['method']}" for r in rows}
-
-        def names_a_row(route: str) -> bool:
-            return any(route == p or route.startswith(p + ".") for p in prefixes)
-
-        unknown = [
-            key
-            for key in set(status.load_route_map()) - names
-            if not (key[1].startswith("graphless.") and names_a_row(key[1]))
-        ]
-        self.assertEqual(sorted(unknown), [])
 
 
 class IntervalStateTests(unittest.TestCase):

@@ -67,23 +67,17 @@ class CapabilityRoutes(unittest.TestCase):
         point = [route("rec.bare", capability_claim="point_only")]
         self.assertEqual(route_closure.owed_measurements(point, RECORDS, set()), [])
 
-    def test_a_mapped_gate_group_carries_the_interval_and_is_owed_until_measured(self):
-        groups = {"rec.point": ["harness: wald_l95", "whole_file"]}
-        self.assertEqual(problems(route("rec.point")), [])
-        mapped = route_closure.manifest_capability_problems([route("rec.point")], RECORDS, groups)
-        self.assertEqual(mapped, [])
-        tests = {"whole_file": ["first_test", "second_test"]}
-        owed = route_closure.owed_measurements(
-            [route("rec.point")], RECORDS, {"cov.q.l95.x_wald_l95.v2"}, groups, tests
-        )
-        self.assertEqual(owed, [("r", "gate group whole_file")])
-        measured = {"cov.q.l95.x_wald_l95.v2", "cov.q.l95.second_test.v2"}
+    def test_a_linked_coverage_record_carries_the_interval(self):
+        linked = {"rec.bare": ["cov.q.l95.x_wald_l95.v2"], "rec.point": ["cov.q.l95.y.v2"]}
+        self.assertTrue(problems(route("rec.bare")))
         self.assertEqual(
-            route_closure.owed_measurements([route("rec.point")], RECORDS, measured, groups, tests),
-            [],
+            route_closure.manifest_capability_problems([route("rec.bare")], RECORDS, linked), []
         )
-        # The mapping makes the route an interval route: the claim is not silently a point.
-        self.assertEqual(route_closure.route_claim(route("rec.point"), {"rec.point": POINT}, groups), "interval")
+        self.assertEqual(
+            route_closure.owed_measurements([route("rec.bare")], RECORDS, set(), linked), []
+        )
+        # The linked record makes the route an interval route: the claim is not silently a point.
+        self.assertEqual(route_closure.route_claim(route("rec.point"), {"rec.point": POINT}, linked), "interval")
 
 
 CELL = {

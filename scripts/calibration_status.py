@@ -22,8 +22,8 @@ What is flagged, and why, is the one list the measurement queue runs
 
 * `no_record`           a registered coverage study lacks its own record, or an interval route has no coverage record of its own: a supported
                         interval route with no measured record, whether the record is
-                        allocated to it or the group that will measure it is named in
-                        `parity/calibration_routes.toml`; and an open ledger row
+                        allocated to it or none is linked to its capability unit in
+                        `parity/unit_index.json`; and an open ledger row
                         (`parity/pending_measurement.toml`, `parity/unmeasured_statements.toml`,
                         or a supported coordinate whose estimator grid is not measured) whose
                         named gate groups have produced no record yet, so the flagged run
@@ -35,9 +35,9 @@ What is flagged, and why, is the one list the measurement queue runs
 * `probe_mismatch`      a coverage record with a probe attestation that does not cover the
                         tree (a failing or other-tree probe row).
 
-Every supported interval route names the group that measures it in
-`parity/calibration_routes.toml` (or says why it publishes no interval); a route that does
-neither is `unmapped` in `intervals` and cannot be queued. Calibration status never changes support and never refuses a route. Calibration is
+A supported interval route is measured by the coverage records `parity/unit_index.json` links
+to its capability unit (or its unit reports no interval); a route with neither is `unmapped` in
+`intervals` and cannot be queued. Calibration status never changes support and never refuses a route. Calibration is
 measured on a development machine; CI and releases only check, through `--check`,
 that nothing is flagged.
 
@@ -224,16 +224,17 @@ INTERVAL_STATES = (
     NO_INTERVAL,
 )
 CAPABILITY_RECORDS = ROOT / "parity" / "capability_records.toml"
-ROUTES = ROOT / "parity" / "calibration_routes.toml"
+NO_INTERVAL_REPORTED = "no_interval_reported"
 
 
-def load_unit_index() -> dict[tuple[str, str], list[str]] | None:
-    """(kind, id) -> the coverage records parity/unit_index.json links to the unit."""
-    path = ROOT / "parity" / "unit_index.json"
-    if not path.is_file():
+def load_unit_index() -> dict[tuple[str, str], dict] | None:
+    """(kind, id) -> the unit parity/unit_index.json records: its linked coverage records
+    (`calibration`) and its `state`."""
+    if not (ROOT / "parity" / "unit_index.json").is_file():
         return None
-    data = json.loads(read_text(path))
-    return {(u["kind"], u["id"]): [data["records"][i] for i in u["calibration"]] for u in data["units"]}
+    import unit_index
+
+    return unit_index.load(ROOT)
 
 
 def interval_state(allocated: list[str], by_id: dict[str, dict]) -> str:
@@ -261,25 +262,6 @@ def split_group(spec: str) -> tuple[str, str]:
     return head, test_filter
 
 
-def load_route_map(path: Path = ROUTES) -> dict[tuple[str, str], dict]:
-    """(capability record, route) -> {"groups": [(head, filter)], "no_interval": reason}.
-
-    Each `[[route]]` row names a capability record, the routes it covers and either the
-    gate groups (`<test file>: <test filter>`) whose coverage records measure them or
-    the reason they publish no interval."""
-    if not path.is_file():
-        return {}
-    out: dict[tuple[str, str], dict] = {}
-    for row in tomllib.loads(read_text(path)).get("route", []):
-        entry = {
-            "groups": [split_group(str(g)) for g in row.get("groups", [])],
-            "no_interval": str(row.get("no_interval", "")),
-        }
-        for route in row.get("routes", []):
-            out[(str(row.get("record", "")), str(route))] = entry
-    return out
-
-
 def group_records(groups: list[tuple[str, str]], records: list[dict]) -> list[dict]:
     """The coverage records the named gate groups measure."""
     import calibration_groups
@@ -294,51 +276,45 @@ def group_records(groups: list[tuple[str, str]], records: list[dict]) -> list[di
 def interval_routes(
     capability: list[dict],
     records: list[dict],
-    route_map: dict[tuple[str, str], dict] | None = None,
-    index: dict[tuple[str, str], list[str]] | None = None,
+    index: dict[tuple[str, str], dict] | None = None,
 ) -> list[dict]:
     """One row per supported route that reports an interval, with its annotation.
 
     Given the unit index, a route is measured by the coverage records linked to its
-    capability unit. Without it, a route the route map names is measured by the records of
-    its named groups and any other route by the records its capability record allocates. A
-    route with no measured record is `unmapped`."""
-    route_map = route_map or {}
+    capability unit, and publishes no interval when its unit reports none. A capability
+    record the index does not hold, or any record without it, is measured by the records it
+    allocates. A route with no measured record is `unmapped`."""
     by_id = {str(rec.get("id")): rec for rec in records}
     rows = []
     for rec in capability:
         claim = rec.get("inference_claim")
+        unit = index.get(("capability", str(rec["id"]))) if index is not None else None
         for route in rec.get("routes") or []:
             if (
                 route.get("status") != "supported"
                 or (route.get("claim") or claim) != "interval"
             ):
                 continue
-            name = str(route.get("name", ""))
             allocated = [str(x) for x in rec.get("coverage_records") or []]
-            mapping = route_map.get((str(rec["id"]), name))
             row = {
                 "record": str(rec["id"]),
-                "route": name,
+                "route": str(route.get("name", "")),
                 "allocated": len(allocated),
                 "measured": sum(1 for rid in allocated if rid in by_id),
-                "mapped_groups": [],
                 "missing_slots": [rid for rid in allocated if rid not in by_id],
             }
-            linked = index.get(("capability", str(rec["id"]))) if index is not None else None
-            if mapping and mapping["no_interval"] and not mapping["groups"]:
-                row["state"] = NO_INTERVAL
-            elif linked is not None:
+            if unit is not None:
+                linked = unit["calibration"]
                 row["measured"] = sum(1 for rid in linked if rid in by_id)
                 row["missing_slots"] = []
-                row["state"] = interval_state(linked, by_id) if linked else UNMAPPED
-            elif mapping and mapping["groups"]:
-                produced = group_records(mapping["groups"], records)
-                row["mapped_groups"] = [f"{h}: {f}" if f else h for h, f in mapping["groups"]]
-                row["measured"] = len(produced)
-                row["state"] = interval_state(
-                    [str(r.get("id")) for r in produced], {str(r.get("id")): r for r in produced}
-                )
+                if linked:
+                    row["state"] = interval_state(linked, by_id)
+                elif unit["state"]["calibration"] == NO_INTERVAL_REPORTED:
+                    row["state"] = NO_INTERVAL
+                elif unit["state"]["calibration"]:
+                    row["state"] = NOT_MEASURED
+                else:
+                    row["state"] = UNMAPPED
             elif allocated:
                 row["state"] = interval_state(allocated, by_id)
             else:
@@ -349,7 +325,7 @@ def interval_routes(
 
 def cmd_intervals(args: argparse.Namespace) -> int:
     capability = tomllib.loads(read_text(CAPABILITY_RECORDS)).get("record", [])
-    rows = interval_routes(capability, load_records(), load_route_map(), load_unit_index())
+    rows = interval_routes(capability, load_records(), load_unit_index())
     counts = collections.Counter(row["state"] for row in rows)
     if args.json:
         json.dump({"counts": dict(counts), "routes": rows}, sys.stdout, indent=2)
@@ -361,10 +337,9 @@ def cmd_intervals(args: argparse.Namespace) -> int:
         + f" of {len(rows)}"
     )
     for row in rows:
-        groups = f" -> {'; '.join(row['mapped_groups'])}" if row["mapped_groups"] else ""
         print(
             f"  {row['state']}: {row['record']} / {row['route']} "
-            f"({row['measured']}/{row['allocated']} records){groups}"
+            f"({row['measured']}/{row['allocated']} records)"
         )
     return 0
 
@@ -394,10 +369,9 @@ def owed_items(
     """Everything the calibration task owes, each item with exactly one reason.
 
     * a record not current (`inputs_changed`, or `probe_mismatch`);
-    * an interval route with no measured record (`no_record`): the route itself when the
-      group that will measure it (`parity/calibration_routes.toml`) has produced no record,
-      or a slot id its capability record allocates and no record exists for. `groups` is
-      what the measurement queue runs for a route item."""
+    * an interval route with no measured record (`no_record`): the route itself when no
+      record is linked to its capability unit and it allocates none, which nothing can queue
+      (`unwired`), or a slot id its capability record allocates and no record exists for."""
     statuses = classify(records, attestations, fingerprints)
     by_record: dict[str, list[dict]] = {}
     for row in attestations:
@@ -419,14 +393,14 @@ def owed_items(
     for route in route_rows:
         if route["state"] not in (NOT_MEASURED, UNMAPPED):
             continue
-        if route["mapped_groups"] or not route["missing_slots"]:
+        if not route["missing_slots"]:
             items.append(
                 {
                     "kind": "route",
                     "id": f"{ROUTE_PREFIX}{route['record']}/{route['route']}",
                     "reason": NO_RECORD,
-                    "groups": route["mapped_groups"],
-                    "unwired": not route["mapped_groups"],
+                    "groups": [],
+                    "unwired": True,
                 }
             )
             continue
@@ -452,9 +426,8 @@ def ledger_rows(root: Path = ROOT) -> list[dict]:
 
     A cell owed to calibration (`parity/pending_measurement.toml`) and a published uncertainty
     statement no measurement covers (`parity/unmeasured_statements.toml`) each name `groups`:
-    the `<test file>: <test filter>` gate groups whose coverage records close the row, as
-    `parity/calibration_routes.toml` names them for an interval route. A row that names none
-    is unwired."""
+    the `<test file>: <test filter>` gate groups whose coverage records close the row. A row
+    that names none is unwired."""
     sources = (
         ("parity/pending_measurement.toml", "pending", lambda row: f"pending:{row['row']}"),
         (
@@ -515,7 +488,7 @@ def current_owed() -> tuple[list[dict], dict[str, Status], dict[str, int]]:
     fingerprints = tree_fingerprints(records)
     statuses = classify(records, attestations, fingerprints)
     capability = tomllib.loads(read_text(CAPABILITY_RECORDS)).get("record", [])
-    route_rows = interval_routes(capability, records, load_route_map())
+    route_rows = interval_routes(capability, records, load_unit_index())
     items = owed_items(records, attestations, fingerprints, route_rows)
     items += ledger_items(ledger_rows() + backlog_rows(), records)
     items += runner.group_items(runner.gate_groups(), records)
@@ -929,43 +902,6 @@ def shape_problems(root: Path = ROOT) -> list[str]:
     ids = [rec.get("id") for rec in records]
     if len(set(ids)) != len(ids):
         problems.append("parity/coverage_records.toml: duplicate record ids")
-    problems.extend(route_map_problems(root))
-    return problems
-
-
-def route_map_problems(root: Path = ROOT) -> list[str]:
-    """Shape of `parity/calibration_routes.toml`, and that every group it names has a test file."""
-    path = root / "parity" / "calibration_routes.toml"
-    if not path.is_file():
-        return []
-    problems: list[str] = []
-    seen: set[tuple[str, str]] = set()
-    for row in tomllib.loads(read_text(path)).get("route", []):
-        where = f"calibration_routes.toml {row.get('record')}"
-        routes = row.get("routes")
-        groups = row.get("groups", [])
-        reason = row.get("no_interval", "")
-        if not isinstance(routes, list) or not routes:
-            problems.append(f"{where}: needs a non-empty `routes` list")
-            continue
-        # A graphless route names its support row; any other route names a route of `record`.
-        if not row.get("record") and not all(str(r).startswith("graphless.") for r in routes):
-            problems.append(f"{where}: needs `record` unless every route is a graphless row")
-            continue
-        if bool(groups) == bool(reason):
-            problems.append(f"{where}: give either `groups` or `no_interval`, not both or neither")
-        for route in routes:
-            if (row.get("record", ""), route) in seen:
-                problems.append(f"{where}: route {route} is mapped twice")
-            seen.add((row.get("record", ""), route))
-        for spec in groups:
-            head, _ = split_group(str(spec))
-            if not (
-                any(root.glob(f"crates/*/tests/{head}.rs"))
-                or any(root.glob(f"crates/*/tests/{head}/main.rs"))
-                or (root / "crates" / head).is_dir()
-            ):
-                problems.append(f"{where}: group {spec!r} names no test file")
     return problems
 
 

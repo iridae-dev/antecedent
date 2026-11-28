@@ -19,9 +19,10 @@ from __future__ import annotations
 
 import argparse
 import sys
-import tomllib
 from itertools import product
 from pathlib import Path
+
+from support_calibration import calibration_lines
 
 ROOT = Path(__file__).resolve().parents[1]
 SUPPORTED = ROOT / "parity" / "support_cells.toml"
@@ -309,35 +310,12 @@ def toml_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def bound_calibration(text: str) -> dict[tuple[str, str, str, str, str], list[str]]:
-    """The calibration lines each generated cell carries now.
-
-    The collector binds a cell's coverage records (`scripts/collect_coverage_records.py`);
-    the generator owns the rest of the row and keeps those lines as they are."""
-    if BEGIN not in text or END not in text:
-        return {}
-    block = text.split(BEGIN, 1)[1].split(END, 1)[0]
-    cells = tomllib.loads(block).get("cell", [])
-    bound = {}
-    for cell in cells:
-        key = tuple(cell[k] for k in ("query", "graph_class", "structure", "inference", "validation"))
-        lines = []
-        if cell.get("calibration"):
-            ids = ", ".join(toml_string(rid) for rid in cell["calibration"])
-            lines.append(f"calibration = [{ids}]")
-        if cell.get("calibration_reason"):
-            lines.append(f"calibration_reason = {toml_string(cell['calibration_reason'])}")
-        bound[key] = lines
-    return bound
-
-
 def render_row(
     query: str,
     graph: str,
     structure: str,
     inference: str,
     validation: str,
-    calibration: list[str] | None = None,
 ) -> str:
     estimator = ESTIMATOR[(query, inference)]
     limitations = (
@@ -364,9 +342,10 @@ def render_row(
         "]",
         f"limitations = {toml_string(limitations)}",
     ]
-    # A cell no record is bound to yet has measured nothing.
-    lines.extend(calibration or ['calibration_reason = "estimator_grid_not_measured"'])
-    return "\n".join(lines)
+    cell = dict(zip(("query", "graph_class", "structure", "inference", "validation"),
+                    (query, graph, structure, inference, validation), strict=True))
+    stated = calibration_lines(cell).rstrip("\n")
+    return "\n".join(lines + ([stated] if stated else []))
 
 
 def coordinates() -> list[tuple[str, str, str, str, str]]:
@@ -382,8 +361,7 @@ def coordinates() -> list[tuple[str, str, str, str, str]]:
 
 
 def render_block(text: str) -> str:
-    bound = bound_calibration(text)
-    rows = [render_row(*coordinate, bound.get(coordinate)) for coordinate in coordinates()]
+    rows = [render_row(*coordinate) for coordinate in coordinates()]
     return BEGIN + "\n\n" + "\n\n".join(rows) + "\n\n" + END + "\n"
 
 

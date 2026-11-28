@@ -2475,7 +2475,6 @@ pub const antecedent_validate::msm_sensitivity::MSM_TARGET: &str
 pub const antecedent_validate::predictive_assessment::ASSESSMENT_CAUSAL_VALIDITY: &str
 pub const antecedent_validate::predictive_assessment::ASSESSMENT_FAMILY: &str
 pub const antecedent_validate::predictive_assessment::ASSESSMENT_INFERENCE_CLAIM: &str
-pub const antecedent_validate::predictive_assessment::DIAGNOSTIC_CALIBRATION: &str
 pub const antecedent_validate::predictive_assessment::DIAGNOSTIC_LABEL: &str
 pub const antecedent_validate::predictive_assessment::IDENTITY_VERSION: u64
 pub const antecedent_validate::predictive_assessment::MAX_ASSESSMENT_WORK: u64
@@ -3788,6 +3787,7 @@ pub fn antecedent_validate::predictive_assessment::construct_expected_score_inte
 pub fn antecedent_validate::predictive_assessment::crps_ensemble_energy_sorted(sorted: &[f64], y: f64, fair: bool) -> f64
 pub fn antecedent_validate::predictive_assessment::crps_gaussian(mean: f64, sd: f64, y: f64) -> f64
 pub fn antecedent_validate::predictive_assessment::crps_weighted_atoms(atoms: &[(f64, f64)], y: f64) -> f64
+pub fn antecedent_validate::predictive_assessment::diagnostic_calibration() -> &'static str
 pub fn antecedent_validate::predictive_assessment::distribution_drift(reference: &[f64], comparison: &[f64], bins: usize) -> core::result::Result<antecedent_validate::predictive_assessment::DistributionDrift, antecedent_validate::predictive_assessment::PredictiveAssessmentError>
 pub fn antecedent_validate::predictive_assessment::energy_score_weighted(atoms: &[f64], weights: &[f64], dimension: usize, y: &[f64]) -> f64
 pub fn antecedent_validate::predictive_assessment::exact_expected_score(kind: antecedent_validate::predictive_assessment::ScoreKind, forecast: &antecedent_validate::predictive_assessment::ForecastLaw, truth: &antecedent_validate::predictive_assessment::FiniteTruth) -> core::result::Result<f64, antecedent_validate::predictive_assessment::PredictiveAssessmentError>

@@ -3,7 +3,7 @@
 
     python3 scripts/unit_index.py            # write parity/unit_index.json
     python3 scripts/unit_index.py --check    # fail when it is stale
-    python3 scripts/unit_index.py --diff     # the differential report against parity/claims/
+    python3 scripts/unit_index.py --diff     # fail when the index drops evidence parity/claims/ attached
 
 A unit is a support-matrix cell, a construction on a cell (`<cell>#<key>`, from
 `CONSTRUCTION_CHECKS` in crates/antecedent/src/analysis/builder/finish.rs), a graphless
@@ -17,13 +17,16 @@ join, computed and never edited:
                resolution assigns it (parity/evidence_resolutions.toml)
   state        derived support status (embedded snapshot) and calibration state
 
-Support reads only `scientific`; `calibration` annotates.
+Support reads only `scientific`; `calibration` annotates. A coverage record whose test ran
+under trace but reached no supported unit is `unadmitted`, with the units its test refused:
+it measures a construction no unit admits and backs no claim.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -109,13 +112,18 @@ def cited_passes() -> dict[tuple[str, str], set[str]]:
     return out
 
 
-def build() -> dict:
+def calibration_states() -> dict[str, str]:
+    """`<kind>:<id>` -> calibration state of every unit; it reads no support status, so the
+    embedded status snapshot can carry it."""
+    return {f"{u['kind']}:{u['id']}": u["state"]["calibration"] for u in build(support=False)["units"]}
+
+
+def build(support: bool = True) -> dict:
     import evidence_links as el
     import evidence_residue as er
 
     sources = er.claim_sources()
-    aliases = {key for key, row in sources.items()
-               if key[0] == "capability" and (row.get("matrix_units") or row.get("graphless_units"))}
+    aliases = {key for key, row in sources.items() if er.is_alias(key, row)}
     units: dict[tuple[str, str], dict] = {
         key: {"scientific": set(), "calibration": set()} for key in sources if key not in aliases
     }
@@ -126,7 +134,7 @@ def build() -> dict:
     links = el.load() if (ROOT / "parity/evidence_links.json").is_file() else {"passes": {}, "records": {}}
     for table, half in (("passes", "scientific"), ("records", "calibration")):
         for ident, entry in links[table].items():
-            for kind, unit in [*entry.get("executed", []), *entry.get("cited", [])]:
+            for kind, unit in er.reached_units(entry):
                 key = (kind, unit)
                 if not er.credits(entry, key):
                     continue
@@ -137,27 +145,31 @@ def build() -> dict:
                     units.setdefault(key, {"scientific": set(), "calibration": set()})
                 if key in units:
                     units[key][half].add(ident)
+    coverage = {str(r["id"]): r for r in read("parity/coverage_records.toml").get("record", [])}
+    # A record whose test ran a unit still awaiting support measured it when its estimator
+    # coordinate names that unit.
+    for ident, entry in links["records"].items():
+        estimator = str(coverage.get(ident, {}).get("estimator", ""))
+        for kind, unit in (tuple(u) for u in entry.get("refused", [])):
+            if kind == "capability" and unit == estimator and (kind, unit) in units:
+                units[(kind, unit)]["calibration"].add(ident)
     for key in [k for k in units if k[0] == "construction"]:
         test, _, name = constructions[key[1].partition("#")[2]].rpartition("::")
         found = selector(test, name)
         if found:
             units[key]["scientific"].add(found)
     for res in er.load_resolutions():
-        if res.get("kind") == "retired":
+        # A narrowing names the unit whose claim no longer holds the evidence; a retirement none.
+        if res.get("kind") not in ("same", "split", "merged"):
             continue
-        evidence = str(res.get("evidence", ""))
         targets = [er.unit_key(str(u)) for u in res.get("units") or []]
-        if evidence.startswith("record:"):
+        for evidence in er.evidence_of(res):
+            half, _, ident = evidence.partition(":")
             for key in targets:
-                if key in units:
-                    units[key]["calibration"].add(evidence.removeprefix("record:"))
-        elif evidence.startswith("pass:"):
-            for key in targets:
-                if key in units:
-                    units[key]["scientific"].add(evidence.removeprefix("pass:"))
+                if key in units and half in ("record", "pass"):
+                    units[key]["calibration" if half == "record" else "scientific"].add(ident)
 
-    coverage = {str(r["id"]): r for r in read("parity/coverage_records.toml").get("record", [])}
-    states = derived_states()
+    states = derived_states() if support else {}
     passes = sorted({p for u in units.values() for p in u["scientific"]})
     records = sorted({r for u in units.values() for r in u["calibration"]})
     pass_at = {p: i for i, p in enumerate(passes)}
@@ -180,10 +192,18 @@ def build() -> dict:
                 "calibration": calibration_state(calibration, coverage, reason),
             },
         })
+    held = set(records)
+    unadmitted = {
+        ident: sorted(f"{k}:{u}" for k, u in (tuple(x) for x in entry.get("refused", [])))
+        for ident, entry in sorted(links["records"].items())
+        if ident in coverage and ident not in held and not entry.get("declared")
+        and not {tuple(u) for u in entry.get("executed", [])} - {tuple(u) for u in entry.get("refused", [])}
+    }
     return {
         "about": "ADR 0031 unit index; generated by scripts/unit_index.py; never edited",
         "passes": passes,
         "records": records,
+        "unadmitted": unadmitted,
         "units": out,
     }
 
@@ -194,7 +214,22 @@ def render(data: dict) -> str:
 
 def load(root: Path = ROOT) -> dict[tuple[str, str], dict]:
     """(kind, id) -> unit record with pass and record positions resolved to ids."""
-    data = json.loads((root / "parity" / "unit_index.json").read_text(encoding="utf-8"))
+    return resolve(json.loads((root / "parity" / "unit_index.json").read_text(encoding="utf-8")))
+
+
+def matrix_records(root: Path = ROOT) -> dict[str, list[str]]:
+    """Cell id -> the coverage records the index links to the cell and its constructions."""
+    out: dict[str, set[str]] = {}
+    if not (root / "parity" / "unit_index.json").is_file():
+        return {}
+    for (kind, ident), unit in load(root).items():
+        if kind in ("matrix", "construction"):
+            out.setdefault(ident.partition("#")[0], set()).update(unit["calibration"])
+    return {cell: sorted(records) for cell, records in out.items()}
+
+
+def resolve(data: dict) -> dict[tuple[str, str], dict]:
+    """[`load`] over an index already in memory, such as a fresh [`build`]."""
     out = {}
     for unit in data["units"]:
         out[(unit["kind"], unit["id"])] = {
@@ -205,10 +240,74 @@ def load(root: Path = ROOT) -> dict[tuple[str, str], dict]:
     return out
 
 
+def committed_claims() -> dict[tuple[str, str], dict]:
+    """`(kind, id-with-colons-as-underscores)` -> the claim file at HEAD.
+
+    The worktree may already have deleted `parity/claims/`. The report is against the
+    committed files, and it has to be empty before that deletion is committed.
+    """
+    listed = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "HEAD", "parity/claims"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    )
+    paths = [line for line in listed.stdout.splitlines() if line.endswith(".json")]
+    if not paths:
+        return {}
+    proc = subprocess.run(
+        ["git", "cat-file", "--batch"],
+        cwd=ROOT, input="".join(f"HEAD:{path}\n" for path in paths).encode(),
+        capture_output=True, check=True,
+    )
+    out: dict[tuple[str, str], dict] = {}
+    pos = 0
+    blob = proc.stdout
+    for path in paths:
+        newline = blob.index(b"\n", pos)
+        header = blob[pos:newline].decode()
+        pos = newline + 1
+        if header.endswith(" missing"):
+            continue
+        size = int(header.rsplit(" ", 1)[1])
+        kind, _, name = path.removeprefix("parity/claims/").partition("/")
+        out[(kind, name.removesuffix(".json"))] = json.loads(blob[pos:pos + size])
+        pos += size + 1
+    return out
+
+
 def differential(index: dict[tuple[str, str], dict]) -> dict[str, list[str]]:
-    """Per unit, what parity/claims/ attached that the index does not: the old mechanisms'
-    evidence the new join would drop. Empty before the old mechanisms are deleted."""
-    from claim_passes import claim_path
+    """Evidence a committed claim attached that the index dropped.
+
+    A resolution keeps its evidence when a merged, split or same target holds it, or when
+    a narrowing leaves it held by some unit. Empty before `parity/claims/` is deleted.
+    """
+    import evidence_residue as er
+
+    claims = committed_claims()
+    coverage = {str(r["id"]) for r in read("parity/coverage_records.toml").get("record", [])}
+    by_item: dict[str, list[dict]] = {}
+    for res in er.load_resolutions():
+        by_item.setdefault(str(res.get("item", "")), []).append(res)
+    held: dict[str, dict[str, set[tuple[str, str]]]] = {"record": {}, "pass": {}}
+    for key, unit in index.items():
+        for rid in unit["calibration"]:
+            held["record"].setdefault(rid, set()).add(key)
+        for pid in unit["scientific"]:
+            held["pass"].setdefault(pid, set()).add(key)
+
+    def settled(item: str, evidence: str) -> bool:
+        half, _, ident = evidence.partition(":")
+        for res in by_item.get(item, []):
+            if evidence not in er.evidence_of(res) and "*" not in er.evidence_of(res):
+                continue
+            if res.get("kind") in ("same", "split", "merged"):
+                targets = {er.unit_key(str(u)) for u in res.get("units") or []}
+                if held[half].get(ident, set()) & targets:
+                    return True
+            elif res.get("kind") == "narrowed" and ident in held[half]:
+                return True
+            elif res.get("kind") == "retired":
+                return True
+        return False
 
     variants: dict[str, set[str]] = {}
     for (kind, ident), unit in index.items():
@@ -218,15 +317,17 @@ def differential(index: dict[tuple[str, str], dict]) -> dict[str, list[str]]:
     for (kind, ident), unit in index.items():
         if kind == "construction":
             continue
-        path = claim_path(ROOT, kind, ident)
-        if not path.is_file():
+        item = f"{kind}:{ident}"
+        claim = claims.get((kind, ident.replace(":", "_")))
+        if claim is None:
             continue
-        claim = json.loads(path.read_text(encoding="utf-8"))
         records = set(unit["calibration"]) | (variants.get(ident, set()) if kind == "matrix" else set())
-        dropped = [f"pass:{p}" for p in claim.get("assertions") or [] if p not in unit["scientific"]]
-        dropped += [f"record:{r}" for r in claim.get("measurements") or [] if r not in records]
+        dropped = [f"pass:{p}" for p in claim.get("assertions") or []
+                   if p not in unit["scientific"] and not settled(item, f"pass:{p}")]
+        dropped += [f"record:{r}" for r in claim.get("measurements") or []
+                    if r in coverage and r not in records and not settled(item, f"record:{r}")]
         if dropped:
-            report[f"{kind}:{ident}"] = dropped
+            report[item] = dropped
     return report
 
 
@@ -239,8 +340,7 @@ def main() -> int:
         print("unit index: current")
         return 0
     if "--diff" in sys.argv:
-        OUT.write_text(text, encoding="utf-8")
-        report = differential(load())
+        report = differential(resolve(json.loads(text)))
         dropped = sum(len(v) for v in report.values())
         print(f"differential: {len(report)} unit(s) would drop {dropped} attachment(s)")
         if "--json" in sys.argv:
