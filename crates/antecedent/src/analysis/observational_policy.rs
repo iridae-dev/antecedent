@@ -795,7 +795,7 @@ impl CompiledObservationalPolicy {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<ObservationalPolicyReportWire, CausalError> {
-        gate_program(ctx, self)?;
+        let publication = gate_program(ctx, self)?;
         if ctx.rng.master_seed() != self.seed {
             return Err(policy_compiler_refusal(
                 "the execution split seed differs from the compiled policy program",
@@ -806,7 +806,7 @@ impl CompiledObservationalPolicy {
             return Err(policy_compiler_refusal("the policy request changed after compilation"));
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        ObservationalPolicyValue::evaluate(&self.request, &scoped)
+        publication.finish(ObservationalPolicyValue::evaluate(&self.request, &scoped))
     }
 
     /// Score the held-out learned policy once, then form a separate candidate
@@ -822,7 +822,7 @@ impl CompiledObservationalPolicy {
     ) -> Result<HeldOutPolicyValueCandidate, CausalError> {
         const LEVEL: f64 = 0.95;
         const Z: f64 = 1.959_963_984_540_054;
-        gate_program(ctx, self)?;
+        let publication = gate_program(ctx, self)?;
         let graph = self.request.spec.causal_graph.as_ref().ok_or_else(|| {
             policy_compiler_refusal("a calibration candidate requires the graph-checked route")
         })?;
@@ -916,7 +916,7 @@ impl CompiledObservationalPolicy {
             level: LEVEL,
             calibration: slot.status.as_str().into(),
         };
-        Ok(HeldOutPolicyValueCandidate { report, interval, basis, slot })
+        publication.finish(Ok(HeldOutPolicyValueCandidate { report, interval, basis, slot }))
     }
 
     /// Score the graph-checked cross-fitted learner and form a separate
@@ -937,7 +937,7 @@ impl CompiledObservationalPolicy {
     ) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
         const LEVEL: f64 = 0.95;
         const Z: f64 = 1.959_963_984_540_054;
-        gate_program(ctx, self)?;
+        let publication = gate_program(ctx, self)?;
         let graph = self.request.spec.causal_graph.as_ref().ok_or_else(|| {
             policy_compiler_refusal("a cross-fit candidate requires the graph-checked route")
         })?;
@@ -1032,7 +1032,7 @@ impl CompiledObservationalPolicy {
             level: LEVEL,
             calibration: slot.status.as_str().into(),
         };
-        Ok(CrossFittedPolicyValueCandidate { report, interval, basis, slot })
+        publication.finish(Ok(CrossFittedPolicyValueCandidate { report, interval, basis, slot }))
     }
 
     /// Form a separately keyed, unmeasured m-out-of-n subsampling candidate.
@@ -1652,17 +1652,17 @@ impl CompiledPolicySubsampling {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
-        gate_program(ctx, self)?;
+        let publication = gate_program(ctx, self)?;
         if ctx.rng.master_seed() != self.seed {
             return Err(policy_compiler_refusal("policy subsampling execution seed changed"));
         }
-        self.policy.cross_fitted_subsampling_candidate(
+        publication.finish(self.policy.cross_fitted_subsampling_candidate(
             self.subsample_rows,
             self.replicates,
             self.lowered.identity(),
             self.legacy_row_count_key,
             ctx,
-        )
+        ))
     }
 
     /// Seal source rows and a freshly verified result for independent replay.

@@ -108,7 +108,7 @@ use super::PreparedMechanismComposition;
 use super::joint_law_composed_basis::{Resolution, composed_basis, resolve};
 use super::mechanism_exports::model_crate::compose::MechanismFamily;
 use super::mechanism_exports::model_crate::observation_uncertainty::GaussianSufficient;
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, ProgramPublication, gate_program};
 
 /// The refusals of an observation query: each with a registered reason code, a
 /// namespaced `observation_query.*` detail, the offending subject, expected
@@ -895,7 +895,7 @@ pub(crate) fn unsupported_refusal(
     refusal: &antecedent_core::NotSupported,
 ) -> ObservationQueryRefusal {
     ObservationQueryRefusal::of(
-        antecedent_core::reason_code!("not_supported"),
+        refusal.code(),
         "observe",
         antecedent_core::reason_details::observation_query::REQUEST_UNSUPPORTED,
         refusal.to_string(),
@@ -907,7 +907,7 @@ pub(crate) fn unsupported_refusal(
 pub(crate) fn gate_observation_program(
     ctx: &ExecutionContext,
     plan: &JointMeasuredObservationPlan,
-) -> Result<(), ObservationQueryRefusal> {
+) -> Result<ProgramPublication, ObservationQueryRefusal> {
     gate_program(ctx, plan).map_err(|refusal| unsupported_refusal(&refusal))
 }
 
@@ -934,13 +934,13 @@ impl JointMeasuredObservationPlan {
         ctx: &ExecutionContext,
     ) -> Result<ObservationClaim, ObservationQueryRefusal> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_observation_program(&scoped, self)?;
-        seal(
+        let publication = gate_observation_program(&scoped, self)?;
+        publication.finish(seal(
             Some(self.composition.spec()),
             self.query.clone(),
             InferenceBasis::DeclaredModel,
             &scoped,
-        )
+        ))
     }
 
     /// Recompile and reexecute the same model and query, then independently
@@ -954,7 +954,8 @@ impl JointMeasuredObservationPlan {
         expected_program: SemanticDigest,
         ctx: &ExecutionContext,
     ) -> Result<ObservationClaim, ObservationQueryRefusal> {
-        gate_observation_program(&ctx.enter_lowered_dispatch(self.lowered.identity()), self)?;
+        let publication =
+            gate_observation_program(&ctx.enter_lowered_dispatch(self.lowered.identity()), self)?;
         if expected_program != self.lowered.identity() {
             return Err(ObservationQueryRefusal::of(
                 antecedent_core::reason_code!("invalid_argument"),
@@ -976,7 +977,7 @@ impl JointMeasuredObservationPlan {
                 "joint measurement artifact differs from its compiler program",
             ));
         }
-        Ok(replayed)
+        publication.finish(Ok(replayed))
     }
 }
 

@@ -104,8 +104,8 @@ impl CompiledTransportAssumptionRange {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<TransportAssumptionRange, TerminalError<TransportSensitivityRefusal>> {
-        let _scoped = self.enter(ctx)?;
-        transport_assumption_range(&self.spec).map_err(TerminalError::Kernel)
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(transport_assumption_range(&self.spec).map_err(TerminalError::Kernel))
     }
 }
 

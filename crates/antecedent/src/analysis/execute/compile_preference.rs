@@ -1409,7 +1409,7 @@ impl CompiledPreferenceDecision {
         }
         // The decision's own unit, before any child program runs; each child then passes its
         // own gate.
-        self.parent.gate(ctx).map_err(CausalError::from)?;
+        let publication = self.parent.gate(ctx).map_err(CausalError::from)?;
         let mut execution = match &self.sources {
             Sources::Studies { studies, structures, posterior: true, basis } => self
                 .execute_structures(
@@ -1444,7 +1444,7 @@ impl CompiledPreferenceDecision {
         if let CompiledPreferenceEvaluation::Ordinary(result) = &mut execution.evaluation {
             result.set_method_provenance(execution.method_provenance.clone());
         }
-        Ok(execution)
+        publication.finish(Ok(execution))
     }
 
     /// Decide from `supplied` results instead of estimating the compiled children.
@@ -1474,7 +1474,7 @@ impl CompiledPreferenceDecision {
         if measure.is_some() && self.contract.ordinary().is_some() {
             return Err(measure_not_read());
         }
-        self.parent.gate(ctx).map_err(CausalError::from)?;
+        let publication = self.parent.gate(ctx).map_err(CausalError::from)?;
         let mut execution = match &self.sources {
             Sources::Studies { studies, structures, posterior: true, basis } => self
                 .execute_structures(
@@ -1510,7 +1510,7 @@ impl CompiledPreferenceDecision {
         if let CompiledPreferenceEvaluation::Ordinary(result) = &mut execution.evaluation {
             result.set_method_provenance(execution.method_provenance.clone());
         }
-        Ok(execution)
+        publication.finish(Ok(execution))
     }
 
     fn execute_studies(

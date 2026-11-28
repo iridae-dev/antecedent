@@ -245,9 +245,14 @@ impl CompiledSampledObservationRecovery {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SampledRecoveryResult, SampledRecoveryError> {
-        self.program.gate(ctx).map_err(|refusal| sampled_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| sampled_refusal(&refusal))?;
         let request = self.program.input();
-        estimate_sampled_recovery(&request.derivation, &request.input, &request.config, ctx)
+        publication.finish(estimate_sampled_recovery(
+            &request.derivation,
+            &request.input,
+            &request.config,
+            ctx,
+        ))
     }
 }
 
@@ -279,14 +284,14 @@ impl CompiledMeasuredSampledObservationRecovery {
     /// and the refusals of the replay. Where no current attesting record measured this
     /// construction, the interval is still reported with calibration `not_measured`.
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
         let request = self.program.input();
-        SampledRecoveryArtifactWire::measure(
+        publication.finish(SampledRecoveryArtifactWire::measure(
             &request.source,
             &request.expected,
             request.limits,
             ctx,
-        )
+        ))
     }
 }
 

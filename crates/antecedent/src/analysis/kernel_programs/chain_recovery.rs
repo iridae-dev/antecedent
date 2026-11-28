@@ -140,9 +140,9 @@ impl CompiledChainObservationRecovery {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<ChainRecoveredLaw, ChainRecoveryError> {
-        self.program.gate(ctx).map_err(|refusal| chain_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| chain_refusal(&refusal))?;
         let request = self.program.input();
-        evaluate_chain_recovery(&request.plan, &request.observed)
+        publication.finish(evaluate_chain_recovery(&request.plan, &request.observed))
     }
 }
 

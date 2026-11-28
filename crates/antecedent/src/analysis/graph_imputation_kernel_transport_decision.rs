@@ -46,8 +46,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
-use crate::support::capability_calibration;
-use crate::support::units_generated::GRAPH_IMPUTATION_COMPILED_DECISION;
 
 const FEATURE: &str = "graph_imputation_kernel_transport_decision_v2";
 const BOOTSTRAP_FEATURE: &str = "graph_imputation_kernel_transport_target_bootstrap_decision_v2";
@@ -596,7 +594,7 @@ impl CompiledGraphImputationKernelTransportDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GraphImputationTransportDecisionResult, Error> {
-        super::graph_imputation::require_decision_support(ctx, self)?;
+        let publication = super::graph_imputation::require_decision_support(ctx, self)?;
         let source = GraphImputationSource::decode(&self.native_source).map_err(Error::Invalid)?;
         if source.program() != *self.lowered.identity().as_bytes()
             || self.target.source_sample != self.producer.source_identity().to_hex()
@@ -757,12 +755,12 @@ impl CompiledGraphImputationKernelTransportDecision {
             ctx,
         )?
         .execute(ctx)?;
-        Ok(GraphImputationTransportDecisionResult {
+        publication.finish(Ok(GraphImputationTransportDecisionResult {
             producer: reading,
             decision,
             lowered_program_identity: self.lowered.identity(),
             calibration: self.unit_calibration(),
-        })
+        }))
     }
 
     /// Complete-route target effect interval candidate under the prespecified
@@ -954,7 +952,7 @@ impl CompiledGraphImputationKernelTransportDecision {
             chain_artifact: chain.export(&live.decision, artifact_id)?,
             producer_receipt: live.producer.receipt,
             program_identity: *self.lowered.identity().as_bytes(),
-            calibration: self.unit_calibration().into(),
+            calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.into(),
             target_bootstrap: self.target_bootstrap,
             confounded: self.confounded,
             cluster_bootstrap: self.cluster_bootstrap.clone(),
@@ -1003,7 +1001,7 @@ pub fn consume_graph_imputation_kernel_transport_decision(
     if wire.version != 1
         || wire.required_feature != expected_feature
         || wire.program_identity != *expected_program.as_bytes()
-        || wire.calibration != capability_calibration(GRAPH_IMPUTATION_COMPILED_DECISION.as_str())
+        || !antecedent_io_core::unit_calibration::is_v1_wire_status(&wire.calibration)
     {
         return Err(Error::Invalid("mixed target feature or identity differs"));
     }

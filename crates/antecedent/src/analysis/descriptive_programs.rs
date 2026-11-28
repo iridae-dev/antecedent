@@ -213,8 +213,9 @@ impl CompiledDescriptive {
             return Err(DescriptiveProgramError::Reentry);
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program(&scoped, self).map_err(DescriptiveProgramError::NotSupported)?;
-        run(&self.request, &scoped)
+        let publication =
+            gate_program(&scoped, self).map_err(DescriptiveProgramError::NotSupported)?;
+        publication.finish(run(&self.request, &scoped))
     }
 }
 

@@ -12,6 +12,13 @@ pub fn unit_calibration(unit: &UnitRef) -> &'static str {
     antecedent_io_core::unit_calibration::unit(unit.kind(), &unit.record_id())
 }
 
+/// The calibration state of one prospective direct producer.
+#[doc(hidden)]
+#[must_use]
+pub fn direct_unit_calibration(id: &str) -> &'static str {
+    antecedent_io_core::unit_calibration::unit("direct", id)
+}
+
 /// The calibration state of the capability unit `id`.
 #[must_use]
 pub(crate) fn capability_calibration(id: &str) -> &'static str {

@@ -228,15 +228,17 @@ impl CompiledIdentificationRepair {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<RepairReport, TerminalError<RepairError>> {
-        let scoped = self.enter(ctx)?;
-        antecedent_design::repair(
-            self.contract.family(),
-            &self.candidates,
-            self.objective,
-            self.limits,
-            &scoped,
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            antecedent_design::repair(
+                self.contract.family(),
+                &self.candidates,
+                self.objective,
+                self.limits,
+                &scoped,
+            )
+            .map_err(TerminalError::Kernel),
         )
-        .map_err(TerminalError::Kernel)
     }
 }
 
@@ -311,16 +313,18 @@ impl CompiledStudyAdditionPlan {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<StudyPlanResult, TerminalError<StudyPlanError>> {
-        let scoped = self.enter(ctx)?;
-        plan_studies(
-            &self.graph,
-            &self.route,
-            &self.catalog,
-            &self.candidates,
-            self.limits,
-            &scoped,
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            plan_studies(
+                &self.graph,
+                &self.route,
+                &self.catalog,
+                &self.candidates,
+                self.limits,
+                &scoped,
+            )
+            .map_err(TerminalError::Kernel),
         )
-        .map_err(TerminalError::Kernel)
     }
 }
 
@@ -383,15 +387,17 @@ impl CompiledZTransportFailureSnapshot {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<ZTransportFailureSnapshot, TerminalError<ZTransportPlanningError>> {
-        let scoped = self.enter(ctx)?;
-        snapshot_z_transport_failure(
-            &self.diagram,
-            &self.query,
-            &self.catalog,
-            self.limits,
-            &scoped,
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            snapshot_z_transport_failure(
+                &self.diagram,
+                &self.query,
+                &self.catalog,
+                self.limits,
+                &scoped,
+            )
+            .map_err(TerminalError::Kernel),
         )
-        .map_err(TerminalError::Kernel)
     }
 }
 
@@ -446,9 +452,11 @@ impl CompiledZTransportEvidencePlan {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<ZTransportPlanResult, TerminalError<ZTransportPlanningError>> {
-        let scoped = self.enter(ctx)?;
-        plan_z_transport_evidence(&self.snapshot, &self.spec, &scoped)
-            .map_err(TerminalError::Kernel)
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            plan_z_transport_evidence(&self.snapshot, &self.spec, &scoped)
+                .map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -559,7 +567,7 @@ impl CompiledDesignRanking {
         A: Clone + Sync,
         O: Clone + Sync,
     {
-        let scoped = self.enter(ctx)?;
+        let (scoped, publication) = self.enter(ctx)?;
         if evaluation_digest(eval) != self.evaluation {
             return Err(TerminalError::Refused(CausalError::Compile {
                 message: "design_ranking: the evaluation context differs from the one the \
@@ -567,11 +575,13 @@ impl CompiledDesignRanking {
                     .to_owned(),
             }));
         }
-        DesignRanker::new()
-            .with_config(self.config.clone())
-            .with_constraints(self.constraints.clone())
-            .rank(&self.objective, &self.candidates, eval, &scoped)
-            .map_err(TerminalError::Kernel)
+        publication.finish(
+            DesignRanker::new()
+                .with_config(self.config.clone())
+                .with_constraints(self.constraints.clone())
+                .rank(&self.objective, &self.candidates, eval, &scoped)
+                .map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -655,20 +665,22 @@ impl CompiledChoiceStudyRanking {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<Vec<StudyRank>, TerminalError<ChoiceEvsiError>> {
-        let scoped = self.enter(ctx)?;
-        match &self.posterior {
-            ChoicePosterior::Pooled { alpha, seed } => {
-                rank_studies_with_context(alpha, &self.values, &self.candidates, *seed, &scoped)
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            match &self.posterior {
+                ChoicePosterior::Pooled { alpha, seed } => {
+                    rank_studies_with_context(alpha, &self.values, &self.candidates, *seed, &scoped)
+                }
+                ChoicePosterior::Hierarchical { prior, respondents } => rank_hierarchical_studies(
+                    prior,
+                    respondents,
+                    &self.values,
+                    &self.candidates,
+                    &scoped,
+                ),
             }
-            ChoicePosterior::Hierarchical { prior, respondents } => rank_hierarchical_studies(
-                prior,
-                respondents,
-                &self.values,
-                &self.candidates,
-                &scoped,
-            ),
-        }
-        .map_err(TerminalError::Kernel)
+            .map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -746,8 +758,10 @@ impl CompiledGraphIdentification {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GraphIdentFlag, TerminalError<StructureIdentificationError>> {
-        let _scoped = self.enter(ctx)?;
-        identifies(&self.graph, self.treatment, self.outcome).map_err(TerminalError::Kernel)
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            identifies(&self.graph, self.treatment, self.outcome).map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -801,7 +815,7 @@ impl CompiledStructureIdentification {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<StructureIdentificationReadout, TerminalError<StructureIdentificationError>> {
-        let _scoped = self.enter(ctx)?;
+        let (_scoped, publication) = self.enter(ctx)?;
         let posterior = structure_posterior(&self.samples, self.treatment, self.outcome)
             .map_err(TerminalError::Kernel)?;
         let under_intervention = self
@@ -812,7 +826,7 @@ impl CompiledStructureIdentification {
             })
             .transpose()
             .map_err(TerminalError::Kernel)?;
-        Ok(StructureIdentificationReadout { posterior, under_intervention })
+        publication.finish(Ok(StructureIdentificationReadout { posterior, under_intervention }))
     }
 }
 

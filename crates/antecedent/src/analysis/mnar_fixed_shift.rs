@@ -83,7 +83,7 @@ impl Study {
             lowered: Arc::new(lowered),
             _lease: Arc::new(lease),
         };
-        gate_program(ctx, &prepared)?;
+        let _admission = gate_program(ctx, &prepared)?;
         Ok(prepared)
     }
 }
@@ -139,7 +139,7 @@ impl PreparedMnarFixedShift {
         }
         let actual = self.estimate_candidate(ctx)?;
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program(&scoped, self)?;
+        let publication = gate_program(&scoped, self)?;
         let expected_point = declared_point(&actual, self.source.treated_shift())
             .ok_or_else(|| CausalError::Compile {
                 message: "mnar declared point is absent".into(),
@@ -158,14 +158,14 @@ impl PreparedMnarFixedShift {
                 message: "mnar interval candidate and retained point disagree".into(),
             });
         }
-        Ok((
+        publication.finish(Ok((
             antecedent_validate::mnar_sensitivity::MnarSamplingInterval {
                 standard_error,
                 lower,
                 upper,
             },
             basis,
-        ))
+        )))
     }
 
     /// Execute only for native review, replay and the calibration harness.
@@ -182,7 +182,7 @@ impl PreparedMnarFixedShift {
             });
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program(&scoped, self)?;
+        let publication = gate_program(&scoped, self)?;
         if scoped.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "mnar fixed-shift execution" });
         }
@@ -204,7 +204,7 @@ impl PreparedMnarFixedShift {
         if scoped.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "mnar fixed-shift execution" });
         }
-        Ok(result)
+        publication.finish(Ok(result))
     }
 }
 
@@ -421,17 +421,19 @@ impl PreparedMnarFixedShift {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io::IoError> {
-        gate_program(&ctx.enter_lowered_dispatch(self.lowered.identity()), self).map_err(
-            |refusal| antecedent_io::IoError::Refused {
+        let publication = gate_program(&ctx.enter_lowered_dispatch(self.lowered.identity()), self)
+            .map_err(|refusal| antecedent_io::IoError::Refused {
                 code: refusal.code(),
                 message: format!(
                     "{}: {refusal}",
                     antecedent_core::reason_details::mnar_fixed_shift::INTERVAL_NOT_SUPPORTED
                 ),
-            },
-        )?;
+            })?;
         let encoded = antecedent_io::mnar_candidate_source::encode(&self.source, ctx)?;
-        antecedent_io::measured_inference::mnar_candidate::measure_source(encoded.bytes(), ctx)
+        publication.finish(antecedent_io::measured_inference::mnar_candidate::measure_source(
+            encoded.bytes(),
+            ctx,
+        ))
     }
 }
 

@@ -65,7 +65,7 @@ use super::discovered_transport_trial::{
     estimate_trial_compatible_transport_confidence_set,
     verify_trial_compatible_transport_confidence_set_against,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::structure_route::{CompiledExecution, DiscoveredStructure, DiscoverySpec};
 use super::supplied_identity::{Canonical, Declaration, SetOf, variant};
 use crate::analysis::execute::Study;
@@ -83,11 +83,6 @@ use crate::planner::statistical::{
 
 const QUESTION_TAG: &str = "antecedent.discovered_class_transport.question.v1";
 const ROWS_TAG: &str = "antecedent.discovered_class_transport.rows.v1";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record lists this compiled
-/// route and is earned again with it, so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// Source and target rows of an estimate across the class, with the settings of
 /// [`TransportEvidence`].
 ///
@@ -780,7 +775,7 @@ impl CompiledDiscoveredClassTransport {
             }
         };
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+        let publication = gate_program(&scoped, self).map_err(|refusal| {
             DiscoveredClassTransportError::Program(CausalError::from(refusal))
         })?;
         let request = &self.request;
@@ -792,7 +787,7 @@ impl CompiledDiscoveredClassTransport {
             &scoped,
         );
         let stage = transport.as_ref().ok().and_then(|report| self.run_stage(report, &scoped));
-        Ok(DiscoveredClassTransportRun {
+        publication.finish(Ok(DiscoveredClassTransportRun {
             discovery: found.report,
             outcome: found.outcome,
             state: found.state,
@@ -800,7 +795,7 @@ impl CompiledDiscoveredClassTransport {
             lowered_program_identity: self.lowered.identity(),
             transport,
             stage,
-        })
+        }))
     }
 
     /// The stage's kernel on the report, with the same inputs the direct bridges pass.

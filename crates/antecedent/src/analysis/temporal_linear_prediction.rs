@@ -30,7 +30,7 @@ use antecedent_core::{
 use antecedent_data::{LaggedColumn, SamplingRegularity, TimeSeriesData};
 use antecedent_estimate::{EstimationError, TemporalLinearPredictor};
 
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::error::CausalError;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
@@ -260,18 +260,11 @@ impl CompiledTemporalPrediction {
             return Err(TemporalPredictionError::Reentry);
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
-            .map_err(TemporalPredictionError::NotSupported)?;
-        run(&self.request, &scoped)
+        let publication =
+            gate_program(&scoped, self).map_err(TemporalPredictionError::NotSupported)?;
+        publication.finish(run(&self.request, &scoped))
     }
 }
-
-/// Whether `run` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). The unit's record is new: the gate stays off until its
-/// scientific assertions are earned, so no valid use refuses before then. Turning it on makes a
-/// release build refuse the route while its unit is unsupported, and a development build record
-/// what it would refuse.
-const GATE_ON_UNIT_SUPPORT: bool = false;
 
 /// Refuse a cancelled context at a step boundary.
 fn check_cancelled(ctx: &ExecutionContext) -> Result<(), TemporalPredictionError> {

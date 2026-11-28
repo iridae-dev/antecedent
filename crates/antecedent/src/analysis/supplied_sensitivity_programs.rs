@@ -214,8 +214,8 @@ impl CompiledMatchedDesignSensitivity {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<MatchedSensitivityOutcome, TerminalError<ValidationError>> {
-        let scoped = self.enter(ctx)?;
-        match &self.design {
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(match &self.design {
             MatchedDesign::Pairs { target, differences, gammas, alpha } => {
                 let (analysis, range) =
                     rosenbaum_range(target.clone(), differences, gammas, *alpha, Some(&scoped))
@@ -243,7 +243,7 @@ impl CompiledMatchedDesignSensitivity {
                     matched_sets_break_even(sets, *score, *alpha).map_err(TerminalError::Kernel)?;
                 Ok(MatchedSensitivityOutcome::Sets { grid, gamma_break_even })
             }
-        }
+        })
     }
 }
 
@@ -420,8 +420,8 @@ impl CompiledSuppliedEstimateEValue {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SuppliedEValueOutcome, TerminalError<ValidationError>> {
-        let _scoped = self.enter(ctx)?;
-        match &self.estimate {
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(match &self.estimate {
             SuppliedEstimate::Scalar { target, interval, scale } => {
                 let (bounds, range) = evalue_range(target.clone(), *interval, *scale)
                     .map_err(TerminalError::Kernel)?;
@@ -451,7 +451,7 @@ impl CompiledSuppliedEstimateEValue {
                 .map_err(TerminalError::Kernel)?;
                 Ok(SuppliedEValueOutcome::Posterior { summary, range })
             }
-        }
+        })
     }
 }
 

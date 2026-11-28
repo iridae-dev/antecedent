@@ -132,17 +132,19 @@ impl CompiledRobustDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<antecedent_design::decision_robust_artifact::ScenarioDecision, CausalError> {
-        self.parent.gate(ctx)?;
-        self.source.evaluate(self.decision.decision(), ctx).map_err(io)
+        let publication = self.parent.gate(ctx)?;
+        publication.finish(self.source.evaluate(self.decision.decision(), ctx).map_err(io))
     }
     /// Recompute and seal the terminal with its compiler/source/contract identities.
     /// # Errors
     /// The execution errors or serialization failure.
     pub fn export(&self, ctx: &ExecutionContext) -> Result<Vec<u8>, CausalError> {
-        self.parent.gate(ctx)?;
-        self.source
-            .seal_decision(self.decision.decision(), self.program_identity(), ctx)
-            .map_err(io)
+        let publication = self.parent.gate(ctx)?;
+        publication.finish(
+            self.source
+                .seal_decision(self.decision.decision(), self.program_identity(), ctx)
+                .map_err(io),
+        )
     }
     /// Independently reconstruct the source and rerun the terminal against this
     /// separately retained compiler identity. Bytes alone cannot recreate a study.
@@ -154,10 +156,12 @@ impl CompiledRobustDecision {
         bytes: &[u8],
         ctx: &ExecutionContext,
     ) -> Result<antecedent_design::decision_robust_artifact::ScenarioDecision, CausalError> {
-        self.parent.gate(ctx)?;
-        self.source
-            .replay_decision(self.decision.decision(), self.program_identity(), bytes, ctx)
-            .map_err(io)
+        let publication = self.parent.gate(ctx)?;
+        publication.finish(
+            self.source
+                .replay_decision(self.decision.decision(), self.program_identity(), bytes, ctx)
+                .map_err(io),
+        )
     }
 }
 

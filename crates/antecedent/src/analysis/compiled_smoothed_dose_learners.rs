@@ -32,7 +32,7 @@ use antecedent_io::{TransportIdentificationWire, transport_identification_to_wir
 
 use super::compiled_point_program::PointProgram;
 use super::declared_learners::LearnerFactories;
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{Canonical, SetOf, Wire, encoded};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -41,11 +41,6 @@ use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, Prog
 
 const PLAN_ID: &str = "smoothed_dose_caller_learners.v1";
 const EVALUATOR: &str = "antecedent_estimate::estimate_smoothed_dose_with_factories";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// A smoothed dose-response transport request whose nuisances the caller's learners fit.
 ///
 /// `learners` pairs the outcome-curve factory (`outcome`, a regression) with the source
@@ -247,10 +242,10 @@ impl CompiledSmoothedDoseLearners {
     ///
     /// Time-ordered rows or bootstrap replicates (`route_not_supported`), a learner without the
     /// required task or sampling-weight capability, a portability, budget, fit or overlap
-    /// refusal, cancellation, or the support gate once it is on.
+    /// refusal, cancellation, or a support refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<SmoothedDoseLearnersRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
+        let publication = gate_program(&scoped, self)?;
         let request = &self.request;
         let estimate = antecedent_estimate::estimate_smoothed_dose_with_factories(
             &self.identification,
@@ -261,12 +256,12 @@ impl CompiledSmoothedDoseLearners {
             request.learners.outcome(),
             request.learners.treatment(),
         )?;
-        Ok(SmoothedDoseLearnersRun {
+        publication.finish(Ok(SmoothedDoseLearnersRun {
             estimate,
             lowered_program_identity: self.lowered.identity(),
             claim: "point_only",
             calibration: self.unit_calibration(),
-        })
+        }))
     }
 }
 

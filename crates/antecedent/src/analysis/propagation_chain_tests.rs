@@ -406,7 +406,7 @@ fn the_chain_reads_the_support_decision_of_its_unit_and_execution_consults_it() 
     assert_eq!(view.status(), decision.status);
     assert_eq!(view.unit(), decision.unit.label());
     let executed = plan.execute(&ctx());
-    if RELEASE_SUPPORT_GATE_LIVE && !view.supported() && !cfg!(feature = "development") {
+    if !view.supported() && !cfg!(feature = "development") {
         assert_eq!(executed.expect_err("refused").code(), "not_supported");
     } else {
         executed.expect("the chain runs");

@@ -288,9 +288,14 @@ impl CompiledSurrogateBridge {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<TransportedConstruction<BridgedClaim>, ExternalRefusal> {
-        self.program.gate(ctx).map_err(|refusal| transport_support_refusal(&refusal))?;
+        let publication =
+            self.program.gate(ctx).map_err(|refusal| transport_support_refusal(&refusal))?;
         let input = self.program.input();
-        surrogate_bridge_response_kernel(&input.bridge, &input.claim, &input.provider_id)
+        publication.finish(surrogate_bridge_response_kernel(
+            &input.bridge,
+            &input.claim,
+            &input.provider_id,
+        ))
     }
 }
 

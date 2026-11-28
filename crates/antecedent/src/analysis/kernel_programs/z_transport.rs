@@ -11,10 +11,6 @@
 //! combinations of separately prepared components), so the distribution, the interval and its
 //! reason are the direct path's bit for bit.
 //!
-//! The route's unit (`transport.single_source_z_transport`) has not yet earned its support, so
-//! the estimates pass its support gate only once `GATE_ON_UNIT_SUPPORT` is turned on; until
-//! then no valid use refuses.
-//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::DataClassification;
@@ -35,12 +31,6 @@ use crate::planner::PlanView;
 use crate::planner::lowered::{
     EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell, UncertaintyReading,
 };
-
-/// Whether the estimates pass the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then; turning it on makes a release build refuse the route
-/// while the unit is unsupported and a development build record what it would refuse.
-const GATE_ON_UNIT_SUPPORT: bool = false;
 
 /// Exact laws: the identified target law, point only.
 const EXACT: KernelProgramShape = KernelProgramShape {
@@ -233,11 +223,8 @@ impl CompiledZTransport {
         &self.program.input().prepared
     }
 
-    fn gate(&self, ctx: &ExecutionContext) -> Result<(), IoError> {
-        self.program
-            .gate_when(GATE_ON_UNIT_SUPPORT, ctx)
-            .map_err(|refusal| io_refusal(&refusal))?;
-        Ok(())
+    fn gate(&self, ctx: &ExecutionContext) -> Result<super::ProgramPublication, IoError> {
+        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))
     }
 
     /// Pass the support gate and evaluate the frozen formula, as `PreparedZTransport::estimate`
@@ -246,11 +233,11 @@ impl CompiledZTransport {
     ///
     /// # Errors
     ///
-    /// The support refusal (`not_supported`) once the gate is on, in a release build, while the
+    /// The support refusal (`not_supported`) in a release build when the
     /// unit is not supported, and the refusals of the evaluation.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<ZTransportResult, IoError> {
-        self.gate(ctx)?;
-        self.prepared().estimate_with(None, 0, ctx)
+        let publication = self.gate(ctx)?;
+        publication.finish(self.prepared().estimate_with(None, 0, ctx))
     }
 
     /// Pass the support gate and attach a finite-discrete posterior interval instead of the
@@ -265,8 +252,8 @@ impl CompiledZTransport {
         draws: u32,
         ctx: &ExecutionContext,
     ) -> Result<ZTransportResult, IoError> {
-        self.gate(ctx)?;
-        self.prepared().estimate_with(Some(provider), draws, ctx)
+        let publication = self.gate(ctx)?;
+        publication.finish(self.prepared().estimate_with(Some(provider), draws, ctx))
     }
 
     /// Pass the support gate of both programs and combine two separately compiled formulas
@@ -282,14 +269,14 @@ impl CompiledZTransport {
         max_atoms: usize,
         ctx: &ExecutionContext,
     ) -> Result<ZTransportResult, IoError> {
-        left.gate(ctx)?;
-        right.gate(ctx)?;
-        PreparedZTransport::combine_independent_components(
+        let publication = left.gate(ctx)?;
+        let _right_admission = right.gate(ctx)?;
+        publication.finish(PreparedZTransport::combine_independent_components(
             left.prepared(),
             right.prepared(),
             max_atoms,
             ctx,
-        )
+        ))
     }
 
     /// Pass the support gate of both programs and combine two separately compiled factors whose
@@ -305,14 +292,14 @@ impl CompiledZTransport {
         max_atoms: usize,
         ctx: &ExecutionContext,
     ) -> Result<ZTransportResult, IoError> {
-        left.gate(ctx)?;
-        right.gate(ctx)?;
-        PreparedZTransport::combine_factorized_components(
+        let publication = left.gate(ctx)?;
+        let _right_admission = right.gate(ctx)?;
+        publication.finish(PreparedZTransport::combine_factorized_components(
             left.prepared(),
             right.prepared(),
             max_atoms,
             ctx,
-        )
+        ))
     }
 
     /// Rebind fresh laws under the retained checked program, as `PreparedZTransport::refresh`

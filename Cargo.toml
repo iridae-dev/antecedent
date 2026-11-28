@@ -112,6 +112,7 @@ antecedent-test-support = { path = "crates/antecedent-test-support" }
 antecedent-validate = { version = "3.0.0", path = "crates/antecedent-validate" }
 
 [workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(antecedent_trace_attribution)'] }
 missing_docs = "warn"
 
 [workspace.lints.clippy]

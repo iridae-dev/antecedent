@@ -39,7 +39,7 @@ use antecedent_graph::SelectionDiagram;
 use antecedent_identify::TransportIdentification;
 
 use super::compiled_point_program::PointProgram;
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{Canonical, SetOf, encoded};
 use super::transport_supplied_nuisance::TransportResponseGridColumns;
 use crate::analysis::TransportTrialSpec;
@@ -50,12 +50,6 @@ use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, Prog
 
 const PLAN_ID: &str = "transport_augmented_response_grid.v1";
 const EVALUATOR: &str = "antecedent_estimate::transport_augmented_response_grid";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then; turning it on makes a release build refuse the route
-/// while the unit is unsupported and a development build record what it would refuse.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// The declared question of an augmented transported response grid.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -326,10 +320,10 @@ impl CompiledTransportResponseGrid {
     /// # Errors
     ///
     /// The kernel's refusals (mismatched or non-finite inputs, selection probabilities outside
-    /// `(0, 1)`, no trial or no target rows), cancellation, or the support gate once it is on.
+    /// `(0, 1)`, no trial or no target rows), cancellation, or a support refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<TransportResponseGridRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
+        let publication = gate_program(&scoped, self)?;
         if scoped.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "transport response grid" });
         }
@@ -347,12 +341,12 @@ impl CompiledTransportResponseGrid {
             },
             &scoped,
         )?;
-        Ok(TransportResponseGridRun {
+        publication.finish(Ok(TransportResponseGridRun {
             estimate,
             lowered_program_identity: self.lowered.identity(),
             claim: "point_only",
             calibration: self.unit_calibration(),
-        })
+        }))
     }
 }
 

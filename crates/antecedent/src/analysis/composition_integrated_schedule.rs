@@ -227,13 +227,13 @@ impl CompiledIntegratedScheduleDecision {
             return Err(ScheduleDecisionError::Cancelled.into());
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program(&scoped, self)
+        let publication = gate_program(&scoped, self)
             .map_err(|error| ScheduleBundleError::Unsupported(error.message().to_owned()))?;
-        compile_program_schedule_bundle(
+        publication.finish(compile_program_schedule_bundle(
             &self.children,
             *self.lowered.identity().as_bytes(),
             &scoped,
-        )
+        ))
     }
 }
 
@@ -273,11 +273,11 @@ pub fn consume_schedule_decision_bundle_with_context(
         return Err(ScheduleBundleError::ChangedProgram);
     }
     let scoped = ctx.enter_lowered_dispatch(compiled.lowered.identity());
-    gate_program(&scoped, &compiled)
+    let publication = gate_program(&scoped, &compiled)
         .map_err(|error| ScheduleBundleError::Unsupported(error.message().to_owned()))?;
     drop(compiled);
     drop(recompile_memory);
-    consume_program_schedule_bundle(bytes, expected_identity, identity, &scoped)
+    publication.finish(consume_program_schedule_bundle(bytes, expected_identity, identity, &scoped))
 }
 
 /// Independently consume a portable decision under the default execution context.

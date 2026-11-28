@@ -268,8 +268,8 @@ impl PreparedExcitationChallenge {
     /// # Errors
     /// A fit fails, or the fitted kernel is not stable.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<ExcitationReading, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
-        Ok(self.request.run(&scoped)?.0)
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
+        publication.finish(Ok(self.request.run(&scoped)?.0))
     }
 
     /// Fit the constant-baseline kernel the diagnostic compares.
@@ -277,10 +277,10 @@ impl PreparedExcitationChallenge {
     /// # Errors
     /// The optimizer fails, or the fitted kernel is not stable.
     pub fn kernel(&self, ctx: &ExecutionContext) -> Result<super::ExcitationSubject, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
         let mut work = hawkes::Work::new(&scoped);
         let constant = hawkes::fit(&self.request.history, &self.request.fit, &mut work)?;
-        Ok(self.request.subject(constant))
+        publication.finish(Ok(self.request.subject(constant)))
     }
 }
 
@@ -474,8 +474,8 @@ impl PreparedMarkedChallenge {
     /// # Errors
     /// A fit fails, or the fitted kernel is not stable.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<ExcitationReading, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
-        Ok(self.request.run(&scoped)?.0)
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
+        publication.finish(Ok(self.request.run(&scoped)?.0))
     }
 
     /// Fit the constant-baseline marked kernel the diagnostic compares.
@@ -483,10 +483,10 @@ impl PreparedMarkedChallenge {
     /// # Errors
     /// The optimizer fails, or the fitted kernel is not stable.
     pub fn kernel(&self, ctx: &ExecutionContext) -> Result<super::ExcitationSubject, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
         let mut work = hawkes::Work::new(&scoped);
         let constant = marked::fit(&self.request.history, &self.request.fit, &mut work)?;
-        Ok(self.request.subject(constant))
+        publication.finish(Ok(self.request.subject(constant)))
     }
 }
 
@@ -676,8 +676,8 @@ impl PreparedReleaseComparison {
     /// A fit fails, the kernel does not reproduce an agreed reading, the release times are
     /// unordered, or an unsupported release scope.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<ReleaseComparison, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
-        match &self.request {
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
+        publication.finish(match &self.request {
             Comparison::Catalog(request) => {
                 let (reading, _) = request.challenge.run(&scoped)?;
                 let comparison = match reading.status {
@@ -707,7 +707,7 @@ impl PreparedReleaseComparison {
                 };
                 Ok(ReleaseComparison { reading, comparison })
             }
-        }
+        })
     }
 }
 

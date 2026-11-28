@@ -40,10 +40,22 @@ pub fn classify(cell: SupportCell) -> CellStatus {
     CellStatus::NotSupported
 }
 
+/// Whether the declared compile recipe covers this coordinate. Evidence freshness changes the
+/// support of a recipe without changing which recipe a default invocation selects.
+pub(crate) fn is_declared_candidate(cell: SupportCell) -> bool {
+    !NA_RULES.iter().any(|rule| rule_matches(rule, cell))
+        && matrix_data::is_candidate([
+            cell.query.as_str(),
+            cell.graph_class.as_str(),
+            cell.structure.as_str(),
+            cell.inference.as_str(),
+            cell.validation.as_str(),
+        ])
+}
+
 /// Estimator wire-ids whose evidence ran for this geometric cell.
 ///
-/// Empty when the cell is not supported, or when neither the compiler route nor
-/// a calibration-record token named an estimator (do not guess one).
+/// Empty when the cell is not supported or no estimator is declared for the cell.
 #[must_use]
 pub fn supported_estimators(cell: SupportCell) -> &'static [&'static str] {
     supported_row(cell).map_or(&[], |row| row.estimators)
@@ -51,8 +63,7 @@ pub fn supported_estimators(cell: SupportCell) -> &'static [&'static str] {
 
 /// Compiler-plan estimator for this geometric cell (`parity/supported_routes.toml`).
 ///
-/// This is the default unbound compile path; it is independent of how many
-/// additional estimators the cell's calibration records support.
+/// This is the default unbound compile path for the admitted cell.
 #[must_use]
 pub fn supported_route_estimator(cell: SupportCell) -> Option<EstimatorId> {
     let wire = supported_row(cell)?.route_estimator?;

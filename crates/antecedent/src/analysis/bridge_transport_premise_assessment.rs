@@ -22,7 +22,7 @@ use antecedent_io::IoError;
 use antecedent_kernels::norm_inv;
 use serde::{Deserialize, Serialize};
 
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 
 use crate::planner::PlanView;
 use crate::planner::lowered::{
@@ -35,12 +35,6 @@ use crate::planner::statistical::{Realization, StatisticalProgram};
 
 const FEATURE: &str = "bridge_transport_premise_assessment_v1";
 const MAX_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
-
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then; turning it on makes a release build refuse the route
-/// while the unit is unsupported and a development build record what it would refuse.
-const GATE_ON_UNIT_SUPPORT: bool = false;
 
 /// Independent source and target validation trials of a proposed bridge
 /// invariance premise. Grid points must lie in both observed surrogate ranges.
@@ -500,7 +494,7 @@ impl CompiledBridgeTransportPremiseAssessment {
         ctx: &ExecutionContext,
     ) -> Result<BridgeTransportPremiseAssessmentResult, BridgeTransportPremiseAssessmentError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+        let publication = gate_program(&scoped, self).map_err(|refusal| {
             BridgeTransportPremiseAssessmentError::Invalid(refusal.to_string())
         })?;
         if scoped.cancellation.is_cancelled() {
@@ -537,14 +531,14 @@ impl CompiledBridgeTransportPremiseAssessment {
             point.lower > -self.request.equivalence_margin
                 && point.upper < self.request.equivalence_margin
         });
-        Ok(BridgeTransportPremiseAssessmentResult {
+        publication.finish(Ok(BridgeTransportPremiseAssessmentResult {
             source_fit,
             target_fit,
             grid,
             equivalence_screen_passed,
             calibration: self.unit_calibration(),
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Digest of the assessment's construction: the declared premise, the fit

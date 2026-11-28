@@ -29,7 +29,7 @@ use super::cohort_decision::{
 use super::compiled_measured_interval::{
     MeasuredIntervalProgram, MeasuredIntervalRun, frequentist,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -40,11 +40,6 @@ use crate::planner::lowered::{
 const PLAN_ID: &str = "cohort_mean_interval.v1";
 /// The measured route the coverage of this interval is recorded under.
 const CALIBRATION_ROUTE: &str = antecedent_io::measured_inference::cohort_interval::ROUTE;
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// A native cohort fit, its cohort source and a nominal level bound to their lowered program.
 #[derive(Clone, Debug)]
 pub struct CompiledCohortInterval {
@@ -157,21 +152,19 @@ impl CompiledCohortInterval {
     ///
     /// Every refusal of the measured consumer (a source not built from this fit, a declared
     /// export, a shifted cohort, an invalid level, a changed artifact), cancellation, or the
-    /// support gate once it is on.
+    /// support refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<MeasuredIntervalRun, IoError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
-            IoError::Refused {
-                code: refusal.code(),
-                message: format!("{}: {refusal}", refusal.detail),
-            }
+        let publication = gate_program(&scoped, self).map_err(|refusal| IoError::Refused {
+            code: refusal.code(),
+            message: format!("{}: {refusal}", refusal.detail),
         })?;
         let measured = measure_cohort_interval(&self.native, &self.source, self.level, &scoped)?;
-        Ok(MeasuredIntervalRun {
+        publication.finish(Ok(MeasuredIntervalRun {
             measured,
             lowered_program_identity: self.lowered.identity(),
             calibration_route: CALIBRATION_ROUTE,
-        })
+        }))
     }
 }
 

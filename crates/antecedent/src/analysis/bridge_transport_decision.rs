@@ -36,7 +36,7 @@ use super::bridge_transport_premise_assessment::{
     BridgeTransportPremiseAssessmentError, BridgeTransportPremiseAssessmentResult,
     CompiledBridgeTransportPremiseAssessment, recompile_bridge_transport_premise_assessment,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::propagation_chain::PropagationChain;
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
@@ -64,12 +64,6 @@ use crate::planner::statistical::{
 const FEATURE: &str = "bridge_transport_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 const ASSESSED_FEATURE: &str = "assessed_bridge_transport_decision_v1";
-
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then; turning it on makes a release build refuse the route
-/// while the unit is unsupported and a development build record what it would refuse.
-const GATE_ON_UNIT_SUPPORT: bool = false;
 
 /// Refusal of a bridge, coordinate, decision or independent artifact replay.
 #[derive(Debug, thiserror::Error)]
@@ -319,16 +313,16 @@ impl CompiledBridgeTransportDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<BridgeTransportDecisionResult, BridgeTransportDecisionError> {
-        gate_program_when(GATE_ON_UNIT_SUPPORT, ctx, self)
+        let publication = gate_program(ctx, self)
             .map_err(|refusal| BridgeTransportDecisionError::Invalid(refusal.message()))?;
         let bridge = self.bridge.derive(&self.source, None, self.seed)?;
         let draft = Self::chain_draft(&bridge)?;
         let decision = compile_chain_decision(draft, self.decision.clone(), ctx)?.execute(ctx)?;
-        Ok(BridgeTransportDecisionResult {
+        publication.finish(Ok(BridgeTransportDecisionResult {
             bridge,
             decision,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Export the independently replayable bridge and chain decision after a
@@ -643,15 +637,15 @@ impl CompiledAssessedBridgeTransportDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgeTransportDecisionResult, AssessedBridgeTransportDecisionError> {
-        gate_program_when(GATE_ON_UNIT_SUPPORT, ctx, self)
+        let publication = gate_program(ctx, self)
             .map_err(|refusal| AssessedBridgeTransportDecisionError::Invalid(refusal.message()))?;
         let assessment = self.assessment.execute(ctx)?;
         let bridge = self.bridge.execute(ctx)?;
-        Ok(AssessedBridgeTransportDecisionResult {
+        publication.finish(Ok(AssessedBridgeTransportDecisionResult {
             assessment,
             bridge,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Export both independently replayable child receipts after a fresh match.
@@ -1039,18 +1033,18 @@ impl CompiledAssessedBridgeRobustDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgeRobustDecisionResult, AssessedBridgeRobustDecisionError> {
-        gate_program_when(GATE_ON_UNIT_SUPPORT, ctx, self)
+        let publication = gate_program(ctx, self)
             .map_err(|refusal| AssessedBridgeRobustDecisionError::Invalid(refusal.message()))?;
         // The children compile their data-dependent chains, which a lowered dispatch refuses as
         // reentry, so they run under the caller's context.
         let assessed = self.assessed.execute(ctx)?;
         let robust = discrepancy_robust_plan(&assessed, &self.contract, ctx)?.execute(ctx)?;
-        Ok(AssessedBridgeRobustDecisionResult {
+        publication.finish(Ok(AssessedBridgeRobustDecisionResult {
             assessed,
             robust,
             lowered_program_identity: self.lowered.identity(),
             calibration: self.unit_calibration(),
-        })
+        }))
     }
 
     /// Seal the child evidence and the independently replayable robust chain.
@@ -1491,7 +1485,7 @@ impl CompiledAssessedBridgePosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgePosteriorDecisionResult, AssessedBridgeRobustDecisionError> {
-        gate_program_when(GATE_ON_UNIT_SUPPORT, ctx, self)
+        let publication = gate_program(ctx, self)
             .map_err(|refusal| AssessedBridgeRobustDecisionError::Invalid(refusal.message()))?;
         if ctx.rng.master_seed() != self.seed {
             return Err(AssessedBridgeRobustDecisionError::Invalid(
@@ -1500,12 +1494,12 @@ impl CompiledAssessedBridgePosteriorDecision {
         }
         let assessed = self.assessed.execute(ctx)?;
         let decision = self.posterior_plan(&assessed, ctx)?.execute(ctx)?;
-        Ok(AssessedBridgePosteriorDecisionResult {
+        publication.finish(Ok(AssessedBridgePosteriorDecisionResult {
             assessed,
             decision,
             lowered_program_identity: self.lowered.identity(),
             calibration: self.unit_calibration(),
-        })
+        }))
     }
 
     /// Seal source-bound child artifacts and the posterior predictive decision.

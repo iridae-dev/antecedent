@@ -97,10 +97,11 @@ impl CompiledExternalFeedback {
         resolver: Option<&dyn TrustedMechanismResolver>,
         ctx: &ExecutionContext,
     ) -> Result<ExternalCyclicReport, ExternalCyclicArtifactError> {
-        self.program
+        let publication = self
+            .program
             .gate(ctx)
             .map_err(|refusal| ExternalCyclicArtifactError::Invalid(refusal.to_string()))?;
-        self.program.input().execute(resolver, ctx)
+        publication.finish(self.program.input().execute(resolver, ctx))
     }
 }
 

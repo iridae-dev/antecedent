@@ -46,7 +46,7 @@ use super::compiled_point_program::PointProgram;
 use super::measurement_model::{
     CategoricalTarget, MeasurementAnalysisBinding, MeasurementInput, MeasurementModelRefusal,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{unencoded_variant, variant};
 use super::transported_measurement::{
     TransportedMeasurementEstimate, transport_measurement, transport_measurement_estimate,
@@ -55,11 +55,6 @@ use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::PlanView;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
-
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
 
 /// A measurement model to carry to the analysis population, and the data to correct there.
 #[derive(Clone, Debug)]
@@ -426,30 +421,29 @@ impl CompiledMeasurementTransport {
     /// # Errors
     ///
     /// Every prepare check and estimator refusal of the measurement route on the re-bound
-    /// model, cancellation, or the support gate once it is on.
+    /// model, cancellation, or a support refusal.
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<TransportedMeasurementEstimate, MeasurementModelRefusal> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
-            MeasurementModelRefusal {
+        let publication =
+            gate_program(&scoped, self).map_err(|refusal| MeasurementModelRefusal {
                 code: antecedent_core::reason_code!("route_not_supported"),
                 detail: antecedent_core::reason_details::measurement_model::INPUT_INVALID
                     .to_owned(),
                 message: refusal.to_string(),
                 remedy: None,
-            }
-        })?;
+            })?;
         let request = &self.request;
-        transport_measurement_estimate(
+        publication.finish(transport_measurement_estimate(
             &request.models,
             request.structure.as_ref(),
             request.binding.clone(),
             request.input.clone(),
             request.provider.as_ref().map(|(object, trust)| (object, trust)),
             &scoped,
-        )
+        ))
     }
 }
 
@@ -617,10 +611,10 @@ impl CompiledPooledDifferentialTransport {
     /// The kernel's refusals (fewer than two sources, a source labelled as the target, a
     /// repeated source, an empty validation margin, invalid target counts, fewer than 1000
     /// draws, pooled rates that leave the target unidentified), admission, cancellation, or
-    /// the support gate once it is on.
+    /// a support refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<PooledDifferentialRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
+        let publication = gate_program(&scoped, self)?;
         let request = &self.request;
         let correction = transport_pooled_differential_prevalence(
             PooledDifferentialRequest {
@@ -633,7 +627,10 @@ impl CompiledPooledDifferentialTransport {
             },
             &scoped,
         )?;
-        Ok(PooledDifferentialRun { correction, lowered_program_identity: self.lowered.identity() })
+        publication.finish(Ok(PooledDifferentialRun {
+            correction,
+            lowered_program_identity: self.lowered.identity(),
+        }))
     }
 }
 

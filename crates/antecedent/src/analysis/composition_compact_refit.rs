@@ -170,7 +170,7 @@ impl CompiledCompactModelRefit {
     /// A differing model, fitting failure, resource admission or cancellation.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<CohortModelFitRun, BundleError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program(&scoped, self)
+        let publication = gate_program(&scoped, self)
             .map_err(|error| refused(BundleStage::UnsupportedLaw, &error.to_string(), None))?;
         let _fit = scoped
             .acquire_serial_numerical_admission(self.working_bytes)
@@ -184,7 +184,10 @@ impl CompiledCompactModelRefit {
         }
         let fit = replayed
             .map_err(|error| refused(BundleStage::TamperedQuantity, &error.to_string(), None))?;
-        Ok(CohortModelFitRun { fit, lowered_program_identity: self.lowered.identity() })
+        publication.finish(Ok(CohortModelFitRun {
+            fit,
+            lowered_program_identity: self.lowered.identity(),
+        }))
     }
 }
 

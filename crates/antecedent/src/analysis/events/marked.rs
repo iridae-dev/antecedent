@@ -1108,8 +1108,12 @@ impl PreparedMarkedLikelihood {
     /// # Errors
     /// Resource, cancellation or an unsupported release scope.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<f64, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
-        log_likelihood(&self.history, &self.parameters, &mut hawkes::Work::new(&scoped))
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
+        publication.finish(log_likelihood(
+            &self.history,
+            &self.parameters,
+            &mut hawkes::Work::new(&scoped),
+        ))
     }
 }
 
@@ -1124,8 +1128,8 @@ impl PreparedMarkedFit {
     /// # Errors
     /// The optimizer fails, or the fitted kernel is not stable.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<MarkedFit, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
-        fit(&self.history, &self.spec, &mut hawkes::Work::new(&scoped))
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
+        publication.finish(fit(&self.history, &self.spec, &mut hawkes::Work::new(&scoped)))
     }
 }
 
@@ -1192,7 +1196,7 @@ impl PreparedMarkedDraw {
     /// # Errors
     /// Resource exhaustion, cancellation, or numerical failure.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<Vec<Vec<MarkedArrival>>, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
         let mut work = hawkes::Work::new(&scoped);
         let rng = antecedent_core::execution::RngFactory::from_seed(self.seed);
         let prefix: Vec<MarkedArrival> = self
@@ -1203,7 +1207,7 @@ impl PreparedMarkedDraw {
             .copied()
             .filter(|event| event.time < self.window.start)
             .collect();
-        (0..self.paths)
+        let paths = (0..self.paths)
             .map(|index| {
                 sample(
                     &self.history,
@@ -1215,7 +1219,8 @@ impl PreparedMarkedDraw {
                     &mut work,
                 )
             })
-            .collect()
+            .collect();
+        publication.finish(paths)
     }
 }
 

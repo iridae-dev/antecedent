@@ -14,14 +14,14 @@ use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
 
-use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
+use crate::analysis::program_handle::{CompiledProgramHandle, gate_named_program};
 use crate::analysis::transported_counterfactual::{
     TransportedCounterfactual, TransportedCounterfactualArtifactError,
     TransportedCounterfactualRequestWire,
 };
 use crate::error::CausalError;
 use crate::planner::PlanView;
-use crate::planner::lowered::LoweredProgram;
+use crate::planner::lowered::{LoweredProgram, ProgramCell};
 
 /// Why a compiled transported counterfactual did not return an answer.
 #[derive(Debug)]
@@ -122,6 +122,8 @@ impl TransportedCounterfactual {
                 stage: "transported counterfactual",
             }));
         }
+        let publication = gate_named_program(ctx, ProgramCell::TransportedPathSpecific.as_str())
+            .map_err(|refusal| TransportedCompileError::Program(CausalError::from(refusal)))?;
         let counterfactual =
             Self::evaluate(request).map_err(TransportedCompileError::Evaluation)?;
         let lowered = crate::analysis::lowering::transported_path_specific::lower(
@@ -131,8 +133,6 @@ impl TransportedCounterfactual {
         .map_err(TransportedCompileError::Program)?;
         let compiled =
             CompiledTransportedCounterfactual { counterfactual, lowered: Arc::new(lowered) };
-        gate_program(ctx, &compiled)
-            .map_err(|refusal| TransportedCompileError::Program(CausalError::from(refusal)))?;
-        Ok(compiled)
+        publication.finish(Ok(compiled))
     }
 }

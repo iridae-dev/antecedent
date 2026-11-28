@@ -1,7 +1,7 @@
-//! The calibration state of an evidence unit: what the coverage records whose tests executed
-//! it measured (`parity/unit_index.json`). `scripts/generate_support_matrix_docs.py` embeds the
-//! states in `data/unit_support_status.json` ([`crate::graphless_support::UNIT_STATUS`]),
-//! listing only the units some record measures; every other unit is [`NOT_MEASURED`].
+//! The calibration state of an evidence unit, derived from its current coverage evidence
+//! and declared scope (`parity/unit_index.json`). The support generator embeds these
+//! annotations in `data/unit_support_status.json` ([`crate::graphless_support::UNIT_STATUS`]).
+//! A unit without an embedded annotation is [`NOT_MEASURED`].
 //!
 //! A result states its unit's calibration through [`capability`] or [`unit`], never as a
 //! literal, so that a unit's state follows its records.
@@ -11,8 +11,30 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-/// The state of a unit no coverage record measures.
+/// The default state of a unit without current coverage evidence.
 pub const NOT_MEASURED: &str = "not_measured";
+
+/// Fixed marker for an existing artifact format that carries no calibration evidence.
+///
+/// Retained artifacts replay independently of the reader's evidence snapshot. Live
+/// calibration is queried separately for the unit that produced a result.
+pub const LEGACY_WIRE_STATUS: &str = "not_measured";
+
+/// Validate the vocabulary of a v1 field whose producer embedded a calibration annotation.
+///
+/// These labels describe the producer's historical metadata. A reader determines current
+/// calibration separately from the unit or the interval's verified coverage record.
+#[must_use]
+pub fn is_v1_wire_status(status: &str) -> bool {
+    matches!(
+        status,
+        LEGACY_WIRE_STATUS
+            | "calibrated"
+            | "measured_below_nominal"
+            | "no_interval_reported"
+            | "estimator_grid_not_measured"
+    )
+}
 
 #[derive(serde::Deserialize)]
 struct Snapshot {
@@ -65,7 +87,7 @@ mod tests {
     }
 
     #[test]
-    fn the_snapshot_lists_only_measured_units() {
+    fn the_snapshot_omits_the_default_state() {
         for state in states().values() {
             assert_ne!(*state, NOT_MEASURED);
             assert!(!state.is_empty());

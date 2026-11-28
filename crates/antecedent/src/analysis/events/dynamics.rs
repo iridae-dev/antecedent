@@ -223,8 +223,13 @@ impl PreparedEventWorlds {
     /// # Errors
     /// Incomplete path law, failed decision validation, cancellation or resource refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<EventDecision, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
-        self.compiled.execute(&self.law, self.plan.identity(), self.contract.as_ref(), &scoped)
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
+        publication.finish(self.compiled.execute(
+            &self.law,
+            self.plan.identity(),
+            self.contract.as_ref(),
+            &scoped,
+        ))
     }
 }
 

@@ -35,7 +35,7 @@ use super::Study;
 use super::planning_simulation::{scratch_bytes, simulate};
 use super::route_input::RouteInput;
 use crate::analysis::lowering::{CompileGoal, refuse_reentry};
-use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
+use crate::analysis::program_handle::{CompiledProgramHandle, ProgramPublication, gate_program};
 use crate::error::CausalError;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
@@ -62,14 +62,6 @@ pub const STANDALONE_PLANNING: NextAttempt = NextAttempt::new(
      compile a randomized study whose declared randomization is the planned design",
 );
 
-/// Whether a release build refuses a planning program whose support unit is not supported.
-///
-/// The unit is the capability record bound to the `ExperimentPlanning` route in
-/// `parity/compiled_units.toml`. The gate stays closed until that record's evidence is earned,
-/// so no valid use refuses before then; flipping this constant is the only change that turns
-/// it on.
-pub(crate) const RELEASE_SUPPORT_GATE_LIVE: bool = false;
-
 /// The route of a planning request compiled without a study.
 const PLANNING_ROUTE: &str = "ExperimentPlanning";
 
@@ -90,13 +82,12 @@ impl PlanningPlan {
     /// The support gate of executing a standalone plan: a release build refuses a plan whose
     /// unit is not supported; a development build records what it would refuse and runs. A plan
     /// attached to a study runs under the study's route and unit, not this one.
-    fn gate_release_support(&self, ctx: &ExecutionContext) -> Result<(), CausalError> {
+    fn gate_release_support(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<ProgramPublication, CausalError> {
         if self.lowered.route() != PLANNING_ROUTE {
-            return Ok(());
-        }
-        if !RELEASE_SUPPORT_GATE_LIVE {
-            let _ = self.support();
-            return Ok(());
+            return Ok(ProgramPublication::nested());
         }
         gate_program(ctx, self).map_err(CausalError::from)
     }
@@ -158,7 +149,7 @@ impl PlanningPlan {
     /// the design's minimum), [`CausalError::Resource`] when the pool cannot
     /// hold the simulation, or cancellation.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<PlannedExperiment, CausalError> {
-        self.gate_release_support(ctx)?;
+        let publication = self.gate_release_support(ctx)?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "planning" });
         }
@@ -197,7 +188,7 @@ impl PlanningPlan {
             drop(lease);
             result.simulation = Some(simulated?);
         }
-        Ok(PlannedExperiment { program_identity: self.identity(), result })
+        publication.finish(Ok(PlannedExperiment { program_identity: self.identity(), result }))
     }
 }
 
@@ -504,7 +495,7 @@ mod tests {
         assert_eq!(view.status(), decision.status);
         assert_eq!(view.unit(), decision.unit.label());
         let executed = plan.execute(&ctx);
-        if RELEASE_SUPPORT_GATE_LIVE && !view.supported() && !cfg!(feature = "development") {
+        if !view.supported() && !cfg!(feature = "development") {
             assert!(executed.is_err(), "a release build refuses an unsupported unit");
         } else {
             executed.expect("the plan runs");

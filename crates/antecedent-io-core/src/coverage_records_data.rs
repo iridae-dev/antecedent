@@ -15,7 +15,13 @@ use std::sync::OnceLock;
 use antecedent_core::IntervalMethod;
 use serde::Deserialize;
 
+#[cfg(not(antecedent_trace_attribution))]
 const SNAPSHOT: &str = include_str!("../data/coverage_records.json");
+
+// Private smoke builds only. The trace runner binds these exact bytes into its receipt.
+#[cfg(antecedent_trace_attribution)]
+const SNAPSHOT: &str =
+    include_str!(concat!(env!("ANTECEDENT_ATTRIBUTION_SNAPSHOT_ROOT"), "/coverage_records.json"));
 
 /// Copy handle for a leaked slice. The static itself is const; the slice is built
 /// on first use.

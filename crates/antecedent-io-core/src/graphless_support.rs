@@ -132,7 +132,16 @@ pub enum GraphlessSupportStatus {
 /// `scripts/generate_support_matrix_docs.py` from the evidence registries and the
 /// scientific-records ledger. A row whose status is not `supported` is not admitted.
 #[doc(hidden)]
+#[cfg(not(antecedent_trace_attribution))]
 pub const UNIT_STATUS: &str = include_str!("../data/unit_support_status.json");
+
+// Private smoke builds only. The trace runner binds these exact bytes into its receipt.
+#[doc(hidden)]
+#[cfg(antecedent_trace_attribution)]
+pub const UNIT_STATUS: &str = include_str!(concat!(
+    env!("ANTECEDENT_ATTRIBUTION_SNAPSHOT_ROOT"),
+    "/unit_support_status.json"
+));
 
 #[derive(serde::Deserialize)]
 struct UnitStatusFile {
@@ -152,45 +161,64 @@ struct GraphlessUnitStatus {
 
 type GraphlessKey = (String, String, String, String);
 
-/// The `(family, design, method, inference_claim)` keys whose derived status is not
-/// `supported`, each with the evidence the snapshot lists as missing.
-fn missing_rows(status: &str) -> std::collections::HashMap<GraphlessKey, &'static [&'static str]> {
-    let file: UnitStatusFile = serde_json::from_str(status).expect("graphless unit support status");
-    file.graphless
+struct GraphlessStanding {
+    key: GraphlessKey,
+    supported: bool,
+    missing: &'static [&'static str],
+}
+
+fn status_rows(status: &str) -> Vec<GraphlessStanding> {
+    let Ok(file) = serde_json::from_str::<UnitStatusFile>(status) else {
+        return Vec::new();
+    };
+    let mut rows: Vec<_> = file
+        .graphless
         .into_iter()
-        .filter(|row| row.status != "supported")
         .map(|row| {
-            let evidence: &'static [&'static str] = Box::leak(
+            let evidence = Box::leak(
                 row.missing_evidence
                     .into_iter()
                     .map(|item| &*Box::leak(item.into_boxed_str()))
                     .collect::<Vec<_>>()
                     .into_boxed_slice(),
             );
-            ((row.family, row.design, row.method, row.inference_claim), evidence)
+            GraphlessStanding {
+                key: (row.family, row.design, row.method, row.inference_claim),
+                supported: row.status == "supported",
+                missing: evidence,
+            }
         })
-        .collect()
+        .collect();
+    rows.sort_unstable_by(|left, right| left.key.cmp(&right.key));
+    if rows.windows(2).any(|pair| pair[0].key == pair[1].key) {
+        return Vec::new();
+    }
+    rows
 }
 
-fn missing_table() -> &'static std::collections::HashMap<GraphlessKey, &'static [&'static str]> {
-    static TABLE: std::sync::OnceLock<
-        std::collections::HashMap<GraphlessKey, &'static [&'static str]>,
-    > = std::sync::OnceLock::new();
-    TABLE.get_or_init(|| missing_rows(UNIT_STATUS))
+fn status_table() -> &'static [GraphlessStanding] {
+    static TABLE: std::sync::OnceLock<Vec<GraphlessStanding>> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| status_rows(UNIT_STATUS))
+}
+
+fn status_of<'a>(
+    table: &'a [GraphlessStanding],
+    key: GraphlessSupportKey<'_>,
+) -> Option<&'a GraphlessStanding> {
+    let sought = (key.family, key.design, key.method, key.inference_claim);
+    let index = table
+        .binary_search_by(|row| {
+            let (family, design, method, claim) = &row.key;
+            (family.as_str(), design.as_str(), method.as_str(), claim.as_str()).cmp(&sought)
+        })
+        .ok()?;
+    table.get(index)
 }
 
 /// The snapshot's missing evidence for a graphless row it marks `not_supported`.
 #[must_use]
 pub fn graphless_missing_evidence(key: GraphlessSupportKey<'_>) -> &'static [&'static str] {
-    missing_table()
-        .get(&(
-            key.family.to_owned(),
-            key.design.to_owned(),
-            key.method.to_owned(),
-            key.inference_claim.to_owned(),
-        ))
-        .copied()
-        .unwrap_or(&[])
+    status_of(status_table(), key).filter(|row| !row.supported).map_or(&[], |row| row.missing)
 }
 
 /// The supported row that admits `key` under `observed`, if any.
@@ -198,16 +226,18 @@ fn find_support(
     key: GraphlessSupportKey<'_>,
     observed: GraphlessAssignmentSupport,
 ) -> Option<&'static GraphlessSupportRow> {
-    let owed = missing_table();
-    SUPPORTS.iter().find(|row| {
-        row.admits(key, observed)
-            && !owed.contains_key(&(
-                row.family.to_owned(),
-                row.design.to_owned(),
-                row.method.to_owned(),
-                row.inference_claim.to_owned(),
-            ))
-    })
+    supported_in(status_table(), key, observed)
+}
+
+fn supported_in(
+    table: &[GraphlessStanding],
+    key: GraphlessSupportKey<'_>,
+    observed: GraphlessAssignmentSupport,
+) -> Option<&'static GraphlessSupportRow> {
+    if !status_of(table, key).is_some_and(|row| row.supported) {
+        return None;
+    }
+    SUPPORTS.iter().find(|row| row.admits(key, observed))
 }
 
 /// Whether some supported row matches `key` and is satisfied by `observed`.
@@ -862,7 +892,10 @@ mod survival_calibration_tests {
 
 #[cfg(test)]
 mod status_tests {
-    use super::missing_rows;
+    use super::{
+        GraphlessAssignmentSupport, GraphlessResampleSupport, GraphlessSupportKey,
+        row_meets_resampling, sequential_dr_key, status_of, status_rows, supported_in,
+    };
 
     /// A row that release-mode data marks `not_supported` is excluded from admission;
     /// a `supported` row is not.
@@ -880,9 +913,49 @@ mod status_tests {
             row("owed", "not_supported"),
             row("current", "supported")
         );
-        let owed = missing_rows(&json);
-        assert!(owed.contains_key(&("f".into(), "d".into(), "owed".into(), "c".into())));
-        assert!(!owed.contains_key(&("f".into(), "d".into(), "current".into(), "c".into())));
-        assert_eq!(owed[&("f".into(), "d".into(), "named".into(), "c".into())], ["flagged: x"]);
+        let table = status_rows(&json);
+        let key =
+            |method| GraphlessSupportKey { family: "f", design: "d", method, inference_claim: "c" };
+        assert!(!status_of(&table, key("owed")).unwrap().supported);
+        assert!(status_of(&table, key("current")).unwrap().supported);
+        assert_eq!(status_of(&table, key("named")).unwrap().missing, ["flagged: x"]);
+    }
+
+    #[test]
+    fn only_an_exact_current_snapshot_row_admits_a_graphless_construction() {
+        let key = sequential_dr_key(2).unwrap();
+        let observed = GraphlessAssignmentSupport {
+            assignment_unit: "unit",
+            interval_95_published: true,
+            rows: 350,
+            reported_intervals: 1,
+            min_probability: 0.5,
+            disjoint_nuisance_training: true,
+            ..GraphlessAssignmentSupport::default()
+        };
+        let supported = serde_json::json!({
+            "family": key.family,
+            "design": key.design,
+            "method": key.method,
+            "inference_claim": key.inference_claim,
+            "status": "supported",
+        });
+        let rowset = |rows| status_rows(&serde_json::json!({"graphless": rows}).to_string());
+        let earned = rowset(vec![supported.clone()]);
+        let missing = rowset(Vec::<serde_json::Value>::new());
+        let duplicate = rowset(vec![supported.clone(), supported.clone()]);
+        let mut different = supported;
+        different["method"] = "another estimator".into();
+        let foreign = rowset(vec![different]);
+        let malformed = status_rows("{");
+        let resampled = GraphlessResampleSupport::default();
+        assert!(supported_in(&earned, key, observed).unwrap().admits(key, observed));
+        assert!(
+            supported_in(&earned, key, observed)
+                .is_some_and(|row| row_meets_resampling(row, resampled))
+        );
+        for table in [&missing, &duplicate, &foreign, &malformed] {
+            assert!(supported_in(table, key, observed).is_none());
+        }
     }
 }

@@ -389,12 +389,8 @@ impl From<&LongitudinalRegimeEstimate> for LongitudinalRegimeWire {
     }
 }
 
-/// The artifact section of a matched-history contrast whose evidence unit is calibrated as
-/// `calibration`.
-pub(crate) fn history_match_wire(
-    fit: &HistoryMatchEstimate,
-    calibration: &str,
-) -> HistoryMatchWire {
+/// The artifact section of a matched-history contrast.
+pub(crate) fn history_match_wire(fit: &HistoryMatchEstimate) -> HistoryMatchWire {
     HistoryMatchWire {
         contrast: fit.contrast,
         standard_error: fit.standard_error,
@@ -414,17 +410,13 @@ pub(crate) fn history_match_wire(
         serial_bandwidth: fit.serial_bandwidth,
         caliper: fit.caliper,
         uncertainty: fit.uncertainty.to_string(),
-        calibration: calibration.to_owned(),
+        calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.to_owned(),
         supported: false,
     }
 }
 
-/// The artifact section of a sequential contrast whose evidence unit is calibrated as
-/// `calibration`.
-pub(crate) fn sequential_contrast_wire(
-    fit: &SequentialContrastEstimate,
-    calibration: &str,
-) -> SequentialContrastWire {
+/// The artifact section of a sequential contrast.
+pub(crate) fn sequential_contrast_wire(fit: &SequentialContrastEstimate) -> SequentialContrastWire {
     SequentialContrastWire {
         active_regime: fit.active_regime,
         control_regime: fit.control_regime,
@@ -442,7 +434,7 @@ pub(crate) fn sequential_contrast_wire(
         posterior_symmetric_interval: fit.posterior_symmetric_interval,
         contrast_scores: fit.contrast_scores.to_vec(),
         uncertainty: fit.uncertainty.to_string(),
-        calibration: calibration.to_owned(),
+        calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.to_owned(),
         supported: false,
     }
 }
@@ -520,7 +512,7 @@ impl From<&crate::QuasiRolloutEstimate>
                 })
                 .collect(),
             uncertainty: fit.uncertainty.to_string(),
-            calibration: fit.calibration.to_string(),
+            calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.to_owned(),
             replicates_requested: fit.replicates_requested,
             replicates_ok: fit.replicates_ok,
             replicates_failed: fit.replicates_failed,
@@ -567,7 +559,7 @@ impl From<&crate::TemporalDesignEstimate>
             replicates: fit.replicates.map(|(ok, failed)| [ok, failed]),
             draws: fit.draws,
             uncertainty: fit.uncertainty.to_string(),
-            calibration: fit.calibration.to_string(),
+            calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.to_owned(),
             supported: fit.supported,
         }
     }
@@ -576,7 +568,6 @@ impl From<&crate::TemporalDesignEstimate>
 /// The artifact section of a compiled instrumental-variable bounds estimate.
 pub(crate) fn iv_bounds_wire(
     fit: &antecedent_estimate::IvBoundsEstimate,
-    calibration: &str,
 ) -> antecedent_io::analysis_result_artifact::IvBoundsWire {
     {
         use antecedent_io::analysis_result_artifact::{
@@ -614,7 +605,7 @@ pub(crate) fn iv_bounds_wire(
                 upper_sd: posterior.upper_sd,
             }),
             uncertainty,
-            calibration: calibration.to_owned(),
+            calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.to_owned(),
             supported: false,
         }
     }
@@ -623,7 +614,6 @@ pub(crate) fn iv_bounds_wire(
 /// The artifact section of a compiled noncausal association.
 pub(crate) fn association_wire(
     payload: &crate::analysis::association::AssociationPayload,
-    calibration: &str,
 ) -> antecedent_io::analysis_result_artifact::AssociationWire {
     use antecedent_io::analysis_result_artifact::{
         AssociationConjugateWire, AssociationPosteriorWire, AssociationPredictionWire,
@@ -690,13 +680,13 @@ pub(crate) fn association_wire(
                 mean_score: scores.mean_score,
                 baseline_score: scores.baseline_score,
                 mean_crps: scores.mean_crps,
-                calibration: calibration.to_owned(),
+                calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.to_owned(),
             },
         ),
         assumptions: estimate.assumptions.iter().map(|premise| (*premise).to_owned()).collect(),
         refused_after: payload.refused_after.as_deref().map(str::to_owned),
         uncertainty: uncertainty.to_owned(),
-        calibration: calibration.to_owned(),
+        calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.to_owned(),
         supported: false,
         ranks_actions: false,
         is_intervention_effect: false,

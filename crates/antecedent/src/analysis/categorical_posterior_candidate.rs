@@ -18,7 +18,7 @@ use antecedent_io::categorical_treatment_artifact::{
     LevelScaleWire,
 };
 
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, ProgramPublication, gate_program};
 use crate::error::CausalError;
 use crate::planner::lowered::LoweredProgram;
 
@@ -114,9 +114,9 @@ impl CompiledProgramHandle for PreparedCategoricalPosteriorCandidate {
 fn io_support(
     ctx: &ExecutionContext,
     handle: &PreparedCategoricalPosteriorCandidate,
-) -> Result<(), antecedent_io::IoError> {
+) -> Result<ProgramPublication, antecedent_io::IoError> {
     gate_program(ctx, handle).map_err(|refusal| antecedent_io::IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
+        code: refusal.code(),
         message: refusal.message().to_owned(),
     })
 }
@@ -202,7 +202,7 @@ pub fn prepare(
         receipt,
         _lease: lease,
     };
-    gate_program(ctx, &prepared)?;
+    let _admission = gate_program(ctx, &prepared)?;
     Ok(prepared)
 }
 
@@ -247,10 +247,12 @@ impl PreparedCategoricalPosteriorCandidate {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io::IoError> {
-        io_support(ctx, self)?;
-        antecedent_io::measured_inference::categorical_candidate::measure_source(
-            &self.export_source(),
-            ctx,
+        let publication = io_support(ctx, self)?;
+        publication.finish(
+            antecedent_io::measured_inference::categorical_candidate::measure_source(
+                &self.export_source(),
+                ctx,
+            ),
         )
     }
 

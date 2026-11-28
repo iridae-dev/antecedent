@@ -31,15 +31,14 @@ impl super::super::Study {
             let call = TabularCall::of(route, &self.query)?;
             self.execute_tabular_route(call, data, physical, execution, ctx)?
         };
-        result.stamp_lowered_program(
-            physical.require_lowered(crate::analysis::lowering::expected_cell(self))?,
-            ctx,
-        )?;
+        let lowered = physical.require_lowered(crate::analysis::lowering::expected_cell(self))?;
+        result.stamp_lowered_program(lowered, ctx)?;
         result.executed_input = Some(crate::analysis::target_validation::executed_input_identity(
             &DataInput::Tabular(data.clone()),
             ctx,
         )?);
         crate::analysis::target_validation::stamp_route_refutations(&mut result);
+        result.trace_publication(lowered.route());
         Ok(result)
     }
 

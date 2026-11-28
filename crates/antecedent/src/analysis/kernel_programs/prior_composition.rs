@@ -25,10 +25,6 @@
 //! source, overlap diagnostic and sensitivity row is the direct path's bit for bit. Nothing
 //! here reads the context's seed.
 //!
-//! The routes' unit (`prior.external_composition`) has not yet earned its support, so the runs
-//! pass its support gate only once `GATE_ON_UNIT_SUPPORT` is turned on; until then no valid use
-//! refuses.
-//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::DataClassification;
@@ -50,12 +46,6 @@ use crate::planner::PlanView;
 use crate::planner::lowered::{
     EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell, UncertaintyReading,
 };
-
-/// Whether the runs pass the support gate of the unit the routes are bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then; turning it on makes a release build refuse the routes
-/// while the unit is unsupported and a development build record what it would refuse.
-const GATE_ON_UNIT_SUPPORT: bool = false;
 
 const COMPOSITION_DESIGN: &str = "declared external prior sources composed with a baseline at \
                                   their declared power-prior discounts";
@@ -400,24 +390,20 @@ fn unit_refusal_message(refusal: &NotSupported) -> String {
 /// The support refusal as a probability refusal (`not_supported`, detail
 /// `prior_composition.unit_not_supported`).
 fn prob_refusal(refusal: &NotSupported) -> ProbError {
-    ProbError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
-        message: unit_refusal_message(refusal),
-    }
+    ProbError::Refused { code: refusal.code(), message: unit_refusal_message(refusal) }
 }
 
 /// The support refusal as a transport refusal, under the same code and detail as
 /// [`prob_refusal`].
 fn transport_refusal(refusal: &NotSupported) -> TransportError {
-    TransportError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
-        message: unit_refusal_message(refusal),
-    }
+    TransportError::Refused { code: refusal.code(), message: unit_refusal_message(refusal) }
 }
 
-fn gate<I>(program: &KernelProgram<I>, ctx: &ExecutionContext) -> Result<(), NotSupported> {
-    program.gate_when(GATE_ON_UNIT_SUPPORT, ctx)?;
-    Ok(())
+fn gate<I>(
+    program: &KernelProgram<I>,
+    ctx: &ExecutionContext,
+) -> Result<super::ProgramPublication, NotSupported> {
+    program.gate(ctx)
 }
 
 impl Study {
@@ -564,12 +550,12 @@ impl CompiledExternalPriorComposition {
     ///
     /// # Errors
     ///
-    /// The support refusal (`not_supported`) once the gate is on, in a release build, while the
+    /// The support refusal (`not_supported`) in a release build when the
     /// unit is not supported, and the refusals of the composition.
     pub fn compose(&self, ctx: &ExecutionContext) -> Result<ComposedPrior, ProbError> {
-        gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
-        compose_external_priors(&input.sources, &input.baseline)
+        publication.finish(compose_external_priors(&input.sources, &input.baseline))
     }
 }
 
@@ -592,9 +578,9 @@ impl CompiledBetaPowerPriorComposition {
     ///
     /// As [`CompiledExternalPriorComposition::compose`].
     pub fn compose(&self, ctx: &ExecutionContext) -> Result<BetaHyperparameters, ProbError> {
-        gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
-        compose_beta_power_priors(input.base, &input.sources)
+        publication.finish(compose_beta_power_priors(input.base, &input.sources))
     }
 }
 
@@ -617,9 +603,9 @@ impl CompiledGammaPowerPriorComposition {
     ///
     /// As [`CompiledExternalPriorComposition::compose`].
     pub fn compose(&self, ctx: &ExecutionContext) -> Result<GammaHyperparameters, ProbError> {
-        gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
-        compose_gamma_power_priors(input.base, &input.sources)
+        publication.finish(compose_gamma_power_priors(input.base, &input.sources))
     }
 }
 
@@ -642,7 +628,7 @@ impl CompiledPriorTagTransport {
     ///
     /// # Errors
     ///
-    /// The support refusal once the gate is on, in a release build, while the unit is not
+    /// The support refusal in a release build when the unit is not
     /// supported (`TransportError::Refused`, code `not_supported`, detail
     /// `prior_composition.unit_not_supported`), and
     /// the refusals of the transport.
@@ -650,10 +636,11 @@ impl CompiledPriorTagTransport {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<ExternalPriorSource>, Vec<TransportOutcome>), TransportError> {
-        gate(&self.program, ctx).map_err(|refusal| transport_refusal(&refusal))?;
+        let publication =
+            gate(&self.program, ctx).map_err(|refusal| transport_refusal(&refusal))?;
         let input = self.program.input();
         let populations = input.context.populations();
-        apply_transport(&input.sources, &input.context.view(&populations))
+        publication.finish(apply_transport(&input.sources, &input.context.view(&populations)))
     }
 
     /// Pass the support gate, transport the sources and compose them with the baseline, as
@@ -661,16 +648,20 @@ impl CompiledPriorTagTransport {
     ///
     /// # Errors
     ///
-    /// The support refusal (`not_supported`) once the gate is on, in a release build, while the
+    /// The support refusal (`not_supported`) in a release build when the
     /// unit is not supported, and the refusals of the transport and the composition.
     pub fn compose_with_transport(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(ComposedPrior, Vec<TransportOutcome>), ProbError> {
-        gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
         let populations = input.context.populations();
-        compose_with_transport(&input.sources, &input.baseline, &input.context.view(&populations))
+        publication.finish(compose_with_transport(
+            &input.sources,
+            &input.baseline,
+            &input.context.view(&populations),
+        ))
     }
 }
 
@@ -698,20 +689,20 @@ impl CompiledPriorWeightedTargetTransport {
     ///
     /// # Errors
     ///
-    /// The support refusal (`not_supported`) once the gate is on, in a release build, while the
+    /// The support refusal (`not_supported`) in a release build when the
     /// unit is not supported, the overlap refusal and the refusals of the transport.
     pub fn apply_weighted_target_transport(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<ExternalPriorSource>, TargetOverlap), ProbError> {
-        gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
-        apply_weighted_target_transport(
+        publication.finish(apply_weighted_target_transport(
             &input.sources,
             input.policy,
             &input.target,
             input.coef_index,
-        )
+        ))
     }
 
     /// Pass the support gate, transport the sources toward the target and compose them with
@@ -724,15 +715,15 @@ impl CompiledPriorWeightedTargetTransport {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(ComposedPrior, TargetOverlap), ProbError> {
-        gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = gate(&self.program, ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
-        compose_with_weighted_target_transport(
+        publication.finish(compose_with_weighted_target_transport(
             &input.sources,
             &input.baseline,
             input.policy,
             &input.target,
             input.coef_index,
-        )
+        ))
     }
 }
 
@@ -754,7 +745,7 @@ impl CompiledKernelBandwidthSensitivity {
     ///
     /// # Errors
     ///
-    /// The support refusal once the gate is on, in a release build, while the unit is not
+    /// The support refusal in a release build when the unit is not
     /// supported (`TransportError::Refused`, code `not_supported`, detail
     /// `prior_composition.unit_not_supported`), and
     /// the refusals of the sensitivity.
@@ -762,15 +753,16 @@ impl CompiledKernelBandwidthSensitivity {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<Vec<BandwidthSensitivityRow>, TransportError> {
-        gate(&self.program, ctx).map_err(|refusal| transport_refusal(&refusal))?;
+        let publication =
+            gate(&self.program, ctx).map_err(|refusal| transport_refusal(&refusal))?;
         let input = self.program.input();
-        kernel_bandwidth_sensitivity(
+        publication.finish(kernel_bandwidth_sensitivity(
             input.family,
             &input.bandwidths,
             &input.distances,
             &input.unit_effects,
             input.min_ess_fraction,
-        )
+        ))
     }
 }
 
@@ -778,14 +770,16 @@ impl CompiledKernelBandwidthSensitivity {
 mod tests {
     use super::{NotSupported, ProbError, TransportError, prob_refusal, transport_refusal};
 
+    #[cfg(not(feature = "development"))]
     #[test]
     fn a_unit_refusal_keeps_its_not_supported_code_and_detail_on_both_error_types() {
-        let refusal = NotSupported {
-            detail: "ExternalPriorTransport",
-            missing: vec!["scientific_record".to_owned()],
-        };
+        let refusal = antecedent_core::support_gate::require_supported_unscoped(
+            "ExternalPriorTransport",
+            &["scientific_record"],
+        )
+        .expect_err("a release build refuses the missing evidence");
         let detail = antecedent_core::reason_details::prior_composition::UNIT_NOT_SUPPORTED;
-        let not_supported = antecedent_core::reason_code!("not_supported");
+        let not_supported = refusal.code();
         match transport_refusal(&refusal) {
             TransportError::Refused { code, message } => {
                 assert_eq!(code, not_supported);

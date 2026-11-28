@@ -24,7 +24,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 
 use super::choice_inference::{ChoiceInferenceRefusal, ChoiceInferenceSession, ChoiceRequest};
 use super::compiled_measured_interval::{MeasuredIntervalProgram, MeasuredIntervalRun, bayesian};
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{unencoded_variant, variant};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -36,11 +36,6 @@ use crate::planner::lowered::{
 const PLAN_ID: &str = "choice_result_interval.v1";
 /// The measured route the coverage of these intervals is recorded under.
 const CALIBRATION_ROUTE: &str = "choice_interval";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// One named result of a prepared choice study bound to its lowered program.
 #[derive(Clone, Debug)]
 pub struct CompiledChoiceInterval<'s> {
@@ -191,26 +186,25 @@ impl CompiledChoiceInterval<'_> {
     /// # Errors
     ///
     /// A result the contract cannot produce, a stopping decision, which has no interval
-    /// (`route_not_supported`), cancellation, or the support gate once it is on.
+    /// (`route_not_supported`), cancellation, or a support refusal.
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<MeasuredIntervalRun, ChoiceInferenceRefusal> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
-            ChoiceInferenceRefusal {
+        let publication =
+            gate_program(&scoped, self).map_err(|refusal| ChoiceInferenceRefusal {
                 code: refusal.code(),
                 detail: refusal.detail.to_owned(),
                 message: refusal.to_string(),
-            }
-        })?;
+            })?;
         let measured =
             self.session.measure_result_interval(&self.request, &self.artifact_id, &scoped)?;
-        Ok(MeasuredIntervalRun {
+        publication.finish(Ok(MeasuredIntervalRun {
             measured,
             lowered_program_identity: self.lowered.identity(),
             calibration_route: CALIBRATION_ROUTE,
-        })
+        }))
     }
 }
 

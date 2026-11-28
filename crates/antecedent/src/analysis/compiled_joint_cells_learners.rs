@@ -32,7 +32,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{FactorizedJointConfig, FactorizedJointFit};
 
 use super::declared_learners::{LearnerFactories, calibration_label};
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{Canonical, Declaration, Wire};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -47,11 +47,6 @@ use crate::planner::statistical::{ModelRole, ModelSlot, Realization, Statistical
 
 const PLAN_ID: &str = "joint_cells_learner_fit.v1";
 const EVALUATOR: &str = "antecedent_estimate::fit_factorized_joint_cells_with_factories";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// A factorized joint-cell request whose nuisances the caller's learners fit.
 ///
 /// `treatments` are the binary components in cell-bit order, `adjustment` the declared
@@ -309,10 +304,10 @@ impl CompiledJointCellsLearners {
     /// Every refusal of `fit_factorized_joint_cells_with_factories` (a built-in learner
     /// specification beside the factories, a factory without the required task or capability,
     /// configuration, component, ordering, column, row, support or resource refusals,
-    /// cancellation), or the support gate once it is on.
+    /// cancellation), or a support refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<JointCellsLearnersRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
+        let publication = gate_program(&scoped, self)?;
         let request = &self.request;
         let fit = antecedent_estimate::fit_factorized_joint_cells_with_factories(
             &request.data,
@@ -325,13 +320,13 @@ impl CompiledJointCellsLearners {
             request.learners.outcome(),
             request.learners.treatment(),
         )?;
-        Ok(JointCellsLearnersRun {
+        publication.finish(Ok(JointCellsLearnersRun {
             fit,
             lowered_program_identity: self.lowered.identity(),
             claim: "point_only",
             calibration: self.unit_calibration(),
             calibration_label: calibration_label(Some(&request.learners)).unwrap_or_default(),
-        })
+        }))
     }
 }
 

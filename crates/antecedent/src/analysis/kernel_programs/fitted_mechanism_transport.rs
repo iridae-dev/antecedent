@@ -141,8 +141,8 @@ impl CompiledFittedMechanismTransport {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<TransportedLinearGaussian, CompositionError> {
-        self.program.gate(ctx).map_err(|refusal| support(&refusal))?;
-        transport_linear_gaussian(self.program.input())
+        let publication = self.program.gate(ctx).map_err(|refusal| support(&refusal))?;
+        publication.finish(transport_linear_gaussian(self.program.input()))
     }
 }
 

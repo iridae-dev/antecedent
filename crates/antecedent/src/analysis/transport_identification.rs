@@ -403,23 +403,10 @@ impl CompiledTransportIdentification {
             return Err(TransportIdentificationError::Reentry);
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if gate_on_unit_support(cell_of(&self.request)) {
+        let publication =
             gate_program(&scoped, self).map_err(TransportIdentificationError::NotSupported)?;
-        }
-        run(&self.request, &scoped)
+        publication.finish(run(&self.request, &scoped))
     }
-}
-
-/// Whether `identify` passes the support gate of the unit the cell is bound to
-/// (`parity/compiled_units.toml`). A cell whose unit has earned its support gates now; the two
-/// cells whose records are new stay ungated until those records are earned, so no valid use
-/// refuses before then. Turning a cell on makes a release build refuse it while its unit is
-/// unsupported, and a development build record what it would refuse.
-const fn gate_on_unit_support(cell: ProgramCell) -> bool {
-    !matches!(
-        cell,
-        ProgramCell::ClassicalTransportIdentification | ProgramCell::ZTransportIdentification
-    )
 }
 
 /// The program family a request lowers to; each is bound to one support unit.

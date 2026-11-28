@@ -129,16 +129,18 @@ impl CompiledZTransportMechanismSensitivity {
         ctx: &ExecutionContext,
     ) -> Result<ZTransportMechanismSensitivityResult, TerminalError<ZTransportSensitivityError>>
     {
-        let scoped = self.enter(ctx)?;
-        z_transport_mechanism_sensitivity(
-            &self.diagram,
-            &self.functional,
-            &self.data,
-            self.max_fraction,
-            self.decision_threshold,
-            &scoped,
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            z_transport_mechanism_sensitivity(
+                &self.diagram,
+                &self.functional,
+                &self.data,
+                self.max_fraction,
+                self.decision_threshold,
+                &scoped,
+            )
+            .map_err(TerminalError::Kernel),
         )
-        .map_err(TerminalError::Kernel)
     }
 }
 

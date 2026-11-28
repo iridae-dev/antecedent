@@ -224,7 +224,7 @@ impl CompiledSuppliedClaimDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SuppliedClaimReadout, TerminalError<AdapterError>> {
-        let _scoped = self.enter(ctx)?;
+        let (_scoped, publication) = self.enter(ctx)?;
         let policy = self.contract.contract.structural_policy;
         let adapted = self.claims.clone().adapt(policy).map_err(TerminalError::Kernel)?;
         let decision = evaluate_adapted(&self.contract, &adapted).map_err(TerminalError::Kernel)?;
@@ -238,7 +238,7 @@ impl CompiledSuppliedClaimDecision {
                 }
             }
         }
-        Ok(SuppliedClaimReadout { adapted, decision, method_provenance })
+        publication.finish(Ok(SuppliedClaimReadout { adapted, decision, method_provenance }))
     }
 }
 
@@ -388,8 +388,8 @@ impl CompiledIdentifiedSetDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<Vec<IdentifiedUtility>, TerminalError<AdapterError>> {
-        let _scoped = self.enter(ctx)?;
-        self.utilities_in().map_err(TerminalError::Kernel)
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(self.utilities_in().map_err(TerminalError::Kernel))
     }
 
     /// Decide over the carrier.
@@ -401,9 +401,11 @@ impl CompiledIdentifiedSetDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<IdentifiedSetDecision, TerminalError<AdapterError>> {
-        let _scoped = self.enter(ctx)?;
+        let (_scoped, publication) = self.enter(ctx)?;
         let utilities = self.utilities_in().map_err(TerminalError::Kernel)?;
-        evaluate_identified_sets(&self.contract, &utilities).map_err(TerminalError::Kernel)
+        publication.finish(
+            evaluate_identified_sets(&self.contract, &utilities).map_err(TerminalError::Kernel),
+        )
     }
 
     /// The identity of the action whose utility the carrier declares at `index`.
@@ -521,23 +523,25 @@ impl CompiledContractDecision {
         ctx: &ExecutionContext,
         evidence: Option<&MethodProvenanceWire>,
     ) -> Result<DecisionResult, TerminalError<DecisionEvalError>> {
-        let _scoped = self.enter(ctx)?;
+        let (_scoped, publication) = self.enter(ctx)?;
         let evidence = match &self.source {
             ContractSource::Law(law) => law.method_provenance().or(evidence),
             ContractSource::Means(_) => evidence,
         };
-        match &self.source {
-            ContractSource::Law(law) => evaluate_contract(&self.contract, law),
-            ContractSource::Means(means) => evaluate_contract_on_means(&self.contract, means),
-        }
-        .map(|result| {
-            let mut provenance = self.result_method_provenance(evidence);
-            if evidence.is_none() {
-                provenance.note_unlinked_source(result.source.provider_id.clone());
+        publication.finish(
+            match &self.source {
+                ContractSource::Law(law) => evaluate_contract(&self.contract, law),
+                ContractSource::Means(means) => evaluate_contract_on_means(&self.contract, means),
             }
-            result.with_method_provenance(provenance)
-        })
-        .map_err(TerminalError::Kernel)
+            .map(|result| {
+                let mut provenance = self.result_method_provenance(evidence);
+                if evidence.is_none() {
+                    provenance.note_unlinked_source(result.source.provider_id.clone());
+                }
+                result.with_method_provenance(provenance)
+            })
+            .map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -605,9 +609,11 @@ impl CompiledDecisionFunctional {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<FunctionalValue, TerminalError<DecisionEvalError>> {
-        let _scoped = self.enter(ctx)?;
-        evaluate_functional(&self.contract, &self.action_id, self.functional, &self.law)
-            .map_err(TerminalError::Kernel)
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            evaluate_functional(&self.contract, &self.action_id, self.functional, &self.law)
+                .map_err(TerminalError::Kernel),
+        )
     }
 }
 

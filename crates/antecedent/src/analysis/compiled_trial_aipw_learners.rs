@@ -32,7 +32,7 @@ use antecedent_identify::{TransportIdentification, TransportIdentifier};
 
 use super::compiled_point_program::PointProgram;
 use super::declared_learners::{LearnerFactories, calibration_label};
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{Declaration, SetOf, Wire, encoded};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -41,11 +41,6 @@ use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, Prog
 
 const PLAN_ID: &str = "trial_aipw_learner_transport.v1";
 const EVALUATOR: &str = "antecedent_estimate::estimate_trial_aipw_with_factories";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// A trial-to-target AIPW transport request whose nuisances the caller's learners fit.
 ///
 /// `learners` pairs the source outcome factory (`outcome`, a regression) with the source
@@ -232,10 +227,10 @@ impl CompiledTrialAipwLearners {
     /// # Errors
     ///
     /// Bootstrap replicates (`route_not_supported`), a learner without the required task, a
-    /// budget, fit or overlap refusal, cancellation, or the support gate once it is on.
+    /// budget, fit or overlap refusal, cancellation, or a support refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<TrialAipwLearnersRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
+        let publication = gate_program(&scoped, self)?;
         let request = &self.request;
         let estimate = antecedent_estimate::estimate_trial_aipw_with_factories(
             &self.identification,
@@ -245,13 +240,13 @@ impl CompiledTrialAipwLearners {
             request.learners.outcome(),
             request.learners.treatment(),
         )?;
-        Ok(TrialAipwLearnersRun {
+        publication.finish(Ok(TrialAipwLearnersRun {
             estimate,
             lowered_program_identity: self.lowered.identity(),
             claim: "point_only",
             calibration: self.unit_calibration(),
             calibration_label: calibration_label(Some(&request.learners)).unwrap_or_default(),
-        })
+        }))
     }
 }
 

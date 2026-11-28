@@ -128,7 +128,7 @@ impl CompiledDecisionProgram {
         published: PublishedCarriers,
         ctx: &ExecutionContext,
     ) -> Result<ScoredDecision, TerminalError<MissingCarrier>> {
-        self.parent.gate(ctx).map_err(CausalError::from)?;
+        let publication = self.parent.gate(ctx).map_err(CausalError::from)?;
         if demand.carrier() != self.program.carrier {
             return Err(TerminalError::Refused(crate::compile_reason!(
                 "invalid_argument",
@@ -137,7 +137,7 @@ impl CompiledDecisionProgram {
                 self.program.carrier.as_str()
             )));
         }
-        score_decision(demand, published).map_err(TerminalError::Kernel)
+        publication.finish(score_decision(demand, published).map_err(TerminalError::Kernel))
     }
 }
 
@@ -208,15 +208,17 @@ impl CompiledEvsiProgram {
         prior: &DecisionPrior<f64>,
         ctx: &ExecutionContext,
     ) -> Result<EvaluatedEvsi, TerminalError<EvsiError>> {
-        self.parent.gate(ctx).map_err(CausalError::from)?;
+        let publication = self.parent.gate(ctx).map_err(CausalError::from)?;
         if !same_problem(&self.program, problem) {
             return Err(TerminalError::Refused(crate::compile_reason!(
                 "invalid_argument",
                 "the decision problem is not the one the request was compiled for"
             )));
         }
-        evaluate_evsi_with_context(problem, prior, &self.request, ctx)
-            .map_err(TerminalError::Kernel)
+        publication.finish(
+            evaluate_evsi_with_context(problem, prior, &self.request, ctx)
+                .map_err(TerminalError::Kernel),
+        )
     }
 }
 

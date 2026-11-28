@@ -231,9 +231,11 @@ impl CompiledPreferenceCompatibleSet {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SetLearningResult, TerminalError<SetLearningError>> {
-        let scoped = self.enter(ctx)?;
-        learn_compatible_set_with_context(&self.model, &self.records, self.options, &scoped)
-            .map_err(TerminalError::Kernel)
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            learn_compatible_set_with_context(&self.model, &self.records, self.options, &scoped)
+                .map_err(TerminalError::Kernel),
+        )
     }
 
     /// Learn and accept the outcome of `decider` (`None`: the pooled outcome): version one of
@@ -249,23 +251,25 @@ impl CompiledPreferenceCompatibleSet {
         decider: Option<&str>,
         ctx: &ExecutionContext,
     ) -> Result<AcceptedPreferences, TerminalError<AcceptedPreferencesError>> {
-        let scoped = self.enter(ctx)?;
-        match &self.prior {
-            None => learn_compatible_set_accepted_with_context(
-                &self.model,
-                &self.records,
-                decider,
-                self.options,
-                &scoped,
-            ),
-            Some(prior) => prior.relearn_compatible_set_with_context(
-                &self.records,
-                decider,
-                self.options,
-                &scoped,
-            ),
-        }
-        .map_err(TerminalError::Kernel)
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            match &self.prior {
+                None => learn_compatible_set_accepted_with_context(
+                    &self.model,
+                    &self.records,
+                    decider,
+                    self.options,
+                    &scoped,
+                ),
+                Some(prior) => prior.relearn_compatible_set_with_context(
+                    &self.records,
+                    decider,
+                    self.options,
+                    &scoped,
+                ),
+            }
+            .map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -376,9 +380,11 @@ impl CompiledPreferenceChoiceModel {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<ChoiceModelResult, TerminalError<ChoiceModelError>> {
-        let scoped = self.enter(ctx)?;
-        estimate_choice_model_with_context(&self.model, &self.records, self.options, &scoped)
-            .map_err(TerminalError::Kernel)
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            estimate_choice_model_with_context(&self.model, &self.records, self.options, &scoped)
+                .map_err(TerminalError::Kernel),
+        )
     }
 
     /// Estimate and accept the estimate of `decider` (`None`: the pooled estimate): version one
@@ -393,20 +399,25 @@ impl CompiledPreferenceChoiceModel {
         decider: Option<&str>,
         ctx: &ExecutionContext,
     ) -> Result<AcceptedPreferences, TerminalError<AcceptedPreferencesError>> {
-        let scoped = self.enter(ctx)?;
-        match &self.prior {
-            None => estimate_accepted_with_context(
-                &self.model,
-                &self.records,
-                decider,
-                self.options,
-                &scoped,
-            ),
-            Some(prior) => {
-                prior.relearn_estimate_with_context(&self.records, decider, self.options, &scoped)
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            match &self.prior {
+                None => estimate_accepted_with_context(
+                    &self.model,
+                    &self.records,
+                    decider,
+                    self.options,
+                    &scoped,
+                ),
+                Some(prior) => prior.relearn_estimate_with_context(
+                    &self.records,
+                    decider,
+                    self.options,
+                    &scoped,
+                ),
             }
-        }
-        .map_err(TerminalError::Kernel)
+            .map_err(TerminalError::Kernel),
+        )
     }
 }
 

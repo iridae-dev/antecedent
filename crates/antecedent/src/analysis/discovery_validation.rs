@@ -464,7 +464,7 @@ impl Study {
         })?;
         let lowered =
             Arc::new(crate::analysis::lowering::discovery_validation::lower(search, &check)?);
-        gate_program(ctx, &CheckProgram(Arc::clone(&lowered)))?;
+        let publication = gate_program(ctx, &CheckProgram(Arc::clone(&lowered)))?;
         let data = DiscoverData::from(&self.data);
         let lease = data.admit_search(query, spec, ctx, "discovery validation")?;
         let report = run_check(&check, spec, params, &data, &query.variables, ctx)?;
@@ -472,7 +472,7 @@ impl Study {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: VALIDATION_STAGE });
         }
-        Ok(DiscoveryValidation { lowered, check, report })
+        publication.finish(Ok(DiscoveryValidation { lowered, check, report }))
     }
 }
 

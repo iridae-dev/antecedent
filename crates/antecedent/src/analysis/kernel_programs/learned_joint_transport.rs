@@ -199,16 +199,16 @@ impl CompiledLearnedJointTransport {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(LearnedJointArtifactWire, LearnedJointFit), IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
         let input = self.program.input();
-        LearnedJointArtifactWire::build(
+        publication.finish(LearnedJointArtifactWire::build(
             &input.identification,
             &input.model,
             &input.sources,
             &input.target,
             input.options,
             ctx,
-        )
+        ))
     }
 
     /// Pass the support gate, fit the model and authorize the target-effect scalar at
@@ -223,9 +223,9 @@ impl CompiledLearnedJointTransport {
         level: f64,
         ctx: &ExecutionContext,
     ) -> Result<(LearnedJointArtifactWire, LearnedJointFit, MeasuredInference), IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
         let input = self.program.input();
-        LearnedJointArtifactWire::build_measured(
+        publication.finish(LearnedJointArtifactWire::build_measured(
             &input.identification,
             &input.model,
             &input.sources,
@@ -233,7 +233,7 @@ impl CompiledLearnedJointTransport {
             input.options,
             level,
             ctx,
-        )
+        ))
     }
 }
 
@@ -263,9 +263,9 @@ impl CompiledJointBayesianTransport {
         level: f64,
         ctx: &ExecutionContext,
     ) -> Result<(JointBayesianArtifactWire, JointTransportFit, MeasuredInference), IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
         let input = self.program.input();
-        JointBayesianArtifactWire::build_measured(
+        publication.finish(JointBayesianArtifactWire::build_measured(
             &input.identification,
             &input.model,
             &input.sources,
@@ -273,7 +273,7 @@ impl CompiledJointBayesianTransport {
             input.options,
             level,
             ctx,
-        )
+        ))
     }
 }
 

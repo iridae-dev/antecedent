@@ -316,8 +316,14 @@ impl PreparedReleaseLaw {
     /// # Errors
     /// Resource exhaustion, cancellation, numerical failure, or an unsupported release scope.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<EventLaw, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
-        sample(&self.kernel, &self.resolved, self.mixture, self.plan.identity(), &scoped)
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
+        publication.finish(sample(
+            &self.kernel,
+            &self.resolved,
+            self.mixture,
+            self.plan.identity(),
+            &scoped,
+        ))
     }
 }
 
@@ -485,7 +491,7 @@ impl PreparedReleaseQuestion {
     /// A fit fails, the bridge or the discovery refuses an agreed mass, the release action is
     /// not a later time or a different mark, or an unsupported release scope.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<ReleaseQuestionOutcome, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
         let (reading, subject) = match &self.question.challenge {
             QuestionChallenge::Catalog(challenge) => {
                 let (reading, constant) = challenge.run(&scoped)?;
@@ -514,6 +520,10 @@ impl PreparedReleaseQuestion {
             self.question.draw,
         )?;
         let law = sample(&accepted.kernel, &resolved, accepted.mixture, identity, &scoped)?;
-        Ok(ReleaseQuestionOutcome { reading, accepted: Some(accepted), law: Some(law) })
+        publication.finish(Ok(ReleaseQuestionOutcome {
+            reading,
+            accepted: Some(accepted),
+            law: Some(law),
+        }))
     }
 }

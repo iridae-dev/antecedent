@@ -493,16 +493,16 @@ impl CompiledDiscretizedBridge {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<DiscretizedLinearGaussian, DiscretizationRefusal> {
-        self.program.gate(ctx).map_err(|refusal| bridge_support(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| bridge_support(&refusal))?;
         let input = self.program.input();
-        match &input.source {
+        publication.finish(match &input.source {
             BridgeSource::Model(model) => {
                 DiscretizedLinearGaussian::new(model, &input.plan, ctx).map_err(Into::into)
             }
             BridgeSource::Spec(spec) => {
                 DiscretizedLinearGaussian::from_spec(spec, &input.plan, ctx).map_err(Into::into)
             }
-        }
+        })
     }
 }
 
@@ -534,9 +534,9 @@ impl CompiledDiscretizedMeanContrast {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<DiscretizedContrast, DiscretizationRefusal> {
-        self.program.gate(ctx).map_err(|refusal| bridge_support(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| bridge_support(&refusal))?;
         let input = self.program.input();
-        input.bridge.mean_contrast(&input.contrast, ctx).map_err(Into::into)
+        publication.finish(input.bridge.mean_contrast(&input.contrast, ctx).map_err(Into::into))
     }
 }
 

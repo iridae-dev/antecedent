@@ -209,8 +209,8 @@ impl CompiledBridgeImage {
     ///
     /// The execution gate refuses, or the image evaluation fails or is cancelled.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<BridgeImageResult, ExactImageError> {
-        self.0.gate(ctx)?;
-        Ok(self.0.input().evaluate(ctx)?)
+        let publication = self.0.gate(ctx)?;
+        publication.finish(Ok(self.0.input().evaluate(ctx)?))
     }
     /// Execute and export the checked result together with its source and declarations.
     ///
@@ -263,7 +263,7 @@ pub(crate) fn replay_stored_image(
     ctx: &ExecutionContext,
 ) -> Result<(SemanticDigest, BridgeImageResult), ExactImageError> {
     let plan = Study::compile_bridge_image(request, ctx)?;
-    plan.0.gate(ctx)?;
+    let publication = plan.0.gate(ctx)?;
     let program = plan.lowered().identity();
     let live = plan.0.input().replay_image(ctx)?;
     let _readout = live.admit_readout(ctx)?;
@@ -271,5 +271,5 @@ pub(crate) fn replay_stored_image(
     if ctx.cancellation.is_cancelled() {
         return Err(BridgeImageError::from(antecedent_io::IoError::StreamCancelled).into());
     }
-    Ok((program, live))
+    publication.finish(Ok((program, live)))
 }

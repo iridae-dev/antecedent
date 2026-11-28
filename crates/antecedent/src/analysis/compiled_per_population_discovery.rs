@@ -36,7 +36,7 @@ use antecedent_discovery::selective::populations::{
 };
 use antecedent_discovery::selective::{SelectiveDiscoveryError, StaticDiscoveryContract};
 
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{Canonical, Declaration};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -53,11 +53,6 @@ const PLAN_ID: &str = "per_population_structure_search.v1";
 const QUESTION_TAG: &str = "antecedent.per_population_structure_search.question.v1";
 const SOURCE_TAG: &str = "antecedent.per_population_structure_search.rows.v1";
 const EVALUATOR: &str = "antecedent_discovery::selective::populations::PerPopulationDiscovery::run";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record lists this compiled
-/// route and is earned again with it, so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// One static selective contract and the rows of every declared population.
 ///
 /// Each population is a label and its own rows; labels are distinct and the rows of two
@@ -415,7 +410,7 @@ impl CompiledPerPopulationDiscovery {
         crate::analysis::lowering::refuse_reentry(ctx)
             .map_err(PerPopulationSearchError::Program)?;
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+        let publication = gate_program(&scoped, self)
             .map_err(|refusal| PerPopulationSearchError::Program(CausalError::from(refusal)))?;
         let rows: Vec<PopulationRows<'_>> = self
             .request
@@ -427,7 +422,10 @@ impl CompiledPerPopulationDiscovery {
         driver
             .run(&self.request.contract, &rows, &scoped)
             .map_err(PerPopulationSearchError::Search)?;
-        Ok(PerPopulationSearchRun { driver, lowered_program_identity: self.lowered.identity() })
+        publication.finish(Ok(PerPopulationSearchRun {
+            driver,
+            lowered_program_identity: self.lowered.identity(),
+        }))
     }
 }
 

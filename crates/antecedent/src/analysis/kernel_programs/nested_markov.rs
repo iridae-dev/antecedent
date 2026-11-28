@@ -230,9 +230,14 @@ impl CompiledNestedMarkovFisher {
     /// The support refusal (`not_supported`) in a release build when the unit is not supported,
     /// and the refusals of the producer.
     pub fn fit(&self, ctx: &ExecutionContext) -> Result<NestedFisherArtifact, IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
         let input = self.program.input();
-        NestedFisherArtifact::build(&input.input, &input.options, input.nominal_level, ctx)
+        publication.finish(NestedFisherArtifact::build(
+            &input.input,
+            &input.options,
+            input.nominal_level,
+            ctx,
+        ))
     }
 
     /// Pass the support gate, build the Fisher candidate and authorize every reported scalar
@@ -246,9 +251,14 @@ impl CompiledNestedMarkovFisher {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(NestedFisherArtifact, MeasuredInference), IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
         let input = self.program.input();
-        NestedFisherArtifact::build_measured(&input.input, &input.options, input.nominal_level, ctx)
+        publication.finish(NestedFisherArtifact::build_measured(
+            &input.input,
+            &input.options,
+            input.nominal_level,
+            ctx,
+        ))
     }
 }
 
@@ -273,15 +283,15 @@ impl CompiledNestedMarkovPosterior {
     /// The support refusal (`not_supported`) in a release build when the unit is not supported,
     /// and the refusals of the producer.
     pub fn fit(&self, ctx: &ExecutionContext) -> Result<NestedPosteriorArtifact, IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
         let input = self.program.input();
-        NestedPosteriorArtifact::build(
+        publication.finish(NestedPosteriorArtifact::build(
             &input.input,
             &input.options,
             input.prior.clone(),
             input.sampler.clone(),
             ctx,
-        )
+        ))
     }
 
     /// Pass the support gate, fit the posterior candidate and authorize every reported scalar
@@ -294,15 +304,15 @@ impl CompiledNestedMarkovPosterior {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(NestedPosteriorArtifact, MeasuredInference), IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
         let input = self.program.input();
-        NestedPosteriorArtifact::build_measured(
+        publication.finish(NestedPosteriorArtifact::build_measured(
             &input.input,
             &input.options,
             input.prior.clone(),
             input.sampler.clone(),
             ctx,
-        )
+        ))
     }
 }
 

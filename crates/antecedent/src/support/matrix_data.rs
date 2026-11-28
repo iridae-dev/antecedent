@@ -15,7 +15,13 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
+#[cfg(not(antecedent_trace_attribution))]
 const SNAPSHOT: &str = include_str!("../../data/support_matrix.json");
+
+// Private smoke builds only. The trace runner binds these exact bytes into its receipt.
+#[cfg(antecedent_trace_attribution)]
+const SNAPSHOT: &str =
+    include_str!(concat!(env!("ANTECEDENT_ATTRIBUTION_SNAPSHOT_ROOT"), "/support_matrix.json"));
 
 /// Copy handle for a leaked slice. The static itself is const; the slice is built
 /// on first use.
@@ -72,7 +78,7 @@ pub struct SupportedCell {
     pub validation: &'static str,
     /// Compiler-plan estimator from `parity/supported_routes.toml`, when present.
     pub route_estimator: Option<&'static str>,
-    /// Union of route, explicitly supported, and calibration-token estimators.
+    /// Estimators admitted by the compiled route and source claim.
     pub estimators: &'static [&'static str],
 }
 
@@ -113,6 +119,8 @@ struct Matrix {
     /// Supported rows by full five-axis coordinate (coordinate order), so a
     /// lookup is one hash instead of a scan of every row.
     by_coordinate: HashMap<[&'static str; 5], &'static SupportedCell>,
+    /// Coordinates with an admitted compile recipe regardless of their pass currency.
+    candidates: HashSet<[&'static str; 5]>,
     /// `missing_evidence` of rows the snapshot marks `not_supported`, keyed by coordinate.
     refused: HashMap<[&'static str; 5], &'static [&'static str]>,
     /// Distinct supported values of each axis, for interning a parsed coordinate.
@@ -123,6 +131,10 @@ struct Matrix {
 /// validation]` coordinate.
 pub(super) fn supported_cell(coordinate: [&str; 5]) -> Option<&'static SupportedCell> {
     matrix().by_coordinate.get(&coordinate).copied()
+}
+
+pub(super) fn is_candidate(coordinate: [&str; 5]) -> bool {
+    matrix().candidates.contains(&coordinate)
 }
 
 /// The snapshot's missing evidence for a coordinate it marks `not_supported`.
@@ -145,8 +157,11 @@ fn build(snapshot: &str) -> Matrix {
     {
         let raw: RawMatrix = serde_json::from_str(snapshot).expect("support matrix snapshot");
         let mut refused = HashMap::new();
+        let mut candidates = HashSet::new();
         for row in &raw.supported {
-            if row.status.as_deref() != Some("not_supported") {
+            let supported = row.status.as_deref() == Some("supported");
+            let candidate = row.candidate.unwrap_or(supported);
+            if supported && !candidate {
                 continue;
             }
             let coordinate = [
@@ -156,14 +171,19 @@ fn build(snapshot: &str) -> Matrix {
                 leak_str(row.inference.clone()),
                 leak_str(row.validation.clone()),
             ];
-            refused.insert(coordinate, leak_strs(row.missing_evidence.clone()));
+            if candidate {
+                candidates.insert(coordinate);
+            }
+            if !supported {
+                refused.insert(coordinate, leak_strs(row.missing_evidence.clone()));
+            }
         }
         let supported: &'static [SupportedCell] = leak_slice(
             raw.supported
                 .into_iter()
                 // `status` is derived from the scientific-records ledger: a unit whose cited
                 // check has no current passing record is `not_supported` and is not admitted.
-                .filter(|row| row.status.as_deref().is_none_or(|status| status == "supported"))
+                .filter(|row| row.status.as_deref() == Some("supported"))
                 .map(SupportedCell::from_raw)
                 .collect(),
         );
@@ -183,6 +203,7 @@ fn build(snapshot: &str) -> Matrix {
             closed_rules: leak_slice(raw.closed_rules.into_iter().map(NaRule::from_raw).collect()),
             supported,
             by_coordinate,
+            candidates,
             refused,
             axis_values,
         }
@@ -208,6 +229,7 @@ struct RawRule {
 
 #[derive(Deserialize)]
 struct RawSupported {
+    candidate: Option<bool>,
     query: String,
     graph_class: String,
     structure: String,
@@ -282,8 +304,7 @@ mod tests {
         )
     }
 
-    /// A unit that release-mode data marks `not_supported` is not admitted; one marked
-    /// `supported`, or carrying no status, is.
+    /// Only an earned, explicit status admits a unit.
     #[test]
     fn a_not_supported_unit_in_the_snapshot_is_not_admitted() {
         let snapshot = format!(
@@ -296,8 +317,22 @@ mod tests {
         let key = |q: &'static str| [q, "Dag", "explicit", "Frequentist", "none"];
         assert!(!matrix.by_coordinate.contains_key(&key("A")));
         assert!(matrix.by_coordinate.contains_key(&key("B")));
-        assert!(matrix.by_coordinate.contains_key(&key("C")));
+        assert!(!matrix.by_coordinate.contains_key(&key("C")));
         assert_eq!(matrix.refused[&key("A")], ["flagged: x"]);
         assert!(!matrix.refused.contains_key(&key("B")));
+    }
+
+    #[test]
+    fn an_owed_recipe_is_a_candidate_without_becoming_supported() {
+        let row = cell("A", Some("not_supported"));
+        let row = row.trim_end_matches('}');
+        let snapshot = format!(
+            r#"{{"na_rules":[],"closed_rules":[],"supported":[{row},"candidate":true}}]}}"#,
+        );
+        let matrix = build(&snapshot);
+        let key = ["A", "Dag", "explicit", "Frequentist", "none"];
+        assert!(matrix.candidates.contains(&key));
+        assert!(!matrix.by_coordinate.contains_key(&key));
+        assert_eq!(matrix.refused[&key], ["flagged: x"]);
     }
 }

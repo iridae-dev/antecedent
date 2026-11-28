@@ -40,7 +40,7 @@ use antecedent_io::dose_grid_functional_artifact::{
 };
 
 use super::dose_grid_functional::DoseGridFunctional;
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -55,11 +55,6 @@ use crate::planner::statistical::{Realization, StatisticalProgram};
 const PLAN_ID: &str = "dose_grid_bias_aware.v1";
 /// The estimator key the measured coverage of this kernel is recorded under.
 const CALIBRATION_ESTIMATOR: &str = "dose_grid_bias_aware";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// How the rows of a bound request depend on one another.
 #[derive(Clone, Debug, PartialEq)]
 enum BoundDependence {
@@ -409,8 +404,7 @@ impl Study {
     ///
     /// The refusals `DoseGridFunctional::evaluate_with_context` returns for the same request
     /// (spellings, limits, declared rows, the separate exact-quadratic premise, every refusal of
-    /// the row and the bound, a non-finite result, cancellation), and the support gate once it
-    /// is on.
+    /// the row and the bound, a non-finite result, cancellation), and a support refusal.
     pub fn seal_dose_grid_bias_aware(
         request: DoseGridRequestWire,
         ctx: &ExecutionContext,
@@ -467,10 +461,10 @@ impl CompiledDoseGridBiasAware {
     ///
     /// Every refusal of the row (design, claims, bandwidth, support, local weight, a negative or
     /// non-finite curvature bound, too few band replicates, declared rows), admission,
-    /// cancellation, or the support gate once it is on.
+    /// cancellation, or a support refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<DoseGridBiasAwareRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
+        let publication = gate_program(&scoped, self)?;
         let fit = estimate_dose_grid_bias_aware_declared(
             &self.request.row_request(),
             &self.request.row_declaration(),
@@ -478,17 +472,17 @@ impl CompiledDoseGridBiasAware {
             self.request.band_replicates,
             &scoped,
         )?;
-        Ok(DoseGridBiasAwareRun {
+        publication.finish(Ok(DoseGridBiasAwareRun {
             fit,
             lowered_program_identity: self.lowered.identity(),
             calibration_estimator: CALIBRATION_ESTIMATOR,
-        })
+        }))
     }
 
     /// [`Self::execute`] with the kernel's own refusal, for the sealed row.
     fn evaluate(&self, ctx: &ExecutionContext) -> Result<DoseGridBiasAwareRun, EstimationError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
+        let publication = gate_program(&scoped, self)?;
         let fit = estimate_dose_grid_bias_aware_declared(
             &self.request.row_request(),
             &self.request.row_declaration(),
@@ -496,11 +490,11 @@ impl CompiledDoseGridBiasAware {
             self.request.band_replicates,
             &scoped,
         )?;
-        Ok(DoseGridBiasAwareRun {
+        publication.finish(Ok(DoseGridBiasAwareRun {
             fit,
             lowered_program_identity: self.lowered.identity(),
             calibration_estimator: CALIBRATION_ESTIMATOR,
-        })
+        }))
     }
 }
 

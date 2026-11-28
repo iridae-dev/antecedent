@@ -418,9 +418,9 @@ impl CompiledPolicyEvaluation {
     /// The support refusal (`not_supported`, detail `SequentialPolicyEvaluation`) when the unit
     /// is not supported, and every refusal of `evaluate_policy`.
     pub fn evaluate(&self, ctx: &ExecutionContext) -> SequentialResult<PolicyEvaluation> {
-        self.program.gate(ctx).map_err(|refusal| evaluation_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| evaluation_refusal(&refusal))?;
         let input = self.program.input();
-        evaluate_policy(&input.model, &input.policy, input.limits, ctx)
+        publication.finish(evaluate_policy(&input.model, &input.policy, input.limits, ctx))
     }
 }
 
@@ -507,9 +507,9 @@ impl CompiledOffPolicyEvaluation {
         ledger: &mut EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> SequentialResult<OffPolicyEstimate> {
-        self.program.gate(ctx).map_err(|refusal| evaluation_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| evaluation_refusal(&refusal))?;
         let input = self.program.input();
-        evaluate_off_policy(
+        publication.finish(evaluate_off_policy(
             &input.model,
             &input.target,
             &input.behaviour,
@@ -517,7 +517,7 @@ impl CompiledOffPolicyEvaluation {
             ledger,
             input.limits,
             ctx,
-        )
+        ))
     }
 }
 
@@ -591,9 +591,9 @@ impl CompiledPolicyRollout {
     /// The support refusal (`not_supported`, detail `SequentialPolicyEvaluation`) when the unit
     /// is not supported, and every refusal of `rollout_policy`.
     pub fn evaluate(&self, ctx: &ExecutionContext) -> SequentialResult<RolloutEstimate> {
-        self.program.gate(ctx).map_err(|refusal| evaluation_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| evaluation_refusal(&refusal))?;
         let input = self.program.input();
-        rollout_policy(&input.model, &input.policy, input.config, ctx)
+        publication.finish(rollout_policy(&input.model, &input.policy, input.config, ctx))
     }
 }
 
@@ -674,16 +674,16 @@ impl CompiledPolicyComparison {
     /// The support refusal (`not_supported`, detail `SequentialPolicyEvaluation`) when the unit
     /// is not supported, and every refusal of `compare_policies`.
     pub fn evaluate(&self, ctx: &ExecutionContext) -> SequentialResult<ComparisonReport> {
-        self.program.gate(ctx).map_err(|refusal| evaluation_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| evaluation_refusal(&refusal))?;
         let input = self.program.input();
-        compare_policies(
+        publication.finish(compare_policies(
             &input.model,
             input.specs.clone(),
             input.voi.as_ref(),
             &input.request,
             input.limits,
             ctx,
-        )
+        ))
     }
 }
 
@@ -760,9 +760,14 @@ impl CompiledValueOfCollectingEvidence {
     /// The support refusal (`not_supported`, detail `SequentialPolicyEvaluation`) when the unit
     /// is not supported, and every refusal of `value_of_collecting_evidence`.
     pub fn evaluate(&self, ctx: &ExecutionContext) -> SequentialResult<VoiCheck> {
-        self.program.gate(ctx).map_err(|refusal| evaluation_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| evaluation_refusal(&refusal))?;
         let input = self.program.input();
-        value_of_collecting_evidence(&input.model, &input.request, input.limits, ctx)
+        publication.finish(value_of_collecting_evidence(
+            &input.model,
+            &input.request,
+            input.limits,
+            ctx,
+        ))
     }
 }
 
@@ -841,16 +846,16 @@ impl CompiledSequentialEvaluationSeal {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SequentialEvaluationArtifact, antecedent_io::IoError> {
-        self.program.gate(ctx).map_err(|refusal| super::io_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| super::io_refusal(&refusal))?;
         let input = self.program.input();
-        SequentialEvaluationArtifact::new(
+        publication.finish(SequentialEvaluationArtifact::new(
             &input.model,
             &input.policy,
             input.off_policy.as_ref(),
             input.rollout,
             input.limits,
             ctx,
-        )
+        ))
     }
 }
 

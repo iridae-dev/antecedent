@@ -316,7 +316,7 @@ fn compile_cyclic_action_world_decision_encoded(
         .finish(),
     );
     let plan = CompiledCyclicActionDecision { source, outputs, contract, lowered };
-    gate_decision(ctx, &plan)
+    let _admission = gate_decision(ctx, &plan)
         .map_err(|refusal| CyclicActionDecisionError::Invalid(refusal.message()))?;
     Ok(plan)
 }
@@ -409,18 +409,18 @@ impl CompiledCyclicActionDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CyclicActionDecisionResult, CyclicActionDecisionError> {
-        gate_decision(ctx, self)
+        let publication = gate_decision(ctx, self)
             .map_err(|refusal| CyclicActionDecisionError::Invalid(refusal.message()))?;
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let cyclic = self.source.estimate(&scoped)?;
         let draft = self.joint_chain(&cyclic)?;
         let decision =
             compile_action_world_chain_decision(draft, self.contract.clone(), ctx)?.execute(ctx)?;
-        Ok(CyclicActionDecisionResult {
+        publication.finish(Ok(CyclicActionDecisionResult {
             cyclic,
             decision,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Export both executable sources only after checking the result against a
@@ -644,11 +644,6 @@ mod tests {
             plan.plan_view().unit_support().map(|unit| unit.status()),
             decision.as_ref().map(|decision| decision.status)
         );
-        // The decision gate is inert until it is switched on; once on, it consults the same
-        // decision, so a development build records the would-refuse of an unsupported unit.
-        if !crate::analysis::cyclic::COMPILED_DECISION_GATE_LIVE {
-            assert!(crate::analysis::cyclic::gate_decision(&ctx, &plan).is_ok());
-        }
         let result = plan.execute(&ctx).expect("paired model-derived worlds");
         assert_eq!(result.decision.decision.n_draws, 4);
         assert_eq!(result.cyclic.worlds.len(), 2);
@@ -734,6 +729,7 @@ mod tests {
     /// `NotSupported`; every cyclic decision route carries that refusal in its `Invalid`
     /// payload, and it keeps the `not_supported` class and its own detail instead of reading
     /// as an invalid request.
+    #[cfg(not(feature = "development"))]
     #[test]
     fn a_gate_refusal_keeps_its_not_supported_class() {
         use crate::analysis::cyclic_component_composition::JointComponentPosteriorError;
@@ -741,12 +737,13 @@ mod tests {
         use crate::analysis::cyclic_target_feedback_decision::CyclicTargetFeedbackError;
         use antecedent_core::reason_details::{cyclic_component, cyclic_decision};
         // The refusal `gate_decision` returns in a release build for an unsupported unit.
-        let refusal = antecedent_core::NotSupported {
-            detail: "CyclicActionWorldDecision",
-            missing: vec!["unit_evidence".to_owned()],
-        };
+        let refusal = antecedent_core::support_gate::require_supported_unscoped(
+            "CyclicActionWorldDecision",
+            &["unit_evidence"],
+        )
+        .expect_err("a release build refuses the missing evidence");
         let message = refusal.message();
-        let not_supported = antecedent_core::reason_code!("not_supported");
+        let not_supported = refusal.code();
         let shown = format!("{}: {message}", cyclic_decision::NOT_SUPPORTED);
         let action = CyclicActionDecisionError::Invalid(message);
         assert_eq!(action.reason_code(), Some(not_supported));

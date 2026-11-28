@@ -137,7 +137,7 @@ impl CompiledCrossWorldExecution {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CrossWorldExecution, CrossWorldExecutionArtifactError> {
-        self.program.gate(ctx).map_err(|refusal| {
+        let publication = self.program.gate(ctx).map_err(|refusal| {
             CrossWorldExecutionArtifactError::Refused(Box::new(CrossWorldExecutionRefusalWire {
                 code: refusal.code().to_owned(),
                 stage: "gate".to_owned(),
@@ -148,7 +148,10 @@ impl CompiledCrossWorldExecution {
             }))
         })?;
         let request = request_of(self.program.input())?;
-        CrossWorldExecutionArtifact::seal(&request, ctx).map(CrossWorldExecution::from_artifact)
+        publication.finish(
+            CrossWorldExecutionArtifact::seal(&request, ctx)
+                .map(CrossWorldExecution::from_artifact),
+        )
     }
 
     /// Gate the program on its unit, then execute the bound request on `executor`.
@@ -166,7 +169,7 @@ impl CompiledCrossWorldExecution {
         executor: &mut FiniteScmExecutor,
         ctx: &ExecutionContext,
     ) -> Result<FiniteExecutionResult, CrossWorldExecutionError> {
-        self.program.gate(ctx).map_err(|refusal| {
+        let publication = self.program.gate(ctx).map_err(|refusal| {
             CrossWorldExecutionError::Refused(Box::new(CrossWorldRefusal {
                 refusal: antecedent_contract::ExternalRefusal::new(
                     refusal.code(),
@@ -190,7 +193,7 @@ impl CompiledCrossWorldExecution {
                 missing: Vec::new(),
             }))
         })?;
-        executor.execute(&request, ctx)
+        publication.finish(executor.execute(&request, ctx))
     }
 }
 
@@ -224,7 +227,7 @@ impl CompiledGeneralTemporalCounterfactual {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GeneralTemporalCounterfactual, GeneralTemporalCounterfactualArtifactError> {
-        self.program.gate(ctx).map_err(|refusal| {
+        let publication = self.program.gate(ctx).map_err(|refusal| {
             GeneralTemporalCounterfactualArtifactError::Refused(Box::new(
                 TemporalCounterfactualRefusalWire {
                     code: refusal.code().to_owned(),
@@ -236,8 +239,10 @@ impl CompiledGeneralTemporalCounterfactual {
                 },
             ))
         })?;
-        GeneralTemporalCounterfactualArtifact::seal(self.program.input(), ctx)
-            .map(GeneralTemporalCounterfactual::from_artifact)
+        publication.finish(
+            GeneralTemporalCounterfactualArtifact::seal(self.program.input(), ctx)
+                .map(GeneralTemporalCounterfactual::from_artifact),
+        )
     }
 }
 

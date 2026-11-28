@@ -327,15 +327,15 @@ impl PreparedExcitationQuestion {
     /// The diagnostic, the kernel, or the bridge contract does not support
     /// the question. A refusal produces no claim and no intervened law.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<AcceptedExcitation, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
-        accept(
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
+        publication.finish(accept(
             &self.reading,
             &self.subject,
             &self.bridge,
             &self.structural,
             self.plan.identity(),
             &scoped,
-        )
+        ))
     }
 }
 
@@ -887,13 +887,13 @@ impl PreparedShock {
     /// # Errors
     /// Execution was cancelled or the route is unsupported.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<LagCountQuery, EventError> {
-        let _scoped = super::scoped_execution(ctx, &self.plan)?;
-        Ok(LagCountQuery {
+        let (_scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
+        publication.finish(Ok(LagCountQuery {
             exposure: self.shock.history.catalog[self.shock.source].clone(),
             outcome: self.shock.history.catalog[self.shock.target].clone(),
             horizon: self.shock.horizon,
             instrument: self.shock.instrument.clone(),
-        })
+        }))
     }
 }
 

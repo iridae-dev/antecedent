@@ -109,10 +109,10 @@ impl PreparedStudy {
         };
         let lowered =
             Arc::new(crate::analysis::lowering::graph_falsification::lower(graph, data, config)?);
-        gate_program(ctx, &FalsificationProgram(Arc::clone(&lowered)))?;
+        let publication = gate_program(ctx, &FalsificationProgram(Arc::clone(&lowered)))?;
         let scoped = ctx.enter_lowered_dispatch(lowered.identity());
         let report = antecedent_model::falsify_graph(graph, data, config, &scoped)
             .map_err(CausalError::from)?;
-        Ok(CompiledGraphFalsification { report, lowered })
+        publication.finish(Ok(CompiledGraphFalsification { report, lowered }))
     }
 }

@@ -27,7 +27,9 @@ use std::sync::Arc;
 use antecedent_contract::ClaimKind;
 use antecedent_core::{ExecutionContext, NotSupported, SemanticDigest};
 
-use crate::analysis::program_handle::CompiledProgramHandle;
+use crate::analysis::program_handle::{
+    CompiledProgramHandle, ProgramPublication, gate_with_decision,
+};
 use crate::analysis::supplied_identity::Declaration;
 use crate::analysis::supplied_terminal::{Reading, TerminalSpec, lower_over};
 use crate::error::CausalError;
@@ -36,10 +38,7 @@ use crate::planner::lowered::{
     CarrierDemand, Composition, DecisionProgram, EvidenceRole, EvidenceSourceRef, FunctionalKind,
     LoweredProgram, ProgramCell,
 };
-use crate::support::unit::{UnitDecision, require_decided};
-
-/// What a parent whose route no unit is bound to is missing, in a refusal.
-const NO_UNIT: &str = "support_unit";
+use crate::support::unit::UnitDecision;
 
 /// What structure a parent program's inputs carry: compiled child programs.
 const GRAPH_CLASS: &str = "attached_decision_programs";
@@ -166,12 +165,8 @@ impl ParentDecisionProgram {
     /// # Errors
     /// [`NotSupported`] in a release build when the decision's unit is not supported, or when
     /// no unit is bound to the parent's route.
-    pub(crate) fn gate(&self, ctx: &ExecutionContext) -> Result<(), NotSupported> {
-        let route = self.lowered.route();
-        match self.decision() {
-            Some(decided) => require_decided(ctx, &decided, route),
-            None => antecedent_core::support_gate::require_supported(ctx, route, &[NO_UNIT]),
-        }
+    pub(crate) fn gate(&self, ctx: &ExecutionContext) -> Result<ProgramPublication, NotSupported> {
+        gate_with_decision(ctx, self.lowered.route(), self.decision())
     }
 
     /// The support decision of the decision's own unit, read from the parent's route; `None`

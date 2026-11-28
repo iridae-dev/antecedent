@@ -212,9 +212,10 @@ impl CompiledNativeCohortFit<'_> {
     /// Unsupported fit, resource admission or cancellation.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<CohortModelFitRun, EstimationError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program(&scoped, self).map_err(|_| EstimationError::Unsupported {
-            message: "cohort linear effect: native fit route is not supported",
-        })?;
+        let publication =
+            gate_program(&scoped, self).map_err(|_| EstimationError::Unsupported {
+                message: "cohort linear effect: native fit route is not supported",
+            })?;
         let _lease = scoped.acquire_serial_numerical_admission(self.working_bytes)?;
         let input = &self.input;
         let columns: Vec<&[f64]> = input.features.iter().map(Cow::as_ref).collect();
@@ -229,6 +230,9 @@ impl CompiledNativeCohortFit<'_> {
         if scoped.cancellation.is_cancelled() {
             return Err(AdmissionError::Cancelled.into());
         }
-        Ok(CohortModelFitRun { fit: fit?, lowered_program_identity: self.lowered.identity() })
+        publication.finish(Ok(CohortModelFitRun {
+            fit: fit?,
+            lowered_program_identity: self.lowered.identity(),
+        }))
     }
 }

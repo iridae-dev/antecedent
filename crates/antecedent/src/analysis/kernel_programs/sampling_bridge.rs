@@ -122,7 +122,7 @@ impl CompiledSamplingBridge {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<ScientificBridgeDistributionResult, SamplingBridgeError> {
-        self.0.gate(ctx)?;
+        let publication = self.0.gate(ctx)?;
         let inputs = self.0.input();
         let trials = match &inputs.bridge.contract().mapping {
             BridgeMapping::TrialLevelLinear(v) => v.trials.len(),
@@ -133,11 +133,11 @@ impl CompiledSamplingBridge {
             .saturating_add((inputs.source.n_draws() as u64).saturating_mul(64))
             .saturating_add((trials as u64).saturating_mul(64));
         let _lease = ctx.acquire_serial_numerical_admission(bytes).map_err(IoError::from)?;
-        Ok(inputs.bridge.derive_cancellable(
+        publication.finish(Ok(inputs.bridge.derive_cancellable(
             &inputs.source,
             inputs.kind,
             inputs.stream,
             &ctx.cancellation,
-        )?)
+        )?))
     }
 }

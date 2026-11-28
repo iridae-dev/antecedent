@@ -32,7 +32,7 @@ use antecedent_io::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
 };
@@ -46,15 +46,8 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     ModelRole, ModelSlot, PosteriorAlgorithm, PosteriorPlan, Realization, StatisticalProgram,
 };
-use crate::support::capability_calibration;
-use crate::support::units_generated::TRANSPORT_TRIAL_IPW_DECISION;
 
 const FEATURE: &str = "trial_ipw_transport_effect_decision_v1";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then; turning it on makes a release build refuse the route
-/// while the unit is unsupported and a development build record what it would refuse.
-const GATE_ON_UNIT_SUPPORT: bool = false;
 const MAX_BYTES: usize = 80 * 1024 * 1024;
 
 /// Independent source-trial and target units with supplied design probabilities.
@@ -458,8 +451,8 @@ impl CompiledTrialIpwTransportDecision {
     ) -> Result<TrialIpwTransportDecisionResult, Error> {
         let rows = &self.request.rows;
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
-            .map_err(|refusal| Error::Invalid(refusal.message()))?;
+        let publication =
+            gate_program(&scoped, self).map_err(|refusal| Error::Invalid(refusal.message()))?;
         let _lease = scoped
             .acquire_admission(
                 0,
@@ -490,12 +483,12 @@ impl CompiledTrialIpwTransportDecision {
             ctx,
         )?
         .execute(ctx)?;
-        Ok(TrialIpwTransportDecisionResult {
+        publication.finish(Ok(TrialIpwTransportDecisionResult {
             effect_draws: draws,
             decision,
             lowered_program_identity: self.lowered.identity(),
             calibration: self.unit_calibration(),
-        })
+        }))
     }
     /// Execute the complete route and expose unmeasured study coordinates for
     /// effect coverage and action-choice reliability. An external known-truth
@@ -617,7 +610,7 @@ impl CompiledTrialIpwTransportDecision {
             chain_artifact: chain.export(&live.decision, artifact_id)?,
             effect_draws: live.effect_draws,
             program_identity: *self.lowered.identity().as_bytes(),
-            calibration: self.unit_calibration().into(),
+            calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.into(),
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_BYTES {
@@ -642,7 +635,7 @@ pub fn consume_trial_ipw_transport_decision(
     let wire: Wire = antecedent_io::from_cbor(bytes)?;
     if wire.version != 1
         || wire.feature != FEATURE
-        || wire.calibration != capability_calibration(TRANSPORT_TRIAL_IPW_DECISION.as_str())
+        || !antecedent_io_core::unit_calibration::is_v1_wire_status(&wire.calibration)
         || wire.program_identity != *expected.as_bytes()
     {
         return Err(Error::Invalid("foreign trial IPW artifact"));

@@ -428,7 +428,7 @@ fn compile_cyclic_posterior_action_decision_checked(
         .finish(),
     );
     let plan = CompiledCyclicPosteriorDecision { request, outputs, contract, seed, lowered };
-    gate_decision(ctx, &plan)
+    let _admission = gate_decision(ctx, &plan)
         .map_err(|refusal| CyclicPosteriorDecisionError::Invalid(refusal.message()))?;
     Ok(plan)
 }
@@ -511,7 +511,7 @@ impl CompiledCyclicPosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CyclicPosteriorDecisionResult, CyclicPosteriorDecisionError> {
-        gate_decision(ctx, self)
+        let publication = gate_decision(ctx, self)
             .map_err(|refusal| CyclicPosteriorDecisionError::Invalid(refusal.message()))?;
         if ctx.rng.master_seed() != self.seed {
             return Err(CyclicPosteriorDecisionError::Invalid("posterior execution seed changed"));
@@ -575,11 +575,11 @@ impl CompiledCyclicPosteriorDecision {
             ctx,
         )?
         .execute(ctx)?;
-        Ok(CyclicPosteriorDecisionResult {
+        publication.finish(Ok(CyclicPosteriorDecisionResult {
             posterior,
             decision,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Fixed design identity for a prospective action-selection experiment.
@@ -1033,11 +1033,6 @@ mod tests {
             plan.plan_view().unit_support().map(|unit| unit.status()),
             decision.as_ref().map(|decision| decision.status)
         );
-        // The decision gate is inert until it is switched on; once on, it consults the same
-        // decision, so a development build records the would-refuse of an unsupported unit.
-        if !crate::analysis::cyclic::COMPILED_DECISION_GATE_LIVE {
-            assert!(crate::analysis::cyclic::gate_decision(&ctx, &plan).is_ok());
-        }
         let result = plan.execute(&ctx).expect("joint fitted predictive worlds");
         assert!(result.posterior.diagnostics_pass);
         assert_eq!(result.decision.decision.n_draws, 6000);

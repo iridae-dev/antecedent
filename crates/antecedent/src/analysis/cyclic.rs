@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::analysis::lowering::cyclic::{
     lower_cyclic_family_with_contract, lower_cyclic_system_with_contract,
 };
-use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
+use crate::analysis::program_handle::{CompiledProgramHandle, ProgramPublication, gate_program};
 use crate::analysis::{PreparedStudy, Study};
 use crate::planner::lowered::LoweredProgram;
 use antecedent_core::{ContractIdentities, ExecutionContext, NotSupported, SemanticDigest};
@@ -53,31 +53,20 @@ impl CompiledProgramHandle for CyclicFamilyPreparedState {
     }
 }
 
-/// Whether the compiled cyclic decision routes (`CyclicActionWorldDecision`,
-/// `CyclicPosteriorActionDecision`, `CyclicTargetFeedbackDecision`,
-/// `JointComponentPosteriorDecision`, `BoundedComponentPosteriorDecision`) pass the support gate
-/// of the unit each is bound to. It is `false` until those units are earned and bound; flipping
-/// it makes a release build refuse an unsupported decision route and a development build record
-/// the would-refuse. No valid use refuses before then.
-pub(crate) const COMPILED_DECISION_GATE_LIVE: bool = false;
-
-/// The support gate of a compiled cyclic decision route, behind
-/// [`COMPILED_DECISION_GATE_LIVE`].
+/// The support gate of a compiled cyclic decision route.
 ///
 /// # Errors
 ///
-/// [`NotSupported`] in a release build once the gate is live and the route's unit is not
+/// [`NotSupported`] in a release build when the route's unit is not
 /// supported or not bound.
-pub(crate) fn gate_decision<H>(ctx: &ExecutionContext, handle: &H) -> Result<(), NotSupported>
+pub(crate) fn gate_decision<H>(
+    ctx: &ExecutionContext,
+    handle: &H,
+) -> Result<ProgramPublication, NotSupported>
 where
     H: CompiledProgramHandle + ?Sized,
 {
-    if COMPILED_DECISION_GATE_LIVE {
-        gate_program(ctx, handle)
-    } else {
-        let _ = handle.support();
-        Ok(())
-    }
+    gate_program(ctx, handle)
 }
 
 /// Whether the `Invalid` payload of a cyclic decision error is the wire message of a
@@ -86,7 +75,7 @@ where
 /// `detail`, `reason_code` and display read it from here.
 fn is_gate_refusal(message: &str) -> bool {
     antecedent_core::reason_code::split_prefix(message)
-        .is_some_and(|(code, _)| code == antecedent_core::reason_code!("not_supported"))
+        .is_some_and(|(code, _)| NotSupported::from_code(code).is_some())
 }
 
 /// The registered detail of the `Invalid` payload of an action-world, posterior or target
@@ -111,11 +100,9 @@ pub(crate) fn component_detail(message: &str) -> &'static str {
 /// The registered reason code of the `Invalid` payload of a cyclic decision error:
 /// `not_supported` for a support-gate refusal, `invalid_argument` otherwise.
 pub(crate) fn invalid_code(message: &str) -> &'static str {
-    if is_gate_refusal(message) {
-        antecedent_core::reason_code!("not_supported")
-    } else {
-        antecedent_core::reason_code!("invalid_argument")
-    }
+    antecedent_core::reason_code::split_prefix(message)
+        .and_then(|(code, _)| NotSupported::from_code(code))
+        .unwrap_or(antecedent_core::reason_code!("invalid_argument"))
 }
 
 /// Frozen native state of a cyclic specialization of `PreparedStudy`.
@@ -267,7 +254,7 @@ impl Study {
         let (lowered, section) = lower_cyclic_system_with_contract(&request, ctx)?;
         let contract = Arc::new(CyclicFamilyContract::of(section, &lowered));
         let lowered = Arc::new(lowered);
-        gate_program(ctx, &StagedProgram(Arc::clone(&lowered)))
+        let _admission = gate_program(ctx, &StagedProgram(Arc::clone(&lowered)))
             .map_err(|refusal| unsupported(&refusal))?;
         let product = PreparedCyclicExecution::prepare(request, ctx)?;
         Ok(PreparedStudy { state: CyclicPreparedState { product, lowered, contract } })
@@ -302,12 +289,15 @@ impl PreparedStudy<CyclicPreparedState> {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CyclicExecutionReport, CyclicArtifactError> {
-        gate_program(ctx, &self.state).map_err(|refusal| unsupported(&refusal))?;
+        let publication =
+            gate_program(ctx, &self.state).map_err(|refusal| unsupported(&refusal))?;
         let identity = self.state.lowered.identity();
-        self.state
-            .product
-            .estimate(ctx)
-            .map(|report| report.with_lowered_program_identity(identity))
+        publication.finish(
+            self.state
+                .product
+                .estimate(ctx)
+                .map(|report| report.with_lowered_program_identity(identity)),
+        )
     }
 
     /// Execute once and retain the exact native result without encoding an artifact.
@@ -393,7 +383,7 @@ impl PreparedStudy<CyclicPreparedState> {
         let (lowered, section) = lower_cyclic_system_with_contract(product.request(), ctx)?;
         let contract = Arc::new(CyclicFamilyContract::of(section, &lowered));
         let state = CyclicPreparedState { product, lowered: Arc::new(lowered), contract };
-        gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
+        let _admission = gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
         Ok(Self { state })
     }
     /// Export a result without refitting; the consumer independently refits/replays.
@@ -427,7 +417,7 @@ impl PreparedStudy<CyclicPreparedState> {
     ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
         let program = CompiledCyclicFamilyProgram::from_system(self.state.product.clone(), ctx)?;
         let state = CyclicFamilyPreparedState::lower(program)?;
-        gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
+        let _admission = gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
         Ok(PreparedStudy { state })
     }
 }
@@ -724,7 +714,7 @@ impl Study {
     ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
         let program = CompiledCyclicFamilyProgram::compile(request, ctx)?;
         let state = CyclicFamilyPreparedState::lower(program)?;
-        gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
+        let _admission = gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
         Ok(PreparedStudy { state })
     }
 
@@ -886,11 +876,17 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<antecedent_io::cyclic_family_artifact::CyclicFamilyReport, CyclicArtifactError>
     {
-        gate_program(ctx, &self.state).map_err(|refusal| unsupported(&refusal))?;
+        let publication =
+            gate_program(ctx, &self.state).map_err(|refusal| unsupported(&refusal))?;
         let identity = self.state.lowered.identity();
         #[cfg(test)]
         CYCLIC_FAMILY_EXECUTIONS.with(|count| count.set(count.get() + 1));
-        self.state.program.execute(ctx).map(|report| report.with_lowered_program_identity(identity))
+        publication.finish(
+            self.state
+                .program
+                .execute(ctx)
+                .map(|report| report.with_lowered_program_identity(identity)),
+        )
     }
     /// Execute once, retaining the native answer and source without artifact encoding.
     ///
@@ -925,7 +921,7 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<Self, CyclicArtifactError> {
         let state = CyclicFamilyPreparedState::lower(self.state.program.rebind(request, ctx)?)?;
-        gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
+        let _admission = gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
         Ok(Self { state })
     }
     /// Execute and encode as separate steps through the same retained owner.

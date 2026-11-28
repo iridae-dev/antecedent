@@ -529,9 +529,11 @@ impl CompiledSupportedInputDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SupportedDecision, TerminalError<BoundaryError>> {
-        let _scoped = self.enter(ctx)?;
-        evaluate_with_support(&self.contract, &self.inputs, &self.policy)
-            .map_err(TerminalError::Kernel)
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            evaluate_with_support(&self.contract, &self.inputs, &self.policy)
+                .map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -600,15 +602,17 @@ impl CompiledInputFunctional {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<FunctionalValue, TerminalError<BoundaryError>> {
-        let _scoped = self.enter(ctx)?;
-        evaluate_functional_on_input(
-            &self.contract,
-            &self.action_id,
-            self.functional,
-            &self.input,
-            self.weakest,
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            evaluate_functional_on_input(
+                &self.contract,
+                &self.action_id,
+                self.functional,
+                &self.input,
+                self.weakest,
+            )
+            .map_err(TerminalError::Kernel),
         )
-        .map_err(TerminalError::Kernel)
     }
 }
 
@@ -672,9 +676,11 @@ impl CompiledSensitivityDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SensitivityDecisionResult, TerminalError<SensitivityDecisionError>> {
-        let _scoped = self.enter(ctx)?;
-        evaluate_sensitivity_decision(&self.contract, &self.artifact, &self.spec)
-            .map_err(TerminalError::Kernel)
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            evaluate_sensitivity_decision(&self.contract, &self.artifact, &self.spec)
+                .map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -728,8 +734,10 @@ impl CompiledInverseQuery {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<InverseResult, TerminalError<InverseQueryError>> {
-        let _scoped = self.enter(ctx)?;
-        evaluate_inverse_query(&self.query, &self.evidence).map_err(TerminalError::Kernel)
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            evaluate_inverse_query(&self.query, &self.evidence).map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -789,9 +797,11 @@ impl CompiledFiniteEnumerationBaseline {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<Vec<(String, FeasibilityStatus)>, TerminalError<InverseQueryError>> {
-        let _scoped = self.enter(ctx)?;
-        finite_enumeration_baseline(&self.points, self.target, self.comparison, self.tolerance)
-            .map_err(TerminalError::Kernel)
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            finite_enumeration_baseline(&self.points, self.target, self.comparison, self.tolerance)
+                .map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -859,8 +869,8 @@ impl CompiledDecisionDrawsRanking {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<RankingReport, TerminalError<ReliabilityError>> {
-        let scoped = self.enter(ctx)?;
-        rank(&self.draws, &self.request, &scoped).map_err(TerminalError::Kernel)
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(rank(&self.draws, &self.request, &scoped).map_err(TerminalError::Kernel))
     }
 }
 
@@ -948,8 +958,8 @@ impl CompiledProducerCarrierRanking {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<RankingReport, TerminalError<ReliabilityError>> {
-        let scoped = self.enter(ctx)?;
-        self.carrier.rank(&self.request, &scoped).map_err(TerminalError::Kernel)
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(self.carrier.rank(&self.request, &scoped).map_err(TerminalError::Kernel))
     }
 }
 
@@ -1058,9 +1068,11 @@ impl CompiledPriorSignalAdaptation {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CandidateSignalPrior, TerminalError<PriorSignalError>> {
-        let _scoped = self.enter(ctx)?;
-        adapt_prior_to_signal(&self.catalog, &self.target, &self.request)
-            .map_err(TerminalError::Kernel)
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            adapt_prior_to_signal(&self.catalog, &self.target, &self.request)
+                .map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -1145,15 +1157,17 @@ impl CompiledEvidenceObligations {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<Vec<EvidenceObligation>, TerminalError<RepairError>> {
-        let _scoped = self.enter(ctx)?;
-        identification_failure_obligations(
-            &self.result,
-            &self.graph,
-            &self.observed,
-            &self.population,
-            self.sensitivity.as_ref(),
+        let (_scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            identification_failure_obligations(
+                &self.result,
+                &self.graph,
+                &self.observed,
+                &self.population,
+                self.sensitivity.as_ref(),
+            )
+            .map_err(TerminalError::Kernel),
         )
-        .map_err(TerminalError::Kernel)
     }
 }
 
@@ -1273,15 +1287,6 @@ impl<A, O> CompiledFiniteActionDecision<A, O> {
 
 // --- a search over adaptive policy families -------------------------------------------------
 
-/// Whether a release build refuses an adaptive policy search whose support unit is not
-/// supported.
-///
-/// The unit is the capability record bound to the `AdaptivePolicySearch` route in
-/// `parity/compiled_units.toml`. The gate stays closed until that record's evidence is earned,
-/// so no valid use refuses before then; flipping this constant is the only change that turns
-/// it on.
-pub(crate) const ADAPTIVE_POLICY_SEARCH_GATE_LIVE: bool = false;
-
 /// A compiled bounded search over adaptive policy families.
 #[derive(Clone, Debug)]
 pub struct CompiledAdaptivePolicySearch {
@@ -1358,20 +1363,16 @@ impl CompiledAdaptivePolicySearch {
     /// direct path.
     ///
     /// # Errors
-    /// The search's own refusals, or the compiler's support gate once it is live.
+    /// The search's own refusals, or a support refusal from the compiler.
     pub fn execute(
         &self,
         source: &dyn PolicyRolloutSource,
         ctx: &ExecutionContext,
     ) -> Result<AdaptivePolicySearchResult, TerminalError<AdaptivePolicySearchError>> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        if ADAPTIVE_POLICY_SEARCH_GATE_LIVE {
-            crate::analysis::program_handle::gate_program(&scoped, self)
-                .map_err(CausalError::from)?;
-        } else {
-            let _ = self.support();
-        }
-        self.search.execute(source, &scoped).map_err(TerminalError::Kernel)
+        let publication = crate::analysis::program_handle::gate_program(&scoped, self)
+            .map_err(CausalError::from)?;
+        publication.finish(self.search.execute(source, &scoped).map_err(TerminalError::Kernel))
     }
 }
 

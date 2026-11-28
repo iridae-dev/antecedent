@@ -33,7 +33,7 @@ use antecedent_io::IoError;
 use super::compiled_measured_interval::{
     MeasuredIntervalProgram, MeasuredIntervalRun, frequentist,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::variant;
 use super::temporal_extensions::{IntervalEstimand, measure_dependent_interval};
 use crate::analysis::execute::Study;
@@ -46,11 +46,6 @@ use crate::planner::lowered::{
 const PLAN_ID: &str = "temporal_dependent_interval.v1";
 /// The measured route the coverage of this interval is recorded under.
 const CALIBRATION_ROUTE: &str = "temporal_interval";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// A whole-unit dependent interval request: the arguments `temporal_dependent_interval` takes,
 /// owned.
 #[derive(Clone, Debug)]
@@ -245,14 +240,12 @@ impl CompiledTemporalDependentInterval {
     ///
     /// Every refusal of the direct entry (an invalid panel, design or estimand, an unsupported
     /// history, a retired method, absent unit dependence), cancellation, admission, or the
-    /// support gate once it is on.
+    /// support refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<MeasuredIntervalRun, IoError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
-            IoError::Refused {
-                code: refusal.code(),
-                message: format!("{}: {refusal}", refusal.detail),
-            }
+        let publication = gate_program(&scoped, self).map_err(|refusal| IoError::Refused {
+            code: refusal.code(),
+            message: format!("{}: {refusal}", refusal.detail),
         })?;
         let request = &self.request;
         let measured = measure_dependent_interval(
@@ -263,11 +256,11 @@ impl CompiledTemporalDependentInterval {
             &request.config,
             &scoped,
         )?;
-        Ok(MeasuredIntervalRun {
+        publication.finish(Ok(MeasuredIntervalRun {
             measured,
             lowered_program_identity: self.lowered.identity(),
             calibration_route: CALIBRATION_ROUTE,
-        })
+        }))
     }
 }
 

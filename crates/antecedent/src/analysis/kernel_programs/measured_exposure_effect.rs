@@ -189,15 +189,16 @@ impl CompiledExposureImputation {
     /// The support refusal (`not_supported`) in a release build when the unit is not
     /// supported, and every refusal of the imputation.
     pub fn impute(&self, ctx: &ExecutionContext) -> Result<ExposureDraws, MeasurementError> {
-        self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
+        let publication =
+            self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
         let request = self.program.input();
-        impute_exposure(
+        publication.finish(impute_exposure(
             &request.declaration,
             &request.columns.data(),
             request.draw_count,
             request.seed,
             ctx,
-        )
+        ))
     }
 }
 
@@ -222,9 +223,10 @@ impl CompiledMeasuredEffectPool {
     /// The support refusal (`not_supported`) in a release build when the unit is not
     /// supported, and every refusal of the pooling.
     pub fn pool(&self, ctx: &ExecutionContext) -> Result<MeasuredEffect, MeasurementError> {
-        self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
+        let publication =
+            self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
         let request = self.program.input();
-        pool_measured_effect(&request.points, &request.variances, request.naive)
+        publication.finish(pool_measured_effect(&request.points, &request.variances, request.naive))
     }
 }
 

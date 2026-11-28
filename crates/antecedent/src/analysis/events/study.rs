@@ -592,7 +592,7 @@ impl PreparedEventUpdate {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(EventLaw, EventBelief), EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
         let ctx = &scoped;
         let mut work = hawkes::Work::new(ctx);
         let original = &self.prior.history;
@@ -673,7 +673,7 @@ impl PreparedEventUpdate {
             release_supported: release_supported(CAPABILITY),
             _lease: lease,
         };
-        Ok((law, EventBelief { history, hypotheses }))
+        publication.finish(Ok((law, EventBelief { history, hypotheses })))
     }
 }
 
@@ -699,7 +699,7 @@ impl PreparedEventStudy {
         reason = "one linear sequence of steps that reads top to bottom"
     )]
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<EventStudyValue, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
         let ctx = &scoped;
         let r = &self.request;
         let history = &self.prior.history;
@@ -831,7 +831,7 @@ impl PreparedEventStudy {
             None
         };
         let actions = &self.contract.actions;
-        Ok(EventStudyValue {
+        publication.finish(Ok(EventStudyValue {
             program: self.plan.identity().to_hex(),
             signal_probabilities: masses,
             gross_value: gross,
@@ -842,7 +842,7 @@ impl PreparedEventStudy {
             prior: self.prior_identity.clone(),
             decision_time: r.decision_time,
             release_supported: release_supported(self.unit),
-        })
+        }))
     }
 }
 

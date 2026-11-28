@@ -582,8 +582,8 @@ impl CompiledTransportedPolicy {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<TransportedPolicyEvaluation, SequentialEvaluationError> {
-        self.program.gate(ctx).map_err(|refusal| support(&refusal))?;
-        evaluate_transported_policy(&self.program.input().request(), ctx)
+        let publication = self.program.gate(ctx).map_err(|refusal| support(&refusal))?;
+        publication.finish(evaluate_transported_policy(&self.program.input().request(), ctx))
     }
 }
 
@@ -614,8 +614,8 @@ impl CompiledTemporalPolicy {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<TemporalPolicyEvaluation, SequentialEvaluationError> {
-        self.program.gate(ctx).map_err(|refusal| support(&refusal))?;
-        evaluate_temporal_policy(&self.program.input().request(), ctx)
+        let publication = self.program.gate(ctx).map_err(|refusal| support(&refusal))?;
+        publication.finish(evaluate_temporal_policy(&self.program.input().request(), ctx))
     }
 }
 
@@ -647,8 +647,8 @@ impl CompiledAdaptiveTrialTransport {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<AdaptiveTransportEstimate, SequentialEvaluationError> {
-        self.program.gate(ctx).map_err(|refusal| support(&refusal))?;
-        transport_adaptive_trial(&self.program.input().request())
+        let publication = self.program.gate(ctx).map_err(|refusal| support(&refusal))?;
+        publication.finish(transport_adaptive_trial(&self.program.input().request()))
     }
 }
 

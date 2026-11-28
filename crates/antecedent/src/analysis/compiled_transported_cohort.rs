@@ -23,16 +23,11 @@ use antecedent_io::cohort_decision::CohortBinding;
 use antecedent_learn::transported_effect::{SelectionShiftDeclaration, TransportRefusal};
 
 use super::compiled_point_program::PointProgram;
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::transported_cohort::{TransportedCohort, transport_cohort_effect_from_result};
 use crate::analysis::execute::Study;
 use crate::planner::PlanView;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
-
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
 
 /// A retained fitted effect, its population, a target cohort and the declared shift.
 #[derive(Clone, Debug)]
@@ -194,21 +189,20 @@ impl CompiledTransportedCohort {
     ///
     /// # Errors
     ///
-    /// A [`TransportRefusal`] naming the first unmet premise, or the support gate once it is
-    /// on.
+    /// A [`TransportRefusal`] naming the first unmet premise, or a support refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<TransportedCohort, TransportRefusal> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
-            .map_err(|error| refusal(error.to_string()))?;
+        let publication =
+            gate_program(&scoped, self).map_err(|error| refusal(error.to_string()))?;
         let request = &self.request;
-        transport_cohort_effect_from_result(
+        publication.finish(transport_cohort_effect_from_result(
             &request.artifact,
             request.expected_claim.as_deref(),
             &request.source_population,
             &request.cohort,
             request.shift.as_ref(),
             &scoped,
-        )
+        ))
     }
 }
 

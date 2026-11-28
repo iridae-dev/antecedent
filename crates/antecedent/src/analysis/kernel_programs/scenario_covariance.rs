@@ -108,8 +108,8 @@ impl CompiledScenarioCovariance {
     /// The support refusal (`not_supported`) in a release build when the unit is not supported,
     /// and the refusals of the estimators and the method.
     pub fn covariance(&self, ctx: &ExecutionContext) -> Result<ScenarioCovariance, IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
-        self.program.input().compute(ctx)
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        publication.finish(self.program.input().compute(ctx))
     }
 
     /// [`Self::covariance`] under the caller's bounds, as `CovarianceSpec::compute_within` does.
@@ -122,8 +122,8 @@ impl CompiledScenarioCovariance {
         ctx: &ExecutionContext,
         limits: &ScenarioCovarianceConsumeLimits,
     ) -> Result<ScenarioCovariance, IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
-        self.program.input().compute_within(ctx, limits)
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        publication.finish(self.program.input().compute_within(ctx, limits))
     }
 }
 

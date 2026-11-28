@@ -20,8 +20,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
-use crate::support::capability_calibration;
-use crate::support::units_generated::GRAPH_IMPUTATION_COMPILED_DECISION;
 use antecedent_contract::{ClaimKind, DataClassification, QuantityRole, ScientificQuantity};
 use antecedent_core::graph_imputation_contract::GraphImputationSource;
 use antecedent_core::{
@@ -343,7 +341,7 @@ impl CompiledMarTransportDecision {
         reason = "the structured refusal is returned by value on a cold path"
     )]
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<MarTransportResult, MarTransportError> {
-        super::graph_imputation::require_decision_support(ctx, self)?;
+        let publication = super::graph_imputation::require_decision_support(ctx, self)?;
         let mut reading = replay_mar_transport_point(&self.native_source, &self.target, ctx)?;
         if let Some(policy) = self.bootstrap {
             self.run_cluster_bootstrap(&mut reading, policy, ctx)?;
@@ -359,12 +357,12 @@ impl CompiledMarTransportDecision {
             ctx,
         )?
         .execute(ctx)?;
-        Ok(MarTransportResult {
+        publication.finish(Ok(MarTransportResult {
             producer: reading,
             decision,
             lowered_program_identity: self.lowered.identity(),
             calibration: self.unit_calibration(),
-        })
+        }))
     }
     /// Export the raw source and raw target after independent execution.
     ///
@@ -407,7 +405,7 @@ impl CompiledMarTransportDecision {
             chain: chain.export(&live.decision, artifact_id)?,
             receipt: live.producer.receipt,
             program: *self.lowered.identity().as_bytes(),
-            calibration: self.unit_calibration().into(),
+            calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.into(),
             bootstrap: self.bootstrap,
         })?;
         if bytes.len() > MAX_BYTES {
@@ -437,7 +435,7 @@ pub fn consume_graph_imputation_mar_transport_decision(
     if wire.version != 2
         || wire.feature != FEATURE
         || wire.program != *expected.as_bytes()
-        || wire.calibration != capability_calibration(GRAPH_IMPUTATION_COMPILED_DECISION.as_str())
+        || !antecedent_io_core::unit_calibration::is_v1_wire_status(&wire.calibration)
     {
         return Err(MarTransportError::Invalid("artifact feature or program differs"));
     }

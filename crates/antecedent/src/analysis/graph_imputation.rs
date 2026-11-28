@@ -46,10 +46,10 @@ use antecedent_core::search::{SearchBudget, SearchLimits};
 mod wire;
 pub use wire::{GraphImputationArtifact, GraphImputationExpectation, consume};
 
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{
+    CompiledProgramHandle, ProgramPublication, gate_named_program, gate_program,
+};
 use crate::planner::lowered::LoweredProgram;
-use crate::support::unit::{SupportKey, require_program};
-use crate::support::units_generated::unit_of;
 use crate::{BayesianConfig, CausalError, EstimatorId, InferenceMode, RefuteSuite, Study};
 
 pub use antecedent_core::graph_imputation_contract::GraphSupport as GraphImputationSupport;
@@ -65,16 +65,6 @@ fn invalid(message: impl std::fmt::Display) -> CausalError {
     }
 }
 
-/// Whether the unit the graph-imputation decision routes run under has earned its support.
-///
-/// Every decision route of the family (an effect, paired treatment worlds, a transport to a
-/// declared target, a kernel or missing-at-random transport, each with or without a
-/// whole-cluster bootstrap) is keyed to one capability record. Its gate is dormant until that
-/// record's scientific evidence is current, so that no valid use starts refusing before the
-/// record is earned; flipping this to `true` makes each decision entry point consult the
-/// unit. The base composite's own unit is earned and always gates.
-pub(crate) const DECISION_SUPPORT_EARNED: bool = false;
-
 fn support_refusal(refusal: antecedent_core::NotSupported) -> GraphImputationError {
     GraphImputationError::Engine(CausalError::from(refusal))
 }
@@ -86,30 +76,25 @@ fn support_refusal(refusal: antecedent_core::NotSupported) -> GraphImputationErr
 pub(crate) fn require_handle_support<H>(
     ctx: &ExecutionContext,
     handle: &H,
-) -> Result<(), GraphImputationError>
+) -> Result<ProgramPublication, GraphImputationError>
 where
     H: CompiledProgramHandle + ?Sized,
 {
     gate_program(ctx, handle).map_err(support_refusal)
 }
 
-/// [`require_handle_support`] for a decision route, dormant until the decision unit is earned.
+/// [`require_handle_support`] for a decision route.
 ///
 /// # Errors
-/// As [`require_handle_support`], once [`DECISION_SUPPORT_EARNED`].
+/// As [`require_handle_support`].
 pub(crate) fn require_decision_support<H>(
     ctx: &ExecutionContext,
     handle: &H,
-) -> Result<(), GraphImputationError>
+) -> Result<ProgramPublication, GraphImputationError>
 where
     H: CompiledProgramHandle + ?Sized,
 {
-    if DECISION_SUPPORT_EARNED {
-        require_handle_support(ctx, handle)
-    } else {
-        let _ = handle.support();
-        Ok(())
-    }
+    require_handle_support(ctx, handle)
 }
 
 /// The support gate of the compiled route `route`, for an entry point that holds no handle
@@ -120,28 +105,19 @@ where
 pub(crate) fn require_route_support(
     ctx: &ExecutionContext,
     route: &'static str,
-) -> Result<(), GraphImputationError> {
-    match unit_of(route) {
-        Some(unit) => require_program(ctx, &SupportKey::Unit(unit), route).map_err(support_refusal),
-        None => antecedent_core::support_gate::require_supported(ctx, route, &["support_unit"])
-            .map_err(support_refusal),
-    }
+) -> Result<ProgramPublication, GraphImputationError> {
+    gate_named_program(ctx, route).map_err(support_refusal)
 }
 
-/// [`require_route_support`] for a decision route, dormant until the decision unit is earned.
+/// [`require_route_support`] for a decision route.
 ///
 /// # Errors
-/// As [`require_route_support`], once [`DECISION_SUPPORT_EARNED`].
+/// As [`require_route_support`].
 pub(crate) fn require_decision_route_support(
     ctx: &ExecutionContext,
     route: &'static str,
-) -> Result<(), GraphImputationError> {
-    if DECISION_SUPPORT_EARNED {
-        require_route_support(ctx, route)
-    } else {
-        let _ = crate::support::unit::route_decision(route);
-        Ok(())
-    }
+) -> Result<ProgramPublication, GraphImputationError> {
+    require_route_support(ctx, route)
 }
 
 /// A refusal of the native replay, in the engine's own terms. Calibration never refuses: an
@@ -392,9 +368,14 @@ impl GraphImputationPoint {
     /// # Errors
     /// A typed engine refusal when the replay itself fails.
     pub fn measured(&self) -> Result<MeasuredInference, GraphImputationError> {
-        require_route_support(&self.ctx, "GraphImputation")?;
-        antecedent_io::measured_inference::graph_candidate::measure_source(&self.bytes, &self.ctx)
-            .map_err(replay_error)
+        let publication = require_route_support(&self.ctx, "GraphImputation")?;
+        publication.finish(
+            antecedent_io::measured_inference::graph_candidate::measure_source(
+                &self.bytes,
+                &self.ctx,
+            )
+            .map_err(replay_error),
+        )
     }
 
     /// The interval of the measured route; read its calibration with [`Self::calibration`].
@@ -728,7 +709,7 @@ impl CompiledGraphImputation {
             lowered: Arc::new(lowered),
             source_bytes,
         };
-        require_handle_support(ctx, &compiled)?;
+        let _admission = require_handle_support(ctx, &compiled)?;
         Ok(compiled)
     }
 
@@ -742,7 +723,7 @@ impl CompiledGraphImputation {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GraphImputationPoint, GraphImputationError> {
-        require_handle_support(ctx, self)?;
+        let publication = require_handle_support(ctx, self)?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "graph imputation execute" }.into());
         }
@@ -764,7 +745,7 @@ impl CompiledGraphImputation {
         {
             return Err(invalid("replay belongs to another retained program or source").into());
         }
-        Ok(point)
+        publication.finish(Ok(point))
     }
 
     /// Re-execute from the retained source and require the independently held identity.
@@ -1344,14 +1325,8 @@ mod compiled_tests {
     }
 
     #[test]
-    fn a_decision_route_consults_its_unit_only_once_the_unit_is_earned() {
+    fn a_decision_route_requires_earned_unit_support() {
         let ctx = ExecutionContext::for_tests(19);
-        // The decision gate is dormant until the decision unit's evidence is current: no
-        // valid use refuses and nothing is recorded.
-        if !DECISION_SUPPORT_EARNED {
-            require_decision_route_support(&ctx, "GraphImputationEffectDecision").unwrap();
-            assert!(ctx.would_refuse().is_empty());
-        }
         // The route-keyed gate itself reads the unit table: a supported unit passes silently;
         // otherwise a development build records what a release build refuses and runs, and a
         // release build refuses.
@@ -1369,7 +1344,7 @@ mod compiled_tests {
         }
         // The base route's unit is supported, so its gate passes silently.
         let ctx = ExecutionContext::for_tests(19);
-        require_route_support(&ctx, "GraphImputation").unwrap();
+        let _admission = require_route_support(&ctx, "GraphImputation").unwrap();
         assert!(ctx.would_refuse().is_empty());
     }
 }

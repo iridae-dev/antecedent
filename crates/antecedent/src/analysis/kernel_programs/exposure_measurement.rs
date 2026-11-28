@@ -485,14 +485,15 @@ impl CompiledExposureMisclassification {
     /// The support refusal (`not_supported`) in a release build when the unit is not
     /// supported, and every refusal of the correction.
     pub fn correct(&self, ctx: &ExecutionContext) -> Result<CorrectedExposure, MeasurementError> {
-        self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
+        let publication =
+            self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
         let request = self.program.input();
-        correct_exposure_misclassification(
+        publication.finish(correct_exposure_misclassification(
             &request.counts,
             &request.structure,
             request.min_youden,
             ctx,
-        )
+        ))
     }
 }
 
@@ -517,9 +518,14 @@ impl CompiledSoftExposureEffect {
     /// The support refusal (`not_supported`) in a release build when the unit is not
     /// supported, and every refusal of the fit.
     pub fn correct(&self, ctx: &ExecutionContext) -> Result<SoftExposureEffect, MeasurementError> {
-        self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
+        let publication =
+            self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
         let request = self.program.input();
-        correct_soft_exposure_effect(&request.columns.data(), &request.method.combination(), ctx)
+        publication.finish(correct_soft_exposure_effect(
+            &request.columns.data(),
+            &request.method.combination(),
+            ctx,
+        ))
     }
 }
 
@@ -547,15 +553,16 @@ impl CompiledDetectionDependentPrevalence {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<DetectionDependentPrevalence, MeasurementError> {
-        self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
+        let publication =
+            self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
         let request = self.program.input();
-        correct_detection_dependent_prevalence(
+        publication.finish(correct_detection_dependent_prevalence(
             &request.columns.data(),
             &request.declaration,
             &request.false_positive,
             request.min_net_detection,
             ctx,
-        )
+        ))
     }
 }
 
@@ -579,9 +586,15 @@ impl CompiledRepeatCodings {
     /// The support refusal (`not_supported`) in a release build when the unit is not
     /// supported, and every refusal of the fit.
     pub fn fit(&self, ctx: &ExecutionContext) -> Result<LatentClassFit, MeasurementError> {
-        self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
+        let publication =
+            self.program.gate(ctx).map_err(|refusal| measurement_refusal(&refusal))?;
         let request = self.program.input();
-        fit_repeat_codings(&request.codings.data(), &request.constraints, &request.settings, ctx)
+        publication.finish(fit_repeat_codings(
+            &request.codings.data(),
+            &request.constraints,
+            &request.settings,
+            ctx,
+        ))
     }
 }
 

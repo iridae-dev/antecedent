@@ -25,7 +25,7 @@ use std::sync::Arc;
 use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_core::{ExecutionContext, PhysicalEffect, PhysicalOperator};
 
-use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
+use crate::analysis::program_handle::{CompiledProgramHandle, ProgramPublication, gate_program};
 use crate::error::CausalError;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram, EvidenceRole,
@@ -266,10 +266,10 @@ pub(crate) fn lower_over(
 pub(crate) fn enter<H: CompiledProgramHandle>(
     ctx: &ExecutionContext,
     handle: &H,
-) -> Result<ExecutionContext, CausalError> {
+) -> Result<(ExecutionContext, ProgramPublication), CausalError> {
     let scoped = ctx.enter_lowered_dispatch(handle.lowered().identity());
-    gate_program(&scoped, handle).map_err(CausalError::from)?;
-    Ok(scoped)
+    let publication = gate_program(&scoped, handle).map_err(CausalError::from)?;
+    Ok((scoped, publication))
 }
 
 /// Declare a supplied-evidence program handle: the retained lowered program and the declared
@@ -316,7 +316,7 @@ macro_rules! compiled_terminal {
             fn enter(
                 &self,
                 ctx: &antecedent_core::ExecutionContext,
-            ) -> Result<antecedent_core::ExecutionContext, crate::error::CausalError> {
+            ) -> Result<(antecedent_core::ExecutionContext, crate::analysis::program_handle::ProgramPublication), crate::error::CausalError> {
                 crate::analysis::supplied_terminal::enter(ctx, self)
             }
         }

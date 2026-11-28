@@ -354,7 +354,7 @@ pub fn compile_cyclic_target_feedback_decision(
         seed: ctx.rng.master_seed(),
         lowered,
     };
-    gate_decision(ctx, &plan)
+    let _admission = gate_decision(ctx, &plan)
         .map_err(|refusal| CyclicTargetFeedbackError::Invalid(refusal.message()))?;
     Ok(plan)
 }
@@ -391,7 +391,7 @@ impl CompiledCyclicTargetFeedbackDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CyclicTargetFeedbackResult, CyclicTargetFeedbackError> {
-        gate_decision(ctx, self)
+        let publication = gate_decision(ctx, self)
             .map_err(|refusal| CyclicTargetFeedbackError::Invalid(refusal.message()))?;
         if ctx.rng.master_seed() != self.seed {
             return Err(CyclicTargetFeedbackError::Invalid("execution seed changed"));
@@ -464,12 +464,12 @@ impl CompiledCyclicTargetFeedbackDecision {
             .map_err(CyclicPosteriorDecisionError::Chain)?
             .execute(ctx)
             .map_err(CyclicPosteriorDecisionError::Chain)?;
-        Ok(CyclicTargetFeedbackResult {
+        publication.finish(Ok(CyclicTargetFeedbackResult {
             posterior,
             decision,
             lowered_program_identity: self.lowered.identity(),
             calibration: self.unit_calibration(),
-        })
+        }))
     }
 
     /// Fixed design identity for an unearned action-choice study. It omits
@@ -778,11 +778,6 @@ pub(crate) mod tests {
             plan.plan_view().unit_support().map(|unit| unit.status()),
             decision.as_ref().map(|decision| decision.status)
         );
-        // The decision gate is inert until it is switched on; once on, it consults the same
-        // decision, so a development build records the would-refuse of an unsupported unit.
-        if !crate::analysis::cyclic::COMPILED_DECISION_GATE_LIVE {
-            assert!(crate::analysis::cyclic::gate_decision(&ctx, &plan).is_ok());
-        }
         let scope = plan.decision_reliability_scope().unwrap();
         let mut replicate = request.clone();
         for row in &mut replicate.source.training {

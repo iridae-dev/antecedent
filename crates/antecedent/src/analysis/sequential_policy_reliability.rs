@@ -405,7 +405,7 @@ impl SequentialPolicyReliabilityPlan {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         // A release build refuses an unsupported unit; the refusal rides `Invalid` with its
         // `reason=not_supported:` wire message, which the Python binding raises as such.
-        crate::analysis::program_handle::gate_program(&scoped, self)
+        let publication = crate::analysis::program_handle::gate_program(&scoped, self)
             .map_err(|refused| SequentialReliabilityError::Invalid(refused.message()))?;
         // Enumerate reachable histories first: sampling cannot establish support.
         for policy in &self.policies {
@@ -444,11 +444,11 @@ impl SequentialPolicyReliabilityPlan {
             }
         };
         let report = assess(&draws, None, &ReliabilityRequest::expected_utility(), &scoped)?;
-        Ok(SequentialPolicyReliabilityResult {
+        publication.finish(Ok(SequentialPolicyReliabilityResult {
             draws,
             report,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
     /// Export raw declaration and diagnostic digests for independent recomputation.
     ///

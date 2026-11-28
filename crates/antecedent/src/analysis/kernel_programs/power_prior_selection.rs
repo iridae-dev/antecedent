@@ -196,10 +196,7 @@ fn linear_canonical(input: &LinearSelectionInput) -> [u8; 32] {
 
 /// The support refusal as a probability refusal, for the selection's own error type.
 fn prob_refusal(refusal: &NotSupported) -> ProbError {
-    ProbError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
-        message: refusal.message().to_owned(),
-    }
+    ProbError::Refused { code: refusal.code(), message: refusal.message().to_owned() }
 }
 
 impl Study {
@@ -295,9 +292,9 @@ impl CompiledPowerPriorBetaSelection {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SelectedAlphaReport, ProbError> {
-        self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
-        select_beta_power_prior(input.source, &input.outcomes, &input.options)
+        publication.finish(select_beta_power_prior(input.source, &input.outcomes, &input.options))
     }
 
     /// Pass the support gate and return the Beta power prior at the chosen discount with the
@@ -310,9 +307,9 @@ impl CompiledPowerPriorBetaSelection {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(BetaHyperparameters, SelectedAlphaReport), ProbError> {
-        self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
-        select_beta_prior(input.source, &input.outcomes, &input.options)
+        publication.finish(select_beta_prior(input.source, &input.outcomes, &input.options))
     }
 }
 
@@ -339,9 +336,9 @@ impl CompiledPowerPriorGammaSelection {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SelectedAlphaReport, ProbError> {
-        self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
-        select_gamma_power_prior(input.source, &input.counts, &input.options)
+        publication.finish(select_gamma_power_prior(input.source, &input.counts, &input.options))
     }
 
     /// Pass the support gate and return the Gamma power prior at the chosen discount with the
@@ -354,9 +351,9 @@ impl CompiledPowerPriorGammaSelection {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(GammaHyperparameters, SelectedAlphaReport), ProbError> {
-        self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
-        select_gamma_prior(input.source, &input.counts, &input.options)
+        publication.finish(select_gamma_prior(input.source, &input.counts, &input.options))
     }
 }
 
@@ -383,9 +380,14 @@ impl CompiledPowerPriorLinearSelection {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SelectedAlphaReport, ProbError> {
-        self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
-        select_linear_power_prior(&input.sources, &input.baseline, input.target(), &input.options)
+        publication.finish(select_linear_power_prior(
+            &input.sources,
+            &input.baseline,
+            input.target(),
+            &input.options,
+        ))
     }
 
     /// Pass the support gate and return the prior composed at the chosen discount with the
@@ -398,9 +400,14 @@ impl CompiledPowerPriorLinearSelection {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(ComposedPrior, SelectedAlphaReport), ProbError> {
-        self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
-        select_linear_prior(&input.sources, &input.baseline, input.target(), &input.options)
+        publication.finish(select_linear_prior(
+            &input.sources,
+            &input.baseline,
+            input.target(),
+            &input.options,
+        ))
     }
 }
 

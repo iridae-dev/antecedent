@@ -339,7 +339,7 @@ impl CompiledGraphImputationEffectDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GraphImputationEffectDecisionResult, GraphImputationEffectDecisionError> {
-        super::graph_imputation::require_decision_support(ctx, self)?;
+        let publication = super::graph_imputation::require_decision_support(ctx, self)?;
         let point = self.producer.execute(ctx)?;
         point.effect_law(self.quantity.clone())?;
         let decision = compile_chain_decision(
@@ -348,12 +348,12 @@ impl CompiledGraphImputationEffectDecision {
             ctx,
         )?
         .execute(ctx)?;
-        Ok(GraphImputationEffectDecisionResult {
+        publication.finish(Ok(GraphImputationEffectDecisionResult {
             producer: point,
             decision,
             lowered_program_identity: self.lowered.identity(),
             calibration: self.unit_calibration(),
-        })
+        }))
     }
 
     /// Export the source-bound native producer and chain decision after replay.
@@ -367,7 +367,7 @@ impl CompiledGraphImputationEffectDecision {
         artifact_id: &str,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, GraphImputationEffectDecisionError> {
-        super::graph_imputation::require_decision_support(ctx, self)?;
+        let _admission = super::graph_imputation::require_decision_support(ctx, self)?;
         let replay = self.producer.replay(result.producer.receipt, ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
             || result.calibration != self.unit_calibration()
@@ -404,7 +404,7 @@ impl CompiledGraphImputationEffectDecision {
             decision_artifact: contract.to_bytes(artifact_id)?,
             chain_artifact: chain.export(&result.decision, artifact_id)?,
             program_identity: *self.lowered.identity().as_bytes(),
-            calibration: self.unit_calibration().into(),
+            calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.into(),
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
@@ -438,7 +438,7 @@ pub fn consume_graph_imputation_effect_decision(
     if wire.version != 1
         || wire.required_feature != FEATURE
         || wire.program_identity != *expected_program.as_bytes()
-        || wire.calibration != capability_calibration(GRAPH_IMPUTATION_COMPILED_DECISION.as_str())
+        || !antecedent_io_core::unit_calibration::is_v1_wire_status(&wire.calibration)
     {
         return Err(GraphImputationEffectDecisionError::Invalid(
             "combined feature or identity differs",
@@ -466,7 +466,8 @@ pub fn consume_graph_imputation_effect_decision(
             "recompiled outer program differs",
         ));
     }
-    super::graph_imputation::require_decision_route_support(ctx, lowered.route())?;
+    let publication =
+        super::graph_imputation::require_decision_route_support(ctx, lowered.route())?;
     let decision =
         compile_chain_decision(effect_chain(&point, &quantity), contract.contract().clone(), ctx)?
             .execute(ctx)?;
@@ -478,12 +479,12 @@ pub fn consume_graph_imputation_effect_decision(
             "graph effect utility differs on replay",
         ));
     }
-    Ok(GraphImputationEffectDecisionResult {
+    publication.finish(Ok(GraphImputationEffectDecisionResult {
         producer: point,
         decision,
         lowered_program_identity: lowered.identity(),
         calibration: capability_calibration(GRAPH_IMPUTATION_COMPILED_DECISION.as_str()),
-    })
+    }))
 }
 
 #[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
@@ -1236,7 +1237,7 @@ impl CompiledGraphImputationWorldDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GraphImputationWorldDecisionResult, GraphImputationEffectDecisionError> {
-        super::graph_imputation::require_decision_support(ctx, self)?;
+        let publication = super::graph_imputation::require_decision_support(ctx, self)?;
         let reading = if let Some(cluster) = &self.cluster_bootstrap {
             replay_target_predictive_cluster_bootstrap_worlds(
                 self.producer.source_bytes(),
@@ -1287,12 +1288,12 @@ impl CompiledGraphImputationWorldDecision {
             ctx,
         )?;
         let decision = chain.execute(ctx)?;
-        Ok(GraphImputationWorldDecisionResult {
+        publication.finish(Ok(GraphImputationWorldDecisionResult {
             producer: reading,
             decision,
             lowered_program_identity: self.lowered.identity(),
             calibration: self.unit_calibration(),
-        })
+        }))
     }
     /// Return the unmeasured prospective calibration coordinate for the
     /// target predictive schedule. This creates no record.
@@ -1853,7 +1854,8 @@ pub fn consume_graph_imputation_world_decision(
             "paired world outer program differs",
         ));
     }
-    super::graph_imputation::require_decision_route_support(ctx, lowered.route())?;
+    let publication =
+        super::graph_imputation::require_decision_route_support(ctx, lowered.route())?;
     let decision = compile_action_world_chain_decision(
         paired_world_chain(&reading, &quantities, wire.predictive),
         contract.contract().clone(),
@@ -1868,12 +1870,12 @@ pub fn consume_graph_imputation_world_decision(
             "paired world decision replay differs",
         ));
     }
-    Ok(GraphImputationWorldDecisionResult {
+    publication.finish(Ok(GraphImputationWorldDecisionResult {
         producer: reading,
         decision,
         lowered_program_identity: expected,
         calibration: capability_calibration(GRAPH_IMPUTATION_COMPILED_DECISION.as_str()),
-    })
+    }))
 }
 
 #[cfg(test)]

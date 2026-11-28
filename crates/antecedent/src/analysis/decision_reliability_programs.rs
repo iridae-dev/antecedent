@@ -156,9 +156,11 @@ impl CompiledDecisionReliabilityAssessment {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<ReliabilityReport, TerminalError<ReliabilityError>> {
-        let scoped = self.enter(ctx)?;
-        assess(&self.draws, self.validation.as_ref(), &self.request, &scoped)
-            .map_err(TerminalError::Kernel)
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            assess(&self.draws, self.validation.as_ref(), &self.request, &scoped)
+                .map_err(TerminalError::Kernel),
+        )
     }
 
     /// Gate, then seal the artifact. [`DecisionReliabilityArtifact::new`] recomputes the report
@@ -170,14 +172,16 @@ impl CompiledDecisionReliabilityAssessment {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<DecisionReliabilityArtifact, TerminalError<IoError>> {
-        let scoped = self.enter(ctx)?;
-        DecisionReliabilityArtifact::new(
-            self.draws.clone(),
-            self.validation.clone(),
-            self.request.clone(),
-            &scoped,
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            DecisionReliabilityArtifact::new(
+                self.draws.clone(),
+                self.validation.clone(),
+                self.request.clone(),
+                &scoped,
+            )
+            .map_err(TerminalError::Kernel),
         )
-        .map_err(TerminalError::Kernel)
     }
 }
 
@@ -240,10 +244,12 @@ impl CompiledProducerCarrierAssessment {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<ReliabilityReport, TerminalError<ReliabilityError>> {
-        let scoped = self.enter(ctx)?;
-        self.carrier
-            .assess(self.validation.as_ref(), &self.request, &scoped)
-            .map_err(TerminalError::Kernel)
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            self.carrier
+                .assess(self.validation.as_ref(), &self.request, &scoped)
+                .map_err(TerminalError::Kernel),
+        )
     }
 }
 
@@ -306,15 +312,17 @@ impl CompiledDecisionReliabilityDerivation {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<DerivedUncertainty, TerminalError<ReliabilityError>> {
-        let scoped = self.enter(ctx)?;
-        derive_uncertainty(
-            &self.draws,
-            self.validation.as_ref(),
-            &self.request,
-            &self.interval,
-            &scoped,
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            derive_uncertainty(
+                &self.draws,
+                self.validation.as_ref(),
+                &self.request,
+                &self.interval,
+                &scoped,
+            )
+            .map_err(TerminalError::Kernel),
         )
-        .map_err(TerminalError::Kernel)
     }
 }
 
@@ -380,10 +388,17 @@ impl CompiledProducerCarrierDerivation {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<DerivedUncertainty, TerminalError<ReliabilityError>> {
-        let scoped = self.enter(ctx)?;
-        self.carrier
-            .derive_uncertainty(self.validation.as_ref(), &self.request, &self.interval, &scoped)
-            .map_err(TerminalError::Kernel)
+        let (scoped, publication) = self.enter(ctx)?;
+        publication.finish(
+            self.carrier
+                .derive_uncertainty(
+                    self.validation.as_ref(),
+                    &self.request,
+                    &self.interval,
+                    &scoped,
+                )
+                .map_err(TerminalError::Kernel),
+        )
     }
 }
 

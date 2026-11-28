@@ -418,7 +418,7 @@ impl PreparedLatentSoftIntervention {
         let scoped = ctx.enter_lowered_dispatch(self.program.identity());
         cancelled(&scoped, "latent soft intervention execution")?;
         let release_supported = super::lowering::latent_soft_intervention::release_supported();
-        gate_program(&scoped, self)?;
+        let publication = gate_program(&scoped, self)?;
         let rows = (self.request.baseline.len() + self.request.action.len()) as u64;
         let width = self.request.variables.len() as u64;
         let _workspace = scoped
@@ -507,14 +507,14 @@ impl PreparedLatentSoftIntervention {
                 identity.reals(shift);
             }
         }
-        Ok(FittedLatentSoftIntervention {
+        publication.finish(Ok(FittedLatentSoftIntervention {
             prepared: self.clone(),
             law,
             refits,
             _refit_lease: refit_lease,
             discovery,
             fit_identity: SemanticDigest::from_bytes(identity.finish()),
-        })
+        }))
     }
 
     fn fit_law(

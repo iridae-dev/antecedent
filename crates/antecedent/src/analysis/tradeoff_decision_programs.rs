@@ -422,7 +422,7 @@ macro_rules! law_family {
                 &self,
                 ctx: &ExecutionContext,
             ) -> Result<PreferenceEvaluation, TerminalError<PreferenceEvaluationError>> {
-                let scoped = self.enter(ctx)?;
+                let (scoped, publication) = self.enter(ctx)?;
                 let evaluation = decide_on_source(
                     &self.contract,
                     self.measure.as_ref(),
@@ -432,7 +432,7 @@ macro_rules! law_family {
                 )
                 .map_err(TerminalError::Kernel)?;
                 debug_assert_eq!(evaluation.route(), $route, "the family's route answered");
-                Ok(evaluation)
+                publication.finish(Ok(evaluation))
             }
 
             /// Decide on the declared law and seal the decision with its contract, measure,
@@ -448,15 +448,17 @@ macro_rules! law_family {
                 let ContractSource::Law(law) = &self.source else {
                     return Err(TerminalError::Refused(record_needs_law($plan)));
                 };
-                let scoped = self.enter(ctx)?;
-                PreferenceDecisionArtifact::evaluate_with_context(
-                    self.contract.clone(),
-                    law,
-                    self.measure.clone(),
-                    self.options,
-                    &scoped,
+                let (scoped, publication) = self.enter(ctx)?;
+                publication.finish(
+                    PreferenceDecisionArtifact::evaluate_with_context(
+                        self.contract.clone(),
+                        law,
+                        self.measure.clone(),
+                        self.options,
+                        &scoped,
+                    )
+                    .map_err(TerminalError::Kernel),
                 )
-                .map_err(TerminalError::Kernel)
             }
         }
     };
@@ -720,7 +722,7 @@ macro_rules! structural_family {
                 ctx: &ExecutionContext,
             ) -> Result<StructuralPreferenceEvaluation, TerminalError<TradeoffStructuralError>>
             {
-                let scoped = self.enter(ctx)?;
+                let (scoped, publication) = self.enter(ctx)?;
                 let adapted = self
                     .claims
                     .clone()
@@ -735,7 +737,7 @@ macro_rules! structural_family {
                 )
                 .map_err(|e| TerminalError::Kernel(TradeoffStructuralError::Evaluation(e)))?;
                 debug_assert_eq!(evaluation.route(), $route, "the family's route answered");
-                Ok(evaluation)
+                publication.finish(Ok(evaluation))
             }
         }
     };

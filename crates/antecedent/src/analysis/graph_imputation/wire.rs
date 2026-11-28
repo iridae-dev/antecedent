@@ -143,7 +143,7 @@ pub fn consume(
     expected: GraphImputationExpectation,
     ctx: &ExecutionContext,
 ) -> Result<GraphImputationPoint, GraphImputationError> {
-    require_route_support(ctx, "GraphImputation")?;
+    let publication = require_route_support(ctx, "GraphImputation")?;
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: "graph imputation consume" }.into());
     }
@@ -153,5 +153,5 @@ pub fn consume(
     {
         return Err(invalid("artifact does not match separately retained identity").into());
     }
-    Ok(point)
+    publication.finish(Ok(point))
 }

@@ -136,8 +136,8 @@ impl CompiledSplitEffect {
     /// construction, the interval is still reported with calibration `not_measured` or
     /// `outside_measured_scope`.
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
-        split_effect::measure(self.program.input(), ctx)
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        publication.finish(split_effect::measure(self.program.input(), ctx))
     }
 }
 
@@ -167,8 +167,8 @@ impl CompiledParentSetEffect {
     ///
     /// As [`CompiledSplitEffect::measure`].
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
-        split_parent_set_effect::measure(self.program.input(), ctx)
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        publication.finish(split_parent_set_effect::measure(self.program.input(), ctx))
     }
 }
 

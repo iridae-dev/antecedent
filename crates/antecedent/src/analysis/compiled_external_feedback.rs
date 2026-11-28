@@ -30,7 +30,7 @@ use antecedent_model::external_mechanism::{
 use antecedent_model::nonlinear_equilibrium::{EquilibriumError, RegimeRow};
 
 use super::compiled_point_program::PointProgram;
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -38,11 +38,6 @@ use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, Prog
 
 const PLAN_ID: &str = "external_feedback_fit.v1";
 const EVALUATOR: &str = "antecedent_estimate::external_cyclic_fit::fit_external_feedback";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// The system, fitted scalars, known-regime rows and policy of one external feedback fit.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExternalFeedbackFitRequest {
@@ -215,14 +210,14 @@ impl CompiledExternalFeedbackFit {
     ///
     /// [`ExternalFeedbackFitError::Model`] for every refusal of the kernel, including fitting
     /// without a resolver (`mechanism_resolver_missing`) and cancellation;
-    /// [`ExternalFeedbackFitError::Compile`] for the support gate once it is on.
+    /// [`ExternalFeedbackFitError::Compile`] for a support refusal.
     pub fn execute(
         &self,
         resolver: Option<&dyn TrustedMechanismResolver>,
         ctx: &ExecutionContext,
     ) -> Result<ExternalFeedbackFitRun, ExternalFeedbackFitError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(CausalError::from)?;
+        let publication = gate_program(&scoped, self).map_err(CausalError::from)?;
         let request = &self.request;
         let fit = fit_external_feedback(
             &request.system,
@@ -232,11 +227,11 @@ impl CompiledExternalFeedbackFit {
             request.policy,
             &scoped,
         )?;
-        Ok(ExternalFeedbackFitRun {
+        publication.finish(Ok(ExternalFeedbackFitRun {
             fit,
             lowered_program_identity: self.lowered.identity(),
             claim: "model_conditional_point",
-        })
+        }))
     }
 }
 

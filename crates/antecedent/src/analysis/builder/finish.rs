@@ -1569,13 +1569,8 @@ fn settle_refute(mut chosen: ChosenEstimator) -> Result<SettledRefute, CausalErr
                 RefuteSuite::None,
                 series,
             );
-            if requested.is_some_and(|cell| {
-                matches!(
-                    crate::support::classify(cell),
-                    CellStatus::NotApplicable { .. } | CellStatus::NotSupported
-                )
-            }) && without_validation
-                .is_some_and(|cell| matches!(crate::support::classify(cell), CellStatus::Supported))
+            if requested.is_some_and(|cell| !crate::support::is_declared_candidate(cell))
+                && without_validation.is_some_and(crate::support::is_declared_candidate)
             {
                 carry.refute_default_downgrade = Some(carry.settings.refute);
                 carry.settings.refute = RefuteSuite::None;
@@ -1681,6 +1676,7 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
             // matching / IV / RD / forest / two-stage front-door cannot inherit
             // support whose evidence never ran them.
             match crate::support::classify(cell) {
+                _ if graphless_interference && crate::support::is_declared_candidate(cell) => None,
                 CellStatus::NotApplicable { .. } | CellStatus::NotSupported => {
                     if carry.inspect_only {
                         Some(crate::support::classify(cell))
@@ -1688,7 +1684,6 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                         Some(crate::support::refuse_if_not_applicable(cell)?)
                     }
                 }
-                CellStatus::Supported if graphless_interference => None,
                 CellStatus::Supported => {
                     // `inference()` auto-binds `BayesianGcomp` for every static
                     // AverageEffect, including classes whose compiler route is
@@ -1760,21 +1755,21 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         // and its calibration is not_measured, so the cell's support does not carry to it.
         if carry.settings.retain_joint_horizons
             && matches!(carry.settings.inference, InferenceMode::Bayesian(_))
-            && support_status == Some(CellStatus::Supported)
         {
             // The block-weight posterior over the surface replaces the supported conjugate fits.
             carry_construction(
                 "joint_horizon_block_weight_posterior",
+                None,
                 &mut support_status,
                 &mut support_unit,
                 &mut missing_evidence,
             );
         }
         if matches!(&carry.settings.inference, InferenceMode::Bayesian(cfg) if cfg.white_innovation.is_some())
-            && support_status == Some(CellStatus::Supported)
         {
             carry_construction(
                 "untempered_white_innovation_posterior",
+                None,
                 &mut support_status,
                 &mut support_unit,
                 &mut missing_evidence,
@@ -1792,10 +1787,10 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                     | CausalQuery::AnomalyAttribution(_)
                     | CausalQuery::ChangeAttribution(_)
             )
-            && support_status == Some(CellStatus::Supported)
         {
             carry_construction(
                 "mechanism_refit_bootstrap_interval",
+                None,
                 &mut support_status,
                 &mut support_unit,
                 &mut missing_evidence,
@@ -1805,17 +1800,23 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         // declared cluster or serial dependence change the construction (weighted fits,
         // cluster-robust or Newey-West influence variance): the cell's support carries to them
         // only through their executed construction check.
-        if support_status == Some(CellStatus::Supported)
-            && carry.declared.estimator == Some(EstimatorId::CellAipw)
+        if carry.declared.estimator == Some(EstimatorId::CellAipw)
             && matches!(query, CausalQuery::Response(_))
             && (carry.declared.score_dependence.is_some()
                 || matches!(&carry.data, DataInput::Tabular(t) if t.storage().weights().is_some()))
         {
             carry_construction(
                 "weighted_or_dependent_cell_aipw_interval",
+                carry.declared.estimator,
                 &mut support_status,
                 &mut support_unit,
                 &mut missing_evidence,
+            );
+        }
+        if let Some(unit) = &support_unit {
+            crate::support::trace_executed(
+                unit,
+                &support_status.unwrap_or(CellStatus::NotSupported),
             );
         }
         if !carry.inspect_only && !missing_evidence.is_empty() {
@@ -1828,9 +1829,6 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         require_supported_bayesian_estimator(carry, support_status)?;
         support_status
     };
-    if let Some(unit) = &support_unit {
-        crate::support::trace_executed(unit, &support_status.unwrap_or(CellStatus::NotSupported));
-    }
     Ok(ClassifiedSupport { settled, support_status, support_unit })
 }
 
@@ -1839,46 +1837,89 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
 /// without, the status is not supported and the missing check is listed.
 fn carry_construction(
     key: &'static str,
+    estimator: Option<EstimatorId>,
     status: &mut Option<CellStatus>,
     unit: &mut Option<crate::support::UnitRef>,
     missing: &mut Vec<String>,
 ) {
     if let Some(crate::support::UnitRef::Matrix(cell)) = *unit {
-        *unit = Some(crate::support::UnitRef::Construction { cell, key });
-    }
-    if !construction_checked(key) {
-        *status = Some(CellStatus::NotSupported);
-        missing.push(format!("construction_evidence:{key}"));
+        if matches!(status, None | Some(CellStatus::NotApplicable { .. })) {
+            return;
+        }
+        let applies = CONSTRUCTION_CHECKS.iter().any(|(id, _, axes, method)| {
+            *id == key && construction_applies(&cell, axes, method, estimator)
+        });
+        let parent_supported = *status == Some(CellStatus::Supported);
+        if !applies && !parent_supported {
+            return;
+        }
+        let construction = crate::support::UnitRef::Construction { cell, key };
+        let decision =
+            applies.then(|| crate::support::construction_status(&construction)).flatten();
+        if let Some(decision) = &decision {
+            if parent_supported {
+                *status = Some(decision.status);
+            }
+            missing.extend(decision.missing_evidence.iter().map(|value| (*value).to_owned()));
+        }
+        if decision.as_ref().is_none_or(|decision| {
+            decision.status == CellStatus::NotSupported && decision.missing_evidence.is_empty()
+        }) {
+            *status = Some(CellStatus::NotSupported);
+            missing.push(format!("construction_evidence:{key}"));
+        }
+        *unit = Some(construction);
     }
 }
 
-/// Constructions whose interval has an executed independent construction check, keyed like the
-/// `construction_evidence:*` entries the support gate reports for the ones that do not. Each entry
-/// names the test that compares the interval with values computed independently (closed form,
-/// exact rational arithmetic, hand-derived formula); a construction absent from this list stays
-/// unsupported. The same test is registered as a `construction` fixture on the owning capability
-/// record (`estimate.factorized_joint_cells`).
-const CONSTRUCTION_CHECKS: &[(&str, &str)] = &[
+/// A construction key, its independent check, its matrix scope (five axes in cell order), and
+/// its required estimator. The compiler matches the scope here and the evidence generator uses
+/// the same rows to enumerate units before any fixture runs.
+const CONSTRUCTION_CHECKS: &[(&str, &str, &str, &str)] = &[
     (
         "weighted_or_dependent_cell_aipw_interval",
         "crates/antecedent/tests/cells_04_joint_intervention.rs::the_joint_cell_equals_the_exact_weighted_cross_fit_aipw_and_its_sandwich_variances",
+        "InterventionResponse/*/*/Frequentist/*",
+        "cell.aipw",
     ),
     (
         "mechanism_refit_bootstrap_interval",
         "crates/antecedent/tests/mechanism_refit_bootstrap_construction.rs::the_refit_bootstrap_interval_equals_the_hand_refit_of_the_same_seeded_resamples",
+        "Counterfactual|AnomalyAttribution|ChangeAttribution/Dag/*/Frequentist/*",
+        "*",
     ),
     (
         "untempered_white_innovation_posterior",
         "crates/antecedent/tests/white_innovation_posterior_construction.rs::the_untempered_posterior_is_the_exact_normal_inverse_gamma_posterior_of_the_lag_window",
+        "PulseEffect|SustainedEffect|ResponseCurve/TemporalDag/accepted|explicit/Bayesian/*",
+        "*",
     ),
     (
         "joint_horizon_block_weight_posterior",
         "crates/antecedent/tests/joint_horizon_block_weight_construction.rs::the_block_weight_draws_are_the_exp1_block_weighted_refits_up_to_one_dispersion_factor_per_cell",
+        "ResponseCurve|InterventionResponse/TemporalDag/*/Bayesian/*",
+        "*",
     ),
 ];
 
-fn construction_checked(key: &str) -> bool {
-    CONSTRUCTION_CHECKS.iter().any(|(checked, _)| *checked == key)
+fn construction_applies(
+    cell: &crate::support::SupportCell,
+    scope: &str,
+    method: &str,
+    estimator: Option<EstimatorId>,
+) -> bool {
+    let axes = [
+        cell.query.as_str(),
+        cell.graph_class.as_str(),
+        cell.structure.as_str(),
+        cell.inference.as_str(),
+        cell.validation.as_str(),
+    ];
+    (method == "*" || estimator.is_some_and(|id| id.as_str() == method))
+        && scope
+            .split('/')
+            .zip(axes)
+            .all(|(values, axis)| values == "*" || values.split('|').any(|value| value == axis))
 }
 
 fn require_supported_bayesian_estimator(

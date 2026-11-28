@@ -50,7 +50,9 @@ pub(crate) mod unit;
 pub(crate) mod units_generated;
 
 pub(crate) use calibration::capability_calibration;
-pub use calibration::{NOT_MEASURED, unit_calibration};
+pub use calibration::{NOT_MEASURED, direct_unit_calibration, unit_calibration};
+pub(crate) use gate::construction_status;
+pub(crate) use matrix::is_declared_candidate;
 pub(crate) use trace::executed as trace_executed;
 pub(crate) use trace::interval_reported as trace_interval;
 #[cfg(feature = "evidence-trace")]

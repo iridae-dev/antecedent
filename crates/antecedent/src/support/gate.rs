@@ -22,9 +22,9 @@ impl From<NotSupported> for CausalError {
     }
 }
 
-/// One capability unit's derived status.
+/// One named unit's derived status.
 #[derive(serde::Deserialize)]
-struct CapabilityUnit {
+struct NamedUnit {
     id: String,
     status: String,
     #[serde(default)]
@@ -33,20 +33,41 @@ struct CapabilityUnit {
 
 #[derive(serde::Deserialize)]
 struct UnitStatus {
-    capabilities: Vec<CapabilityUnit>,
+    capabilities: Vec<NamedUnit>,
+    #[serde(default)]
+    constructions: Vec<NamedUnit>,
 }
 
-/// The embedded capability units, or `None` when the snapshot does not decode, so that every
+/// The embedded units, or `None` when the snapshot does not decode, so that every
 /// gated route refuses rather than runs on a misread status.
-fn capability_units() -> Option<&'static [CapabilityUnit]> {
-    static UNITS: OnceLock<Option<Vec<CapabilityUnit>>> = OnceLock::new();
+fn embedded_units() -> Option<&'static UnitStatus> {
+    static UNITS: OnceLock<Option<UnitStatus>> = OnceLock::new();
     UNITS
         .get_or_init(|| {
             serde_json::from_str::<UnitStatus>(antecedent_io_core::graphless_support::UNIT_STATUS)
                 .ok()
-                .map(|status| status.capabilities)
         })
-        .as_deref()
+        .as_ref()
+}
+
+fn capability_units() -> Option<&'static [NamedUnit]> {
+    Some(embedded_units()?.capabilities.as_slice())
+}
+
+/// Read the support of a construction, independently of the support of its parent cell.
+pub(crate) fn construction_status(unit: &super::UnitRef) -> Option<super::unit::UnitDecision> {
+    let id = unit.record_id();
+    let recorded = embedded_units()?.constructions.iter().find(|row| row.id == id)?;
+    let status = if recorded.status == "supported" {
+        CellStatus::Supported
+    } else {
+        CellStatus::NotSupported
+    };
+    Some(super::unit::UnitDecision {
+        status,
+        unit: unit.clone(),
+        missing_evidence: recorded.missing_evidence.iter().map(String::as_str).collect(),
+    })
 }
 
 /// Whether the capability unit `capability` is supported in this build's derived status.

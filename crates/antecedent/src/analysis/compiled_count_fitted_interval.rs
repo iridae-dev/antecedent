@@ -27,7 +27,7 @@ use super::count_fitted_observation::{
     CountFittedIntervalArtifactWire, CountFittedObservation, ROUTE, refusal_of,
 };
 use super::observation_query::ObservationQueryRefusal;
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -36,11 +36,6 @@ use crate::planner::lowered::{
 };
 
 const PLAN_ID: &str = "count_fitted_interval.v1";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// A count-fitted observation and a nominal level bound to their lowered program.
 #[derive(Clone, Debug)]
 pub struct CompiledCountFittedInterval {
@@ -174,24 +169,24 @@ impl CompiledCountFittedInterval {
     ///
     /// Every refusal of the measured consumer (a non-canonical source, a draw count out of
     /// range, endpoints whose Monte Carlo error is large against the width, evidence of
-    /// probability zero), cancellation, or the support gate once it is on.
+    /// probability zero), cancellation, or a support refusal.
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<MeasuredIntervalRun, ObservationQueryRefusal> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+        let publication = gate_program(&scoped, self).map_err(|refusal| {
             refusal_of(&antecedent_io::IoError::Refused {
                 code: refusal.code(),
                 message: format!("{}: {refusal}", refusal.detail),
             })
         })?;
         let measured = self.observation.measured_interval_at(self.level, &scoped)?;
-        Ok(MeasuredIntervalRun {
+        publication.finish(Ok(MeasuredIntervalRun {
             measured,
             lowered_program_identity: self.lowered.identity(),
             calibration_route: ROUTE,
-        })
+        }))
     }
 }
 

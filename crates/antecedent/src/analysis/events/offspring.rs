@@ -119,8 +119,8 @@ impl PreparedExcitationOffspring {
     /// # Errors
     /// The filter ODE cannot resolve the horizon, cancellation, or an unsupported release scope.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<ExcitationOffspring, EventError> {
-        let _scoped = super::scoped_execution(ctx, &self.plan)?;
-        self.parameters.excitation_offspring(self.source, self.horizon)
+        let (_scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
+        publication.finish(self.parameters.excitation_offspring(self.source, self.horizon))
     }
 }
 
@@ -135,7 +135,11 @@ impl PreparedMarkedOffspring {
     /// # Errors
     /// The filter ODE cannot resolve the horizon, cancellation, or an unsupported release scope.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<MarkedOffspring, EventError> {
-        let _scoped = super::scoped_execution(ctx, &self.plan)?;
-        self.parameters.excitation_offspring(&self.prototypes, self.prototype, self.horizon)
+        let (_scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
+        publication.finish(self.parameters.excitation_offspring(
+            &self.prototypes,
+            self.prototype,
+            self.horizon,
+        ))
     }
 }

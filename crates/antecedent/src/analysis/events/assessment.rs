@@ -320,7 +320,7 @@ impl PreparedForecastAssessment {
         reason = "threshold probabilities lie in [0, 1], so the reliability bin index is at most 5"
     )]
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<ForecastAssessment, EventError> {
-        let scoped = super::scoped_execution(ctx, &self.plan)?;
+        let (scoped, publication) = super::scoped_execution(ctx, &self.plan)?;
         let ctx = &scoped;
         let r = &self.request;
         let bytes = history_bytes(&r.history);
@@ -441,13 +441,13 @@ impl PreparedForecastAssessment {
                 }
             })
             .collect();
-        Ok(ForecastAssessment {
+        publication.finish(Ok(ForecastAssessment {
             program: self.plan.identity().to_hex(),
             scores,
             test_reliability,
             test_threshold_events,
             uncertainty: "descriptive rolling windows; dependence and sparse events can limit reliability",
-        })
+        }))
     }
 }
 

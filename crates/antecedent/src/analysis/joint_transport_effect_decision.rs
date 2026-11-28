@@ -37,7 +37,7 @@ use antecedent_io::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
 };
@@ -51,15 +51,8 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     ModelRole, ModelSlot, PosteriorAlgorithm, PosteriorPlan, Realization, StatisticalProgram,
 };
-use crate::support::capability_calibration;
-use crate::support::units_generated::TRANSPORT_JOINT_TRANSPORT_DECISION;
 
 const FEATURE: &str = "joint_transport_effect_decision_v1";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then; turning it on makes a release build refuse the route
-/// while the unit is unsupported and a development build record what it would refuse.
-const GATE_ON_UNIT_SUPPORT: bool = false;
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 /// The complete structural and numerical declaration. The quantity must name
@@ -437,7 +430,7 @@ impl CompiledJointTransportEffectDecision {
         ctx: &ExecutionContext,
     ) -> Result<JointTransportEffectDecisionResult, JointTransportEffectDecisionError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+        let publication = gate_program(&scoped, self)
             .map_err(|refusal| JointTransportEffectDecisionError::Invalid(refusal.message()))?;
         let (producer, fit) = JointBayesianArtifactWire::build(
             &self.identification,
@@ -455,13 +448,13 @@ impl CompiledJointTransportEffectDecision {
         let draft = effect_chain(&fit, &self.request.quantity)?;
         let decision =
             compile_chain_decision(draft, self.request.decision.clone(), ctx)?.execute(ctx)?;
-        Ok(JointTransportEffectDecisionResult {
+        publication.finish(Ok(JointTransportEffectDecisionResult {
             fit,
             producer,
             decision,
             lowered_program_identity: self.lowered.identity(),
             calibration: self.unit_calibration(),
-        })
+        }))
     }
 
     /// Export a combined receipt after reexecuting the exact compiled route.
@@ -504,7 +497,7 @@ impl CompiledJointTransportEffectDecision {
             producer_artifact: replay.producer.export()?,
             chain_artifact: chain.export(&result.decision, artifact_id)?,
             program_identity: *self.lowered.identity().as_bytes(),
-            calibration: self.unit_calibration().into(),
+            calibration: antecedent_io_core::unit_calibration::LEGACY_WIRE_STATUS.into(),
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
@@ -536,7 +529,7 @@ pub fn consume_joint_transport_effect_decision(
     let wire: JointTransportEffectDecisionWire = antecedent_io::from_cbor(bytes)?;
     if wire.version != 1
         || wire.required_feature != FEATURE
-        || wire.calibration != capability_calibration(TRANSPORT_JOINT_TRANSPORT_DECISION.as_str())
+        || !antecedent_io_core::unit_calibration::is_v1_wire_status(&wire.calibration)
         || wire.program_identity != *expected_program.as_bytes()
     {
         return Err(JointTransportEffectDecisionError::Invalid(

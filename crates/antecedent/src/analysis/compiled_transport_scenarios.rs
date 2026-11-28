@@ -35,7 +35,7 @@ use antecedent_identify::sid::scenarios::{
 use antecedent_io::IoError;
 
 use super::compiled_point_program::PointProgram;
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{Canonical, SetOf, encoded};
 use super::transport_scenarios::PreparedTransportScenarios;
 use crate::analysis::execute::Study;
@@ -45,11 +45,6 @@ use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, Prog
 
 const PLAN_ID: &str = "transport_scenario_set.v1";
 const EVALUATOR: &str = "antecedent_estimate::transport_scenarios::PreparedScenarioSet::evaluate";
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then.
-const GATE_ON_UNIT_SUPPORT: bool = false;
-
 /// A decided scenario set bound to its lowered program.
 #[derive(Clone, Debug)]
 pub struct CompiledTransportScenarios {
@@ -277,17 +272,17 @@ impl CompiledTransportScenarios {
     ///
     /// # Errors
     ///
-    /// A numerical failure, an invalid outcome, cancellation, or the support gate once it is on.
+    /// A numerical failure, an invalid outcome, cancellation, or a support refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<TransportScenariosRun, CausalError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)?;
+        let publication = gate_program(&scoped, self)?;
         let report = self.prepared.prepared().evaluate(&scoped)?;
-        Ok(TransportScenariosRun {
+        publication.finish(Ok(TransportScenariosRun {
             report,
             lowered_program_identity: self.lowered.identity(),
             claim: "per_scenario_points",
             calibration: self.unit_calibration(),
-        })
+        }))
     }
 
     /// [`Self::execute`] with the refusals of [`PreparedTransportScenarios::estimate`]: the
@@ -295,19 +290,19 @@ impl CompiledTransportScenarios {
     ///
     /// # Errors
     ///
-    /// As [`PreparedTransportScenarios::estimate`], and the support gate once it is on.
+    /// As [`PreparedTransportScenarios::estimate`], and a support refusal.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<TransportScenariosRun, IoError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self).map_err(|refusal| {
+        let publication = gate_program(&scoped, self).map_err(|refusal| {
             IoError::from(antecedent_estimate::EstimationError::from(refusal))
         })?;
         let report = self.prepared.estimate(&scoped)?;
-        Ok(TransportScenariosRun {
+        publication.finish(Ok(TransportScenariosRun {
             report,
             lowered_program_identity: self.lowered.identity(),
             claim: "per_scenario_points",
             calibration: self.unit_calibration(),
-        })
+        }))
     }
 
     /// Recompile the identified scenarios against new supplied laws; the decisions are kept and

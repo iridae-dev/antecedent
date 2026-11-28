@@ -165,7 +165,7 @@ pub fn compile_local_cyclic(
             .map_err(LocalCyclicCompileError::Program)?,
     );
     let program = ProgramOnly(Arc::clone(&lowered));
-    gate_program(ctx, &program)
+    let publication = gate_program(ctx, &program)
         .map_err(|refusal| LocalCyclicCompileError::Program(CausalError::from(refusal)))?;
     let scoped = ctx.enter_lowered_dispatch(lowered.identity());
     let solved = (|| {
@@ -183,7 +183,7 @@ pub fn compile_local_cyclic(
     })()
     .map_err(LocalCyclicCompileError::Model)?;
     let (inspection, result, counterfactual) = solved;
-    Ok(CompiledLocalCyclic { inspection, result, counterfactual, lowered })
+    publication.finish(Ok(CompiledLocalCyclic { inspection, result, counterfactual, lowered }))
 }
 
 /// The lowered program of a run, before it has executed.

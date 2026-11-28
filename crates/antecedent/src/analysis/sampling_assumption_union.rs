@@ -22,7 +22,7 @@ use antecedent_io::propagation_chain_record::PropagationChainRecordWire;
 use antecedent_kernels::quantile_type7_sorted;
 use serde::{Deserialize, Serialize};
 
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, ProgramPublication, gate_program};
 use super::propagation_chain::{PropagationChain, PropagationChainPlan, compile_propagation_chain};
 use crate::planner::PlanView;
 use crate::planner::lowered::{
@@ -46,15 +46,6 @@ const MOVING_BLOCK_FEATURE: &str = "moving_block_sampling_assumption_union_v1";
 const STRATIFIED_CLUSTER_FEATURE: &str = "stratified_cluster_sampling_assumption_union_v1";
 const CLUSTER_FEATURE: &str = "cluster_sampling_assumption_union_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
-
-/// Whether a release build refuses a whole-chain bootstrap union whose support unit is not
-/// supported.
-///
-/// The unit is the capability record bound to the four sampling-assumption-union routes in
-/// `parity/compiled_units.toml`. The gate stays closed until that record's evidence is earned,
-/// so no valid use refuses before then; flipping this constant is the only change that turns
-/// it on.
-pub(crate) const RELEASE_SUPPORT_GATE_LIVE: bool = false;
 
 /// Implement the program-handle shape for each compiled union, which retains its program in
 /// `lowered`.
@@ -86,11 +77,7 @@ program_handles!(
 fn gate_release_support<H: CompiledProgramHandle>(
     ctx: &ExecutionContext,
     handle: &H,
-) -> Result<(), SamplingAssumptionUnionError> {
-    if !RELEASE_SUPPORT_GATE_LIVE {
-        let _ = handle.support();
-        return Ok(());
-    }
+) -> Result<ProgramPublication, SamplingAssumptionUnionError> {
     gate_program(ctx, handle).map_err(|error| {
         SamplingAssumptionUnionError::Chain(ChainRefusal::new(
             error.code(),
@@ -426,7 +413,7 @@ impl CompiledSamplingAssumptionUnion {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
-        gate_release_support(ctx, self)?;
+        let publication = gate_release_support(ctx, self)?;
         if ctx.rng.master_seed() != self.seed {
             return Err(SamplingAssumptionUnionError::Invalid("resampling execution seed changed"));
         }
@@ -456,7 +443,7 @@ impl CompiledSamplingAssumptionUnion {
                 "bootstrap endpoint union is nonfinite or reversed",
             ));
         }
-        Ok(SamplingAssumptionUnionResult {
+        publication.finish(Ok(SamplingAssumptionUnionResult {
             original_lower,
             original_upper,
             union_lower,
@@ -465,7 +452,7 @@ impl CompiledSamplingAssumptionUnion {
             calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Seal the complete original and resampling declarations after checking
@@ -804,7 +791,7 @@ impl CompiledIidSamplingAssumptionUnion {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
-        gate_release_support(ctx, self)?;
+        let publication = gate_release_support(ctx, self)?;
         if ctx.rng.master_seed() != self.seed {
             return Err(SamplingAssumptionUnionError::Invalid(
                 "IID bootstrap execution seed changed",
@@ -850,7 +837,7 @@ impl CompiledIidSamplingAssumptionUnion {
                 "IID bootstrap endpoint union is nonfinite or reversed",
             ));
         }
-        Ok(SamplingAssumptionUnionResult {
+        publication.finish(Ok(SamplingAssumptionUnionResult {
             original_lower,
             original_upper,
             union_lower,
@@ -859,7 +846,7 @@ impl CompiledIidSamplingAssumptionUnion {
             calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Expose the exact whole-chain construction for a prospective coverage
@@ -1201,7 +1188,7 @@ impl CompiledClusterSamplingAssumptionUnion {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
-        gate_release_support(ctx, self)?;
+        let publication = gate_release_support(ctx, self)?;
         if ctx.rng.master_seed() != self.seed {
             return Err(SamplingAssumptionUnionError::Invalid(
                 "cluster bootstrap execution seed changed",
@@ -1250,7 +1237,7 @@ impl CompiledClusterSamplingAssumptionUnion {
                 "cluster bootstrap union is nonfinite or reversed",
             ));
         }
-        Ok(SamplingAssumptionUnionResult {
+        publication.finish(Ok(SamplingAssumptionUnionResult {
             original_lower,
             original_upper,
             union_lower,
@@ -1259,7 +1246,7 @@ impl CompiledClusterSamplingAssumptionUnion {
             calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Exact cluster-design and fixed-chain coordinate for a prospective
@@ -1636,7 +1623,7 @@ impl CompiledStratifiedClusterSamplingAssumptionUnion {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
-        gate_release_support(ctx, self)?;
+        let publication = gate_release_support(ctx, self)?;
         if ctx.rng.master_seed() != self.seed {
             return Err(SamplingAssumptionUnionError::Invalid(
                 "cluster bootstrap execution seed changed",
@@ -1681,7 +1668,7 @@ impl CompiledStratifiedClusterSamplingAssumptionUnion {
                 "cluster bootstrap union is nonfinite or reversed",
             ));
         }
-        Ok(SamplingAssumptionUnionResult {
+        publication.finish(Ok(SamplingAssumptionUnionResult {
             original_lower,
             original_upper,
             union_lower,
@@ -1690,7 +1677,7 @@ impl CompiledStratifiedClusterSamplingAssumptionUnion {
             calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Exact cluster-design and fixed-chain coordinate for a prospective
@@ -2012,7 +1999,7 @@ impl CompiledMovingBlockSamplingAssumptionUnion {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
-        gate_release_support(ctx, self)?;
+        let publication = gate_release_support(ctx, self)?;
         if ctx.rng.master_seed() != self.seed {
             return Err(SamplingAssumptionUnionError::Invalid(
                 "moving-block bootstrap execution seed changed",
@@ -2063,7 +2050,7 @@ impl CompiledMovingBlockSamplingAssumptionUnion {
                 "moving-block bootstrap union is nonfinite or reversed",
             ));
         }
-        Ok(SamplingAssumptionUnionResult {
+        publication.finish(Ok(SamplingAssumptionUnionResult {
             original_lower,
             original_upper,
             union_lower,
@@ -2072,7 +2059,7 @@ impl CompiledMovingBlockSamplingAssumptionUnion {
             calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Exact moving-block-design and fixed-chain coordinate for a prospective
@@ -2446,7 +2433,7 @@ impl CompiledStratifiedMovingBlockSamplingAssumptionUnion {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
-        gate_release_support(ctx, self)?;
+        let publication = gate_release_support(ctx, self)?;
         if ctx.rng.master_seed() != self.seed {
             return Err(SamplingAssumptionUnionError::Invalid(
                 "moving-block bootstrap execution seed changed",
@@ -2492,7 +2479,7 @@ impl CompiledStratifiedMovingBlockSamplingAssumptionUnion {
                 "moving-block bootstrap union is nonfinite or reversed",
             ));
         }
-        Ok(SamplingAssumptionUnionResult {
+        publication.finish(Ok(SamplingAssumptionUnionResult {
             original_lower,
             original_upper,
             union_lower,
@@ -2501,7 +2488,7 @@ impl CompiledStratifiedMovingBlockSamplingAssumptionUnion {
             calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Exact moving-block-design and fixed-chain coordinate for a prospective
@@ -2876,7 +2863,7 @@ impl CompiledPanelBlockSamplingAssumptionUnion {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
-        gate_release_support(ctx, self)?;
+        let publication = gate_release_support(ctx, self)?;
         if ctx.rng.master_seed() != self.seed {
             return Err(SamplingAssumptionUnionError::Invalid(
                 "moving-block bootstrap execution seed changed",
@@ -2921,7 +2908,7 @@ impl CompiledPanelBlockSamplingAssumptionUnion {
                 "moving-block bootstrap union is nonfinite or reversed",
             ));
         }
-        Ok(SamplingAssumptionUnionResult {
+        publication.finish(Ok(SamplingAssumptionUnionResult {
             original_lower,
             original_upper,
             union_lower,
@@ -2930,7 +2917,7 @@ impl CompiledPanelBlockSamplingAssumptionUnion {
             calibration: self.unit_calibration(),
             chain_identities,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Exact moving-block-design and fixed-chain coordinate for a prospective
@@ -3654,7 +3641,7 @@ mod tests {
         assert_eq!(view.status(), decision.status);
         assert_eq!(view.unit(), decision.unit.label());
         let executed = plan.execute(&ctx);
-        if RELEASE_SUPPORT_GATE_LIVE && !view.supported() && !cfg!(feature = "development") {
+        if !view.supported() && !cfg!(feature = "development") {
             assert!(executed.is_err(), "a release build refuses an unsupported unit");
         } else {
             executed.expect("the union runs");

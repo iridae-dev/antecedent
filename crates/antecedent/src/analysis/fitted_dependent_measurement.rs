@@ -27,7 +27,7 @@ use super::observation_query::{
     DependentMeasuredObservationRequest, JointMeasuredObservationPlan, ObservationQueryRefusal,
     unsupported_refusal,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, ProgramPublication, gate_program};
 use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, EvidenceRole, EvidenceSourceRef, FunctionalKind, LoweredProgram,
@@ -320,19 +320,12 @@ impl CompiledProgramHandle for CompiledFittedDependentMeasurement {
     }
 }
 
-/// Whether `parity/compiled_units.toml` binds the fitted route to a support unit. The route's
-/// execution is gated on that unit from the build that binds it; until then no unit decides
-/// the route and it runs as it did.
-fn route_is_bound(route: &str) -> bool {
-    crate::support::units_generated::unit_of(route).is_some()
-}
-
 impl CompiledFittedDependentMeasurement {
     /// Pass the support gate of the unit the route runs under with the dispatch-scoped context.
-    fn gate(&self, ctx: &ExecutionContext) -> Result<(), FittedDependentMeasurementError> {
-        if !route_is_bound(self.lowered.route()) {
-            return Ok(());
-        }
+    fn gate(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<ProgramPublication, FittedDependentMeasurementError> {
         gate_program(ctx, self).map_err(|refusal| unsupported_refusal(&refusal).into())
     }
 
@@ -470,7 +463,7 @@ impl CompiledFittedDependentMeasurement {
         ctx: &ExecutionContext,
     ) -> Result<FittedDependentMeasurementReport, FittedDependentMeasurementError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        self.gate(&scoped)?;
+        let publication = self.gate(&scoped)?;
         let point = self.plug_in.execute(&scoped)?;
         let levels = point.conditional_levels().ok_or(FittedDependentMeasurementError::Invalid(
             "fitted measurement query did not return conditional levels",
@@ -519,13 +512,13 @@ impl CompiledFittedDependentMeasurement {
             }
             posterior_draws.push(outcome.into_iter().map(|(_, value)| value).collect());
         }
-        Ok(FittedDependentMeasurementReport {
+        publication.finish(Ok(FittedDependentMeasurementReport {
             levels: names,
             plug_in,
             posterior_draws,
             alignment_identity: self.lowered.identity().to_hex(),
             calibration: self.unit_calibration().into(),
-        })
+        }))
     }
 
     /// Seal the complete posterior report after reexecuting its program.

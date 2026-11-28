@@ -210,9 +210,10 @@ impl CompiledTransportedSynthesis {
         ledger: &mut EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<TransportedConstruction<TransportedSynthesis>, ExternalRefusal> {
-        self.program.gate(ctx).map_err(|refusal| transport_support_refusal(&refusal))?;
+        let publication =
+            self.program.gate(ctx).map_err(|refusal| transport_support_refusal(&refusal))?;
         let input = self.program.input();
-        transported_synthesis_response_kernel(
+        publication.finish(transported_synthesis_response_kernel(
             ledger,
             &input.label,
             &input.contributions,
@@ -220,7 +221,7 @@ impl CompiledTransportedSynthesis {
             input.native_population.as_deref(),
             input.coordinate.clone(),
             &input.provider_id,
-        )
+        ))
     }
 }
 

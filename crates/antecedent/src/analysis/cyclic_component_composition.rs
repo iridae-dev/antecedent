@@ -1119,7 +1119,7 @@ fn compile_joint_component_posterior_decision_encoded(
         posterior,
         lowered,
     };
-    gate_decision(ctx, &plan)
+    let _admission = gate_decision(ctx, &plan)
         .map_err(|refusal| JointComponentPosteriorError::Invalid(refusal.message()))?;
     Ok(plan)
 }
@@ -1154,15 +1154,15 @@ impl CompiledJointComponentPosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<JointComponentPosteriorDecisionResult, JointComponentPosteriorError> {
-        gate_decision(ctx, self)
+        let publication = gate_decision(ctx, self)
             .map_err(|refusal| JointComponentPosteriorError::Invalid(refusal.message()))?;
         // The child compiles its fitted chain, which a lowered dispatch refuses as reentry, so
         // it runs under the caller's context.
         let child = self.posterior.execute(ctx)?;
-        Ok(JointComponentPosteriorDecisionResult {
+        publication.finish(Ok(JointComponentPosteriorDecisionResult {
             child,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Reexecute and seal both the checked component declarations and joint fit.
@@ -1636,7 +1636,7 @@ fn compile_joint_vector_component_posterior_decision_encoded(
         posterior,
         lowered,
     };
-    gate_decision(ctx, &plan)
+    let _admission = gate_decision(ctx, &plan)
         .map_err(|refusal| JointComponentPosteriorError::Invalid(refusal.message()))?;
     Ok(plan)
 }
@@ -1671,13 +1671,13 @@ impl CompiledJointVectorComponentPosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<JointComponentPosteriorDecisionResult, JointComponentPosteriorError> {
-        gate_decision(ctx, self)
+        let publication = gate_decision(ctx, self)
             .map_err(|refusal| JointComponentPosteriorError::Invalid(refusal.message()))?;
         let child = self.posterior.execute(ctx)?;
-        Ok(JointComponentPosteriorDecisionResult {
+        publication.finish(Ok(JointComponentPosteriorDecisionResult {
             child,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Reexecute and seal both the checked component declarations and joint fit.
@@ -2020,19 +2020,19 @@ impl CompiledBoundedComponentPosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<BoundedComponentPosteriorDecisionResult, JointComponentPosteriorError> {
-        gate_decision(ctx, self)
+        let publication = gate_decision(ctx, self)
             .map_err(|refusal| JointComponentPosteriorError::Invalid(refusal.message()))?;
         let inner = self.inner.execute(ctx)?;
         let decision = self
             .chain(&inner, ctx)?
             .execute(ctx)
             .map_err(super::cyclic_posterior_action_decision::CyclicPosteriorDecisionError::from)?;
-        Ok(BoundedComponentPosteriorDecisionResult {
+        publication.finish(Ok(BoundedComponentPosteriorDecisionResult {
             inner,
             decision,
             lowered_program_identity: self.lowered.identity(),
             calibration: self.unit_calibration(),
-        })
+        }))
     }
 
     /// Seal a fresh complete fit and transformed decision for replay.

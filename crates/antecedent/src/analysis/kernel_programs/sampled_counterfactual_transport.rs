@@ -238,19 +238,19 @@ impl CompiledSampledCounterfactualTransport {
         (SampledCounterfactualTransportArtifactWire, SampledCounterfactualTransportEstimate),
         SampledCounterfactualTransportArtifactError,
     > {
-        self.program.gate(ctx).map_err(|refusal| {
+        let publication = self.program.gate(ctx).map_err(|refusal| {
             SampledCounterfactualTransportArtifactError::Replay {
                 code: refusal.code(),
                 message: refusal.message().to_owned(),
             }
         })?;
         let input = self.program.input();
-        sampled_counterfactual_transport_artifact(
+        publication.finish(sampled_counterfactual_transport_artifact(
             &input.derivation,
             &input.request,
             &input.variable_names,
             ctx,
-        )
+        ))
     }
 }
 
@@ -277,14 +277,14 @@ impl CompiledSampledCounterfactualTransportInterval {
     /// any replay refusal, or a design whose variance the delta method does not give
     /// (`route_not_supported`).
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
-        self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
+        let publication = self.program.gate(ctx).map_err(|refusal| io_refusal(&refusal))?;
         let input = self.program.input();
-        SampledCounterfactualTransportArtifactWire::measure(
+        publication.finish(SampledCounterfactualTransportArtifactWire::measure(
             &input.artifact,
             &input.expected,
             input.limits,
             ctx,
-        )
+        ))
     }
 }
 

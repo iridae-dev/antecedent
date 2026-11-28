@@ -8,7 +8,7 @@ use antecedent_core::execution::{AdmissionError, AdmissionLease, RngFactory};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
-use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::program_handle::{CompiledProgramHandle, ProgramPublication, gate_program};
 use crate::Study;
 use crate::planner::lowered::{EventProcessRoute, LoweredProgram};
 use crate::planner::{PlanStage, PlanView};
@@ -644,9 +644,9 @@ impl PreparedEventForecast {
     /// # Errors
     /// Resource exhaustion, failed fit/refit, cancellation, or numerical failure.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<EventLaw, EventError> {
-        let scoped = scoped_execution(ctx, self)?;
+        let (scoped, publication) = scoped_execution(ctx, self)?;
         let ctx = &scoped;
-        self.sample_retained(ctx)
+        publication.finish(self.sample_retained(ctx))
     }
 
     #[allow(
@@ -946,12 +946,12 @@ impl CompiledProgramHandle for PreparedEventForecast {
 fn scoped_execution(
     ctx: &ExecutionContext,
     handle: &impl CompiledProgramHandle,
-) -> Result<ExecutionContext, EventError> {
+) -> Result<(ExecutionContext, ProgramPublication), EventError> {
     super::lowering::refuse_reentry(ctx)?;
     let scoped = ctx.enter_lowered_dispatch(handle.program().identity());
     poll(&scoped)?;
-    gate_program(&scoped, handle).map_err(crate::error::CausalError::from)?;
-    Ok(scoped)
+    let publication = gate_program(&scoped, handle).map_err(crate::error::CausalError::from)?;
+    Ok((scoped, publication))
 }
 
 /// Compiled conditional likelihood of the declared history at fixed parameters.
@@ -993,9 +993,13 @@ impl PreparedEventLikelihood {
     /// # Errors
     /// Resource, cancellation or unsupported release scope.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<f64, EventError> {
-        let scoped = scoped_execution(ctx, &self.plan)?;
+        let (scoped, publication) = scoped_execution(ctx, &self.plan)?;
         let _scratch = admit(&scoped, history_bytes(&self.history) * 12, 0)?;
-        hawkes::log_likelihood(&self.history, &self.parameters, &mut hawkes::Work::new(&scoped))
+        publication.finish(hawkes::log_likelihood(
+            &self.history,
+            &self.parameters,
+            &mut hawkes::Work::new(&scoped),
+        ))
     }
 }
 

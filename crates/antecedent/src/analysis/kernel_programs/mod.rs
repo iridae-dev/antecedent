@@ -21,7 +21,7 @@ use antecedent_core::{
     PhysicalOperator, ScoreFrequentist, ScoreModel,
 };
 
-use super::program_handle::{CompiledProgramHandle, gate_program, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, ProgramPublication, gate_program};
 use crate::error::CausalError;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
@@ -272,13 +272,8 @@ impl<I> KernelProgram<I> {
     /// # Errors
     ///
     /// [`NotSupported`] in a release build when the unit is not supported.
-    pub(crate) fn gate(&self, ctx: &ExecutionContext) -> Result<(), NotSupported> {
+    pub(crate) fn gate(&self, ctx: &ExecutionContext) -> Result<ProgramPublication, NotSupported> {
         gate_program(ctx, self)
-    }
-
-    /// [`Self::gate`] when `gate` is set; the route's decision is recorded either way.
-    pub(crate) fn gate_when(&self, gate: bool, ctx: &ExecutionContext) -> Result<(), NotSupported> {
-        gate_program_when(gate, ctx, self)
     }
 
     /// The plan view of the compiled program.
@@ -300,10 +295,7 @@ impl<I> CompiledProgramHandle for KernelProgram<I> {
 
 /// The support refusal as an artifact error, for a family whose kernel reports artifact errors.
 pub(crate) fn io_refusal(refusal: &NotSupported) -> antecedent_io::IoError {
-    antecedent_io::IoError::Refused {
-        code: antecedent_core::reason_code!("not_supported"),
-        message: refusal.message().to_owned(),
-    }
+    antecedent_io::IoError::Refused { code: refusal.code(), message: refusal.message().to_owned() }
 }
 
 /// The canonical CBOR bytes of a declared wire input.

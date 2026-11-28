@@ -48,7 +48,7 @@ use super::counterfactual_transport::{
     PreparedCounterfactualTransport, consume_counterfactual_transport_artifact,
     prepare_counterfactual_transport,
 };
-use super::program_handle::{CompiledProgramHandle, gate_program_when};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
@@ -61,12 +61,6 @@ use crate::planner::statistical::{Realization, StatisticalProgram};
 const FEATURE: &str = "temporal_path_transport_v1";
 const SAMPLED_FEATURE: &str = "sampled_temporal_path_transport_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
-
-/// Whether `execute` passes the support gate of the unit the route is bound to
-/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
-/// so no valid use refuses before then; turning it on makes a release build refuse the route
-/// while the unit is unsupported and a development build record what it would refuse.
-const GATE_ON_UNIT_SUPPORT: bool = false;
 
 /// The time-indexed edge intervention whose target outcome probability is
 /// compared with the baseline world. Variable ids are raw, and their time
@@ -546,7 +540,7 @@ impl CompiledTemporalPathTransport {
         ctx: &ExecutionContext,
     ) -> Result<TemporalPathTransportResult, TemporalPathTransportError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+        let publication = gate_program(&scoped, self)
             .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
         let active = self.active.evaluate(&self.data, &scoped)?;
         let baseline = self.baseline.evaluate(&self.data, &scoped)?;
@@ -554,12 +548,12 @@ impl CompiledTemporalPathTransport {
         if !contrast.is_finite() {
             return Err(TemporalPathTransportError::Invalid("the path contrast is nonfinite"));
         }
-        Ok(TemporalPathTransportResult {
+        publication.finish(Ok(TemporalPathTransportResult {
             active,
             baseline,
             contrast,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Seal the two independently replayable identification/evaluation
@@ -1027,7 +1021,7 @@ impl CompiledSampledTemporalPathTransport {
         ctx: &ExecutionContext,
     ) -> Result<SampledTemporalPathTransportResult, TemporalPathTransportError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+        let publication = gate_program(&scoped, self)
             .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
         let estimate = estimate_sampled_counterfactual_transport_contrast(
             self.active.derivation(),
@@ -1035,10 +1029,10 @@ impl CompiledSampledTemporalPathTransport {
             &self.request,
             &scoped,
         )?;
-        Ok(SampledTemporalPathTransportResult {
+        publication.finish(Ok(SampledTemporalPathTransportResult {
             estimate,
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Expose a prospective whole-contrast coverage candidate at a stable
@@ -1610,7 +1604,7 @@ impl CompiledContinuousChainTransport {
             return Err(TemporalPathTransportError::Invalid("continuous chain seed changed"));
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        gate_program_when(GATE_ON_UNIT_SUPPORT, &scoped, self)
+        let publication = gate_program(&scoped, self)
             .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
         let arms: Vec<Vec<_>> = [false, true]
             .iter()
@@ -1658,14 +1652,14 @@ impl CompiledContinuousChainTransport {
                 "continuous chain contrast is nonfinite",
             ));
         }
-        Ok(ContinuousChainTransportResult {
+        publication.finish(Ok(ContinuousChainTransportResult {
             active,
             baseline,
             contrast,
             interval,
             calibration: self.unit_calibration(),
             lowered_program_identity: self.lowered.identity(),
-        })
+        }))
     }
 
     /// Seal the complete raw schedule after fresh result verification.

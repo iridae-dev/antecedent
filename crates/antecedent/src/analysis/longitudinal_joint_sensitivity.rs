@@ -387,7 +387,7 @@ impl CompiledLongitudinalJointSensitivity {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<LongitudinalSensitivityArtifact, JointSensitivityError> {
-        let scoped = self.enter(ctx)?;
+        let (scoped, publication) = self.enter(ctx)?;
         let _lease = admit_joint_work(&scoped, &self.rows, self.spec.replicates)?;
         let report = kernel::execute(&self.spec, &self.rows, &scoped)?;
         let wire = Portable {
@@ -397,7 +397,7 @@ impl CompiledLongitudinalJointSensitivity {
             report,
             program: self.identity().to_hex(),
         };
-        assemble(wire)
+        publication.finish(assemble(wire))
     }
 }
 

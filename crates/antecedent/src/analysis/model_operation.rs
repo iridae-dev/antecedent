@@ -181,7 +181,7 @@ impl PreparedStudy {
         };
         let lowered =
             Arc::new(crate::analysis::lowering::model_operation::lower(&source, operation)?);
-        gate_program(ctx, &OperationProgram(Arc::clone(&lowered)))?;
+        let publication = gate_program(ctx, &OperationProgram(Arc::clone(&lowered)))?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "fitted-model operation" });
         }
@@ -231,10 +231,10 @@ impl PreparedStudy {
                 return Err(refuse(&format!("`{}` is not known to this version", other.as_str())));
             }
         };
-        Ok(CompiledModelOperation {
+        publication.finish(Ok(CompiledModelOperation {
             answer,
             mechanisms: Arc::from(fitted.assignments.clone()),
             lowered,
-        })
+        }))
     }
 }

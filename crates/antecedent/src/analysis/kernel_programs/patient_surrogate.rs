@@ -91,8 +91,8 @@ impl CompiledPatientSurrogate {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<PatientSurrogateResult, PatientSurrogateProgramError> {
-        self.0.gate(ctx)?;
-        Ok(self.0.input().evaluate(ctx)?)
+        let publication = self.0.gate(ctx)?;
+        publication.finish(Ok(self.0.input().evaluate(ctx)?))
     }
 
     /// Execute and export the result with its original patient-level evidence.
