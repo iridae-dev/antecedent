@@ -9,7 +9,8 @@ measured. A record is
 * `current`            its manifest still matches the tree
                        (`scripts/evidence_manifests.py`), or a passing probe
                        attestation (`parity/calibration_probe_attestations.toml`) of
-                       its measurement has a manifest that still matches;
+                       its measurement has a manifest that still matches, or a written
+                       carry based on an executed receipt attests the inputs;
 * `probe_flagged`      not current, and its measurement stored replicate digests,
                        so `scripts/calibration_probe.py` can reproduce them;
 * `measurement_flagged` not current and nothing to probe: only a re-measurement
@@ -45,14 +46,16 @@ that nothing is flagged.
     python3 scripts/calibration_status.py status --flagged  # every flagged item, one per line: record ids, then
                                                             #   `route:<capability record>/<route>` for a route with no record
     python3 scripts/calibration_status.py status --json     # machine-readable
-    python3 scripts/calibration_status.py intervals         # per interval route: calibrated, outside_measured_scope,
-                                                            #   measured_below_nominal, not_measured or unmapped
+    python3 scripts/calibration_status.py intervals         # per interval route, including flagged measurements and refusals
+    python3 scripts/calibration_status.py justify --record ID --reason REASON --author AUTHOR
     python3 scripts/calibration_status.py backlog           # cells whose interval has no measurement yet
     python3 scripts/calibration_status.py readiness         # which of those have measurement wiring
     python3 scripts/calibration_status.py plan              # records owning coverage ids, with their status
     python3 scripts/calibration_status.py --check           # shape, and nothing flagged (exit 1 otherwise)
 
-Every subcommand is informational and exits 0. `--check` is the currency check CI and
+The `justify` command records a written carry in `parity/calibration_judgments.toml`.
+It keeps the measurement, any bounded probe and the full judgment chain. Reports
+include the lengths of current chains. `--check` is the currency check CI and
 releases run: it exits 1 on a malformed coverage record and on any flagged item (a record whose
 inputs changed or that has no manifest, a probe that does not cover the tree, an interval
 route with no record). It executes nothing.
@@ -71,6 +74,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import calibration_probe as probe
+import calibration_judgments as judgments
 from _repo import REPO_ROOT as ROOT
 from _repo import read_text
 from evidence_fingerprint import Fingerprinter, coverage_fingerprint
@@ -81,12 +85,14 @@ CURRENT = "current"
 PROBE_OWED = "probe_flagged"
 MEASUREMENT_OWED = "measurement_flagged"
 STATUSES = (CURRENT, PROBE_OWED, MEASUREMENT_OWED)
+JUDGED = re.compile(r"judgment:([1-9][0-9]*):[0-9a-f]{64}")
 
 
 @dataclass(frozen=True)
 class Status:
     status: str
-    via: str  # "measurement" | "probe" | ""
+    via: str  # "measurement" | "probe" | "judgment" | ""
+    chain_length: int = 0
 
 
 def load_records(path: Path = RECORDS) -> list[dict]:
@@ -123,16 +129,15 @@ def identity_fingerprints(records: list[dict], fp: Fingerprinter) -> dict[str, s
 
 
 def tree_fingerprints(records: list[dict], root: Path = ROOT) -> dict[str, str | None]:
-    """record id -> `manifest:<ref>` of the manifest that makes it current (its measurement's,
-    else a covering probe's), or `None` when owed."""
-    from evidence_earning import measurement_binding, probe_binding
+    """Record id -> the measurement, probe or written carry that makes the record current."""
+    from evidence_earning import measurement_binding, measurement_digest, probe_binding
     from evidence_manifests import Checker
 
     checker = Checker(root)
-    attestations_by_id = collections.defaultdict(list)
-    for row in load_attestations(root / "parity/calibration_probe_attestations.toml"):
-        if row.get("dependency_manifest"):
-            attestations_by_id[row.get("record_id")].append(row)
+    carried, _ = judgments.load(root)
+    carried_ids = {rid for rid, _ in carried}
+    reviewed_inputs = None
+    attestations_by_id = judgments.by_record(load_attestations(root / "parity/calibration_probe_attestations.toml"))
     out: dict[str, str | None] = {}
     for rec in records:
         now = None
@@ -140,10 +145,23 @@ def tree_fingerprints(records: list[dict], root: Path = ROOT) -> dict[str, str |
             now = "manifest:" + rec["dependency_manifest"]
         else:
             for row in attestations_by_id.get(rec.get("id"), []):
-                if (probe.covers(rec, row) and _same_platform(root, rec, row)
+                if (row.get("dependency_manifest") and probe.covers(rec, row) and _same_platform(root, rec, row)
                         and checker.check(probe_binding(row), row["dependency_manifest"])["current"]):
                     now = "manifest:" + row["dependency_manifest"]
                     break
+        if now is None and rec.get("id") in carried_ids:
+            judgment = carried.get((rec.get("id"), measurement_digest(rec)))
+            if judgment:
+                try:
+                    reviewed_inputs = reviewed_inputs or tree_fingerprinter(root)
+                    _, reviewed = judgments.review(
+                        checker, rec, judgment, reviewed_inputs, attestations_by_id.get(rec.get("id"), []),
+                    )
+                    if reviewed == judgment["chain"][-1]["to_fingerprint"]:
+                        length = len(judgment["chain"]) + int("probe_receipt" in judgment)
+                        now = f"judgment:{length}:{reviewed}"
+                except judgments.REVIEW_ERRORS:
+                    pass
         out[str(rec.get("id"))] = now
     return out
 
@@ -181,7 +199,9 @@ def classify(
         if now and stored == now:
             out[rid] = Status(CURRENT, "measurement")
         elif covered_by_probe(rec, rows.get(rid, []), now):
-            out[rid] = Status(CURRENT, "probe")
+            out[rid] = Status(CURRENT, "probe", 1)
+        elif now and (carry := JUDGED.fullmatch(now)):
+            out[rid] = Status(CURRENT, "judgment", int(carry[1]))
         elif probe.stored_prefixes(rec):
             out[rid] = Status(PROBE_OWED, "")
         else:
@@ -189,9 +209,10 @@ def classify(
     return out
 
 
-def current_ids(root: Path = ROOT) -> list[str]:
+def current_ids(root: Path = ROOT, *, records: list[dict] | None = None) -> list[str]:
     """Ids of the records that are current in the tree at `root`: the set the runtime snapshot carries."""
-    records = load_records(root / "parity" / "coverage_records.toml")
+    if records is None:
+        records = load_records(root / "parity" / "coverage_records.toml")
     statuses = classify(
         records,
         load_attestations(root / "parity" / "calibration_probe_attestations.toml"),
@@ -205,6 +226,7 @@ def summary(statuses: dict[str, Status]) -> dict[str, int]:
     for s in statuses.values():
         counts[s.status] += 1
     counts["current_by_probe"] = sum(1 for s in statuses.values() if s.via == "probe")
+    counts["current_by_judgment"] = sum(1 for s in statuses.values() if s.via == "judgment")
     return counts
 
 
@@ -219,6 +241,7 @@ INTERVAL_STATES = (
     CALIBRATED,
     OUTSIDE_MEASURED_SCOPE,
     MEASURED_BELOW_NOMINAL,
+    MEASUREMENT_OWED,
     NOT_MEASURED,
     UNMAPPED,
     NO_INTERVAL,
@@ -237,21 +260,29 @@ def load_unit_index() -> dict[tuple[str, str], dict] | None:
     return unit_index.load(ROOT)
 
 
-def interval_state(allocated: list[str], by_id: dict[str, dict]) -> str:
+def interval_state(
+    allocated: list[str],
+    by_id: dict[str, dict],
+    attesting_ids: set[str] | None = None,
+) -> str:
     """The calibration annotation of one interval route.
 
     * `not_measured`          none of the coverage records the route's record allocates exists;
     * `measured_below_nominal` a measured record misses its nominal band at some grid point;
-    * `outside_measured_scope` the measured records pass but do not cover every allocated
-                               coordinate, so the route reaches past what was measured;
-    * `calibrated`            every allocated record exists and none misses its band.
+    * `measurement_flagged`   linked records exist but none currently attests the unit;
+    * `outside_measured_scope` the current records pass but some linked or allocated
+                               records are stale or missing;
+    * `calibrated`            every linked or allocated record is current and passes.
     """
-    present = [by_id[rid] for rid in allocated if rid in by_id]
+    present = [rid for rid in allocated if rid in by_id]
     if not present:
         return NOT_MEASURED
-    if any(rec.get("boundary") for rec in present):
+    current = present if attesting_ids is None else [rid for rid in present if rid in attesting_ids]
+    if any(by_id[rid].get("boundary") for rid in current):
         return MEASURED_BELOW_NOMINAL
-    if len(present) < len(allocated):
+    if not current:
+        return MEASUREMENT_OWED
+    if len(current) < len(allocated):
         return OUTSIDE_MEASURED_SCOPE
     return CALIBRATED
 
@@ -277,6 +308,7 @@ def interval_routes(
     capability: list[dict],
     records: list[dict],
     index: dict[tuple[str, str], dict] | None = None,
+    attesting_ids: set[str] | None = None,
 ) -> list[dict]:
     """One row per supported route that reports an interval, with its annotation.
 
@@ -289,13 +321,24 @@ def interval_routes(
     for rec in capability:
         claim = rec.get("inference_claim")
         unit = index.get(("capability", str(rec["id"]))) if index is not None else None
+        current = attesting_ids
+        if unit is not None and "calibration_current" in unit:
+            linked_current = set(unit["calibration_current"])
+            current = linked_current if current is None else linked_current & current
         for route in rec.get("routes") or []:
             if (
                 route.get("status") != "supported"
                 or (route.get("claim") or claim) != "interval"
             ):
                 continue
-            allocated = [str(x) for x in rec.get("coverage_records") or []]
+            no_interval = route.get("no_interval_reason") or (
+                unit is not None and unit["state"]["calibration"] == NO_INTERVAL_REPORTED
+            )
+            allocated = unit["calibration"] if unit is not None else [
+                str(x) for x in rec.get("coverage_records") or []
+            ]
+            if no_interval:
+                allocated = []
             row = {
                 "record": str(rec["id"]),
                 "route": str(route.get("name", "")),
@@ -303,20 +346,12 @@ def interval_routes(
                 "measured": sum(1 for rid in allocated if rid in by_id),
                 "missing_slots": [rid for rid in allocated if rid not in by_id],
             }
-            if unit is not None:
-                linked = unit["calibration"]
-                row["measured"] = sum(1 for rid in linked if rid in by_id)
-                row["missing_slots"] = []
-                if linked:
-                    row["state"] = interval_state(linked, by_id)
-                elif unit["state"]["calibration"] == NO_INTERVAL_REPORTED:
-                    row["state"] = NO_INTERVAL
-                elif unit["state"]["calibration"]:
-                    row["state"] = NOT_MEASURED
-                else:
-                    row["state"] = UNMAPPED
+            if no_interval:
+                row["state"] = NO_INTERVAL
             elif allocated:
-                row["state"] = interval_state(allocated, by_id)
+                row["state"] = interval_state(allocated, by_id, current)
+            elif unit is not None and unit["state"]["calibration"]:
+                row["state"] = NOT_MEASURED
             else:
                 row["state"] = UNMAPPED
             rows.append(row)
@@ -325,7 +360,19 @@ def interval_routes(
 
 def cmd_intervals(args: argparse.Namespace) -> int:
     capability = tomllib.loads(read_text(CAPABILITY_RECORDS)).get("record", [])
-    rows = interval_routes(capability, load_records(), load_unit_index())
+    records = load_records()
+    index = load_unit_index() or {}
+    candidate_ids = set()
+    for rec in capability:
+        unit = index.get(("capability", str(rec["id"])))
+        if unit is None:
+            candidate_ids.update(rec.get("coverage_records") or [])
+        else:
+            candidate_ids.update(unit.get("calibration_current", unit["calibration"]))
+    # A measurement cannot attest a route unless its unit also has a current link.
+    candidate_records = [record for record in records if record["id"] in candidate_ids]
+    current = set(current_ids(records=candidate_records)) if candidate_records else set()
+    rows = interval_routes(capability, records, index, current)
     counts = collections.Counter(row["state"] for row in rows)
     if args.json:
         json.dump({"counts": dict(counts), "routes": rows}, sys.stdout, indent=2)
@@ -488,7 +535,9 @@ def current_owed() -> tuple[list[dict], dict[str, Status], dict[str, int]]:
     fingerprints = tree_fingerprints(records)
     statuses = classify(records, attestations, fingerprints)
     capability = tomllib.loads(read_text(CAPABILITY_RECORDS)).get("record", [])
-    route_rows = interval_routes(capability, records, load_unit_index())
+    route_rows = interval_routes(
+        capability, records, load_unit_index(), {rid for rid, row in statuses.items() if row.status == CURRENT}
+    )
     items = owed_items(records, attestations, fingerprints, route_rows)
     items += ledger_items(ledger_rows() + backlog_rows(), records)
     items += runner.group_items(runner.gate_groups(), records)
@@ -498,12 +547,15 @@ def current_owed() -> tuple[list[dict], dict[str, Status], dict[str, int]]:
 def cmd_status(args: argparse.Namespace) -> int:
     items, statuses, counts = current_owed()
     reasons = owed_counts(items)
+    chains = {rid: {"via": row.via, "length": row.chain_length}
+              for rid, row in sorted(statuses.items()) if row.chain_length}
     if args.json:
         json.dump(
             {
                 "counts": counts,
                 "owed_by_reason": reasons,
                 "records": {r: s.status for r, s in sorted(statuses.items())},
+                "carry_chains": chains,
                 "owed": items,
             },
             sys.stdout,
@@ -516,9 +568,12 @@ def cmd_status(args: argparse.Namespace) -> int:
     else:
         print(
             f"calibration records: {counts[CURRENT]} current "
-            f"({counts['current_by_probe']} by probe), {counts[PROBE_OWED]} probe flagged, "
+            f"({counts['current_by_probe']} by probe, {counts.get('current_by_judgment', 0)} by judgment), "
+            f"{counts[PROBE_OWED]} probe flagged, "
             f"{counts[MEASUREMENT_OWED]} measurement flagged of {len(statuses)}"
         )
+        for rid, chain in chains.items():
+            print(f"  carried by {chain['via']}: {rid} (chain {chain['length']})")
         never = sum(1 for i in items if i["kind"] == "record" and not i["has_manifest"])
         print(
             f"flagged: {len(items)} item(s): "
@@ -527,6 +582,59 @@ def cmd_status(args: argparse.Namespace) -> int:
         )
         for item in items:
             print(f"  {item['reason']}: {item['id']}")
+    return 0
+
+
+def cmd_justify(args: argparse.Namespace) -> int:
+    """Extend the chain of an existing, flagged measurement by written review."""
+    from evidence_earning import measurement_digest
+    from evidence_manifests import Checker
+
+    if not args.reason.strip() or not args.author.strip():
+        print("FAIL: a judgment needs a reason and an author", file=sys.stderr)
+        return 2
+    ids = set(args.record)
+    records = [record for record in load_records() if record["id"] in ids]
+    missing = ids - {record["id"] for record in records}
+    if missing:
+        print(f"FAIL: no such coverage records: {', '.join(sorted(missing))}", file=sys.stderr)
+        return 2
+    ledger, problems = judgments.load(ROOT)
+    if problems:
+        print("\n".join(problems), file=sys.stderr)
+        return 1
+    attestations = judgments.by_record(load_attestations())
+    current = set(current_ids(records=records))
+    checker, fp = Checker(ROOT), tree_fingerprinter()
+    updates = {}
+    for record in records:
+        rid = record["id"]
+        key = (rid, measurement_digest(record))
+        if rid in current:
+            problems.append(f"{rid}: the measurement is already current")
+            continue
+        try:
+            prior_probes = attestations.get(rid, [])
+            row = ledger.get(key) or judgments.new_chain(checker, record, prior_probes)
+            start, reviewed = judgments.review(checker, record, row, fp, prior_probes)
+            chain = row["chain"]
+            predecessor = chain[-1]["to_fingerprint"] if chain else start
+            entry = dict(zip(judgments.CHAIN_FIELDS, (predecessor, reviewed, args.reason.strip(),
+                                                     args.author.strip()), strict=True))
+            updates[key] = {**row, "chain": [*chain, entry]}
+        except judgments.REVIEW_ERRORS as error:
+            problems.append(f"{rid}: {error}")
+    if problems:
+        print("FAIL: calibration judgments were not saved:\n  " + "\n  ".join(problems), file=sys.stderr)
+        return 1
+    try:
+        judgments.write(ROOT, updates)
+    except judgments.REVIEW_ERRORS as error:
+        print(f"FAIL: {error}", file=sys.stderr)
+        return 1
+    for row in updates.values():
+        length = len(row["chain"]) + int("probe_receipt" in row)
+        print(f"  justified: {row['record_id']} (chain {length})")
     return 0
 
 
@@ -902,7 +1010,7 @@ def shape_problems(root: Path = ROOT) -> list[str]:
     ids = [rec.get("id") for rec in records]
     if len(set(ids)) != len(ids):
         problems.append("parity/coverage_records.toml: duplicate record ids")
-    return problems
+    return problems + judgments.load(root)[1]
 
 
 def cmd_check(args: argparse.Namespace) -> int:
@@ -974,6 +1082,10 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="machine-readable counts and per-route state",
     )
+    justify = sub.add_parser("justify", help="carry a flagged measurement by written review")
+    justify.add_argument("--record", required=True, action="append", help="coverage record ID")
+    justify.add_argument("--reason", required=True)
+    justify.add_argument("--author", required=True)
     sub.add_parser("backlog")
     sub.add_parser("readiness")
     sub.add_parser("plan")
@@ -985,6 +1097,7 @@ def main(argv: list[str] | None = None) -> int:
     handlers = {
         "status": cmd_status,
         "intervals": cmd_intervals,
+        "justify": cmd_justify,
         "backlog": cmd_backlog,
         "readiness": cmd_readiness,
         "plan": cmd_plan,

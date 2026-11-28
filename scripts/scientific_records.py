@@ -20,12 +20,13 @@ of all targets concurrently. Scientific assertions are Rust tests. A rerun withd
 superseded pass standing. `--all` or ANTECEDENT_SCIENTIFIC_ALL=1 reruns everything.
 
 A flagged pass is carried forward by the cheapest sufficient step (ADR 0031). A facade
-assertion runs with its results traced (`evidence-trace`), and its pass records their
-`output_digest`. When a rerun reproduces the recorded digest, the new pass extends the old
-record's `carry` chain with an `output_equivalent` entry; any other pass starts a new
-chain. `run --carry` reruns only flagged rows with a recorded digest. `justify` appends a
-`judgment` from the last carried fingerprint to the current one; the row is current while
-its fingerprint stays there. `status` reports chain lengths and every judged record.
+assertion with a complete, attributed trace binds its typed `output_digest` to the earned
+pass. The current encoding covers scalar, policy, and continuous-dose answers whose report
+layers can all be represented. A rerun
+that reproduces a verified digest extends the carry chain with an `output_equivalent` entry.
+A rerun with other output earns a new pass. `run --carry` selects only flagged rows with a
+verified digest. `justify` binds a `judgment` to the prior receipt and the reviewed inputs.
+`status` reports carry lengths and judged records.
 
 A recorded pass is evidence for support only. It is not a calibration measurement and no
 coverage or support claim reads it as one.
@@ -70,7 +71,7 @@ HEADER = """# Recorded passes of the scientific assertions (see scripts/scientif
 # fingerprint  sha256 of the assertion's dependency closure when it passed (identity only)
 # recorded_at  UTC time of the pass
 # dependency_manifest  pass:scientific:<selector>, the standing pass file
-# output_digest  digest of the results the assertion's test was handed (facade tests only)
+# output_digest  digest of the typed results bound by the pass receipt (facade tests only)
 # carry        how the pass was carried forward since it was earned, oldest first: kind
 #              output_equivalent (a rerun reproduced output_digest) or judgment
 #              (`scientific_records.py justify`), from_fingerprint, to_fingerprint,
@@ -79,6 +80,9 @@ HEADER = """# Recorded passes of the scientific assertions (see scripts/scientif
 
 
 CARRY_FIELDS = ("kind", "from_fingerprint", "to_fingerprint", "reason", "author")
+FINGERPRINT = re.compile(r"[0-9a-f]{64}")
+OUTPUT_DIGEST = re.compile(r"v2:[0-9a-f]{64}")
+TRACE_UNIT_KINDS = {"matrix", "construction", "graphless", "capability"}
 
 
 def render_carry(entry: dict) -> str:
@@ -93,6 +97,66 @@ def carried_from(record: dict) -> str:
     """The fingerprint a record's pass was last carried to (its own when never carried)."""
     chain = record.get("carry") or []
     return chain[-1]["to_fingerprint"] if chain else record["fingerprint"]
+
+
+def valid_carry_chain(record: dict) -> bool:
+    chain = record.get("carry", [])
+    if not isinstance(chain, list):
+        return False
+    earned = current = None
+    for entry in chain:
+        if (not isinstance(entry, dict) or set(entry) != set(CARRY_FIELDS)
+                or not all(isinstance(value, str) and value.strip() for value in entry.values())
+                or entry["kind"] not in ("output_equivalent", "judgment")
+                or not all(FINGERPRINT.fullmatch(entry[key]) for key in ("from_fingerprint", "to_fingerprint"))
+                or (current is not None and entry["from_fingerprint"] != current)):
+            return False
+        if earned is None:
+            earned = entry["from_fingerprint"]
+        current = entry["to_fingerprint"]
+        if entry["kind"] == "output_equivalent":
+            earned = current
+    return not chain or earned == record.get("fingerprint")
+
+
+def prior_binding(selector: str, record: dict) -> dict:
+    """The exact pass a carry would extend."""
+    from evidence_earning import binding
+
+    fingerprint = record.get("fingerprint")
+    if (record.get("passed") is not True or not isinstance(fingerprint, str)
+            or not FINGERPRINT.fullmatch(fingerprint) or not valid_carry_chain(record)):
+        raise ValueError("no valid recorded pass or carry chain")
+    return binding("scientific", selector, fingerprint)
+
+
+def reviewed_fingerprint(checker, selector: str, record: dict, row: dict, fp: Fingerprinter) -> str:
+    from evidence_earning import declarations
+
+    bound = prior_binding(selector, record)
+    return checker.judgment_fingerprint(bound, record.get("dependency_manifest"),
+                                       context=[fp.fingerprint(row), declarations(row)])
+
+
+def verified_carry_records(root: Path, records: dict[str, dict], selectors) -> dict[str, dict]:
+    """Select only prior receipts with an authenticated digest of the current trace format."""
+    from evidence_manifests import Checker
+
+    checker = None
+    eligible = {}
+    for selector in selectors:
+        record = records.get(selector) or {}
+        output = record.get("output_digest")
+        if not isinstance(output, str) or not OUTPUT_DIGEST.fullmatch(output):
+            continue
+        try:
+            checker = checker or Checker(root)
+            receipt = checker.prior_receipt(prior_binding(selector, record), record.get("dependency_manifest"))
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if receipt.get("output_digest") == output:
+            eligible[selector] = record
+    return eligible
 
 
 def load_records(root: Path) -> dict[str, dict]:
@@ -145,6 +209,10 @@ def classify(root: Path, rows: list[dict]) -> tuple[list[dict], list[dict]]:
         info = locate(root, row)
         rec = records.get(info["selector"])
         item = {**row, "selector": info["selector"], "fingerprint": None, "manifest_reasons": ["no_manifest"]}
+        if rec and not valid_carry_chain(rec):
+            item["manifest_reasons"] = ["invalid_carry_chain"]
+            owed.append(item)
+            continue
         if rec and rec.get("passed") is True and rec.get("dependency_manifest"):
             checker = checker or Checker(root)
             status = checker.check(binding("scientific", info["selector"], rec.get("fingerprint")), rec["dependency_manifest"])
@@ -157,8 +225,15 @@ def classify(root: Path, rows: list[dict]) -> tuple[list[dict], list[dict]]:
                 continue
         chain = (rec or {}).get("carry") or []
         if chain and chain[-1]["kind"] == "judgment":
-            fp = fp or current_fingerprinter(root)
-            if fp.fingerprint(row) == chain[-1]["to_fingerprint"]:
+            try:
+                fp = fp or current_fingerprinter(root)
+                checker = checker or Checker(root)
+                reviewed = reviewed_fingerprint(checker, info["selector"], rec, row, fp)
+            except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
+                item["manifest_reasons"].append(f"judgment_owed:{error}")
+                owed.append(item)
+                continue
+            if reviewed == chain[-1]["to_fingerprint"]:
                 item.update(fingerprint=rec.get("fingerprint"), manifest_reasons=[*item["manifest_reasons"], "justified"])
                 current.append(item)
                 continue
@@ -167,30 +242,33 @@ def classify(root: Path, rows: list[dict]) -> tuple[list[dict], list[dict]]:
 
 
 def current_fingerprinter(root: Path) -> Fingerprinter:
-    """The fingerprints judgments are made against: the workspace as the scientific build sees it."""
-    return Fingerprinter(root, scientific_build=True)
+    """Conservative source closure supplementing the prior receipt when reviewing a judgment."""
+    return Fingerprinter(root, platform=False, environ={}, scientific_build=True)
 
 
 def carry_chain(old: dict | None, item: dict) -> list[dict]:
     """A new pass's chain: the old one extended when the rerun reproduced its output, else none."""
     digest = item.get("output_digest")
-    if not old or not digest or old.get("output_digest") != digest:
+    if not old or not digest or not OUTPUT_DIGEST.fullmatch(digest) or old.get("output_digest") != digest:
         return []
-    return [*(old.get("carry") or []), carry_entry("output_equivalent", old["fingerprint"], item["fingerprint"],
+    previous = carried_from(old)
+    if previous == item["fingerprint"]:
+        return old.get("carry", [])
+    return [*(old.get("carry") or []), carry_entry("output_equivalent", previous, item["fingerprint"],
                                                    "output digest unchanged", "scientific_records.py")]
 
 
 def record_passes(root: Path, items: list[dict], *, source_state: tuple[str, bool] | None = None,
                   previous: dict[str, dict] | None = None) -> int:
     """Merge passing rows, each with the dependency manifest it earned, into the ledger.
-    `previous` holds the records as they stood before the run withdrew them."""
+    `previous` holds verified carry candidates from before the run withdrew them."""
     if not items:
         return 0
     commit, dirty = source_state if source_state is not None else git_state(root)
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     records = load_records(root)  # reread: another gate may have written meanwhile
     for item in items:
-        old = (previous or {}).get(item["selector"]) or records.get(item["selector"])
+        old = (previous or {}).get(item["selector"])
         record = {
             "roles": item.get("roles") or ["scientific"],
             "commit": commit,
@@ -298,11 +376,36 @@ def trace_file(root: Path, selector: str) -> Path:
 
 
 def trace_digest(text: str, test: str) -> str | None:
-    """Digest of the results handed to libtest test `test`, in any order; `None` when it was
-    handed none, so its pass cannot be carried by output equivalence."""
-    found = sorted(fields[3] for line in text.splitlines()
-                   if len(fields := line.split("\t")) == 4 and fields[0] == "output" and fields[2] == test)
-    return hashlib.sha256("\n".join(found).encode()).hexdigest()[:16] if found else None
+    """Ordered typed answers of one test, available only when every result is represented."""
+    answers = []
+    route = None
+    binary = None
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if fields[0] not in ("route", "output", "output-v2"):
+            continue
+        # An exact-binary capture runs one test. An output from an unnamed or foreign worker
+        # belongs to an unaccounted part of that test, so no digest can describe the whole run.
+        if len(fields) < 3 or fields[2] != test or not fields[1] or binary not in (None, fields[1]):
+            return None
+        binary = fields[1]
+        if fields[0] == "route":
+            if route is not None or len(fields) < 6 or len(fields) % 2 != 0 or not fields[3]:
+                return None
+            units = list(zip(fields[4::2], fields[5::2], strict=True))
+            if units[0] == ("-", "-"):
+                units = units[1:]
+            if not units or any(kind not in TRACE_UNIT_KINDS or not ident or ident == "-" for kind, ident in units):
+                return None
+            route = fields[3:]
+            continue
+        if route is None or fields[0] != "output-v2" or len(fields) != 4 or not FINGERPRINT.fullmatch(fields[3]):
+            return None
+        answers.append((route, fields[3]))
+        route = None
+    if route is not None or not answers:
+        return None
+    return "v2:" + hashlib.sha256(json.dumps(answers, separators=(",", ":")).encode()).hexdigest()
 
 
 def output_digest(root: Path, info: dict) -> str | None:
@@ -350,7 +453,7 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *,
     One Nix derivation builds the owed targets. Each assertion then runs exactly.
     The ledger is written as each target finishes, so an interrupted run keeps what
     it finished. Returns the number of failures. `previous` (default: the ledger now)
-    holds the records whose carry chains the new passes extend."""
+    holds the records whose verified carry chains the new passes may extend."""
     root = root.resolve()
     from evidence_earning import require_compile_environment
     require_compile_environment(root)
@@ -443,7 +546,9 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     # Every build is validated and every snapshot taken before any pass is withdrawn,
     # and the ledger is rewritten once rather than once per target.
     _clean_head(root, allowed)
-    withdraw_records(root, [info for _, _, todo, _, _ in prepared for _, info in todo])
+    selections = [info for _, _, todo, _, _ in prepared for _, info in todo]
+    previous = verified_carry_records(root, previous, (info["selector"] for info in selections))
+    withdraw_records(root, selections)
     if (root / ledger).is_file():
         _remember_nix_output(root, allowed, ledger)
     # Longest first, by the last recorded wall times: targets by their slowest assertion,
@@ -475,6 +580,9 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                     if selector not in result["coverage"]:
                         continue
                     _clean_head(root, allowed)
+                    output = output_digest(root, info)
+                    if output:
+                        snapshots[selector].manifest["output_digest"] = output
                     try:
                         ref = publish_executed(snapshots[selector], built, result["coverage"][selector])
                     except RuntimeError as error:
@@ -491,7 +599,7 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                     earned.append({**row, "selector": selector,
                                    "dependency_manifest": pass_ref("scientific", selector),
                                    "fingerprint": snapshots[selector].manifest["record"]["fingerprint"],
-                                   "output_digest": output_digest(root, info)})
+                                   "output_digest": output})
                 source_commit, _ = _clean_head(root, allowed)
                 if source_commit != built["source"]["commit"]:
                     raise RuntimeError("checkout commit differs from Nix build source")
@@ -534,7 +642,9 @@ def report_status(root: Path, owed: list[dict], current: list[dict], *, check: b
             unresolved.append(str(error))
     for problem in unresolved:
         print(f"FAIL: {problem}")
-    report_carry(load_records(root))
+    records = load_records(root)
+    carried = (selector for selector, record in records.items() if record.get("carry"))
+    report_carry(records, set(verified_carry_records(root, records, carried)))
     # Evidence no record reaches is never committed: a run prunes it as it finishes.
     from evidence_manifests import unreachable_evidence
     orphans = unreachable_evidence(root)
@@ -544,41 +654,64 @@ def report_status(root: Path, owed: list[dict], current: list[dict], *, check: b
     return int(bool(unresolved) or (check and bool(owed or orphans)))
 
 
-def report_carry(records: dict[str, dict]) -> None:
+def report_carry(records: dict[str, dict], verified_outputs: set[str]) -> None:
     """Carried passes by chain length, and every record a judgment carries."""
     lengths: dict[int, int] = {}
-    for record in records.values():
-        if record.get("carry"):
-            lengths[len(record["carry"])] = lengths.get(len(record["carry"]), 0) + 1
-    if not lengths:
-        return
-    print("scientific records: carried passes by chain length: "
-          + ", ".join(f"{length}: {lengths[length]}" for length in sorted(lengths)))
+    legacy = []
+    judged = []
     for selector in sorted(records):
-        chain = records[selector].get("carry") or []
+        record = records[selector]
+        chain = record.get("carry") or []
+        if not chain or not valid_carry_chain(record):
+            continue
         if any(entry["kind"] == "judgment" for entry in chain):
-            print(f"  judged: {selector} (chain {len(chain)})")
+            judged.append((selector, len(chain)))
+        if any(entry["kind"] == "output_equivalent" for entry in chain) and selector not in verified_outputs:
+            legacy.append((selector, len(chain)))
+            continue
+        lengths[len(chain)] = lengths.get(len(chain), 0) + 1
+    if lengths:
+        print("scientific records: carried passes by chain length: "
+              + ", ".join(f"{length}: {lengths[length]}" for length in sorted(lengths)))
+    for selector, length in judged:
+        print(f"  judged: {selector} (chain {length})")
+    for selector, length in legacy:
+        print(f"  historical, unverified output equivalence: {selector} (chain {length})")
 
 
 def cmd_justify(root: Path, args: argparse.Namespace) -> int:
     """Carry flagged passes forward by a written judgment, to their current fingerprints."""
+    from evidence_manifests import Checker
+
+    if not args.reason.strip() or not args.author.strip():
+        print("FAIL: a judgment needs a reason and an author")
+        return 2
     owed, _ = classify(root, all_scientific_rows(root))
     selected = [item for item in owed if matches_only(item, args.only)]
     if not selected:
         print(f"FAIL: --only {args.only!r} matches no flagged scientific assertion")
         return 2
     records = load_records(root)
-    unrecorded = [item["selector"] for item in selected if item["selector"] not in records]
-    if unrecorded:
-        print("FAIL: no recorded pass to carry forward; run these instead:\n  " + "\n  ".join(unrecorded))
-        return 1
+    checker = Checker(root)
     fp = current_fingerprinter(root)
+    updates = {}
+    refused = []
     for item in selected:
-        record = records[item["selector"]]
+        selector = item["selector"]
+        record = records.get(selector) or {}
         row = {k: v for k, v in item.items() if k not in ("selector", "fingerprint", "manifest_reasons")}
-        entry = carry_entry("judgment", carried_from(record), fp.fingerprint(row), args.reason, args.author)
+        try:
+            reviewed = reviewed_fingerprint(checker, selector, record, row, fp)
+            updates[selector] = carry_entry("judgment", carried_from(record), reviewed, args.reason, args.author)
+        except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
+            refused.append(f"{selector}: {error}")
+    if refused:
+        print("FAIL: these assertions have no verifiable prior pass to carry:\n  " + "\n  ".join(refused))
+        return 1
+    for selector, entry in updates.items():
+        record = records[selector]
         record["carry"] = [*(record.get("carry") or []), entry]
-        print(f"  justified: {item['selector']} (chain {len(record['carry'])})")
+        print(f"  justified: {selector} (chain {len(record['carry'])})")
     write_records(root, records)
     print(f"scientific records: justified {len(selected)} pass(es)")
     return 0
@@ -663,8 +796,10 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
     carry = bool(getattr(args, "carry", False))
     candidates = (owed + current) if force_all(args) and not carry else owed
     previous = load_records(root)
-    run_items = [i for i in candidates if matches_only(i, only)
-                 and (not carry or previous.get(i["selector"], {}).get("output_digest"))]
+    run_items = [i for i in candidates if matches_only(i, only)]
+    if carry:
+        verified = verified_carry_records(root, previous, (i["selector"] for i in run_items))
+        run_items = [i for i in run_items if i["selector"] in verified]
     print(
         f"scientific records: running {len(run_items)} of {len(rows)} "
         f"({len(current) if not force_all(args) or carry else 0} carried forward"

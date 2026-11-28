@@ -779,6 +779,46 @@ class Checker:
         if cache[key] is not None:
             raise cache[key]
 
+    def prior_receipt(self, binding: dict, ref: object) -> dict:
+        """Validate a stored pass even when the checkout has moved past its inputs."""
+        manifest = self.load(ref)
+        validate(manifest, binding)
+        if manifest["analyzer"] not in ANALYZERS:
+            raise InvalidManifest("unrecognized prior analyzer policy")
+        for entry in manifest["inputs"]:
+            if entry["kind"] == "rust_items":
+                self.items.table(entry["table"])
+        return manifest
+
+    def judgment_fingerprint(self, binding: dict, ref: object, *, context=None) -> str:
+        """Bind a judgment to the original receipt and a conservative view of its inputs now."""
+        from evidence_items import guard_tree
+        from evidence_platforms import receipt_platform
+
+        manifest = self.prior_receipt(binding, ref)
+        files = {"Cargo.toml", "Cargo.lock", ".cargo/config", ".cargo/config.toml",
+                 "rust-toolchain", "rust-toolchain.toml", "tools/evidence-analyzer/pin.toml"}
+        if receipt := manifest.get("nix_build"):
+            platform = receipt_platform(receipt)
+            files.update((platform.registry, *platform.recipes, *platform.policy_sources))
+
+        current = []
+        for entry in manifest["inputs"]:
+            kind = entry["kind"]
+            key = entry.get("path", entry.get("name"))
+            if kind in ("file", "evidence_file", "build_recipe", "rust_items"):
+                files.add(key)
+            elif kind == "declarations":
+                current.append((kind, key, declarations_digest(self.root, entry["sources"])))
+            elif kind == "rust_guards":
+                current.append((kind, key, guard_tree(self, entry["dirs"])))
+            elif kind != "rust_names":
+                current.append((kind, key, self.input_digest(kind, key)))
+
+        current.extend(("file", key, self.input_digest("evidence_file", key)) for key in sorted(files))
+        address = self.pass_index[ref] if ref.startswith("pass:") else ref
+        return digest(canonical(["reviewed-evidence-inputs-v1", address, sorted(current), context]))
+
     def check(self, binding: dict, ref: object) -> dict:
         label = f"{binding['kind']}:{binding['key']}"
         result = {"record": label, "current": False, "reasons": []}
@@ -874,9 +914,11 @@ def reachable_evidence(root: Path) -> set[str]:
     """Stored evidence a record still reaches: its pass or manifest and every object they
     name. Every ledger that cites manifests counts."""
     from claim_passes import PASS_INDEX
+    from calibration_judgments import references as calibration_judgment_references
     checker = Checker(root)
     reached: set[str] = set()
-    for _, ref in inventory(root):
+    references = {ref for _, ref in inventory(root) if isinstance(ref, str)} | calibration_judgment_references(root)
+    for ref in references:
         if not isinstance(ref, str):
             continue
         try:

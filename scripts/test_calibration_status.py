@@ -6,16 +6,18 @@ from __future__ import annotations
 import io
 import json
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import calibration_probe as probe  # noqa: E402
+import calibration_judgments as judgments  # noqa: E402
 import calibration_status as status  # noqa: E402
-from evidence_earning import measurement_digest  # noqa: E402
+from evidence_earning import measurement_binding, measurement_digest, probe_binding  # noqa: E402
 from test_calibration_probe import MEASURED, PROBED, grid_entry, probe_table  # noqa: E402
 
 NOW = "a1" * 32
@@ -107,6 +109,123 @@ class ClassifyTests(unittest.TestCase):
             (counts[status.CURRENT], counts["current_by_probe"], counts[status.MEASUREMENT_OWED]),
             (2, 1, 1),
         )
+
+
+class JudgmentTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.root.joinpath("parity").mkdir()
+        self.record = record("a") | {"fingerprint": OLD, "dependency_manifest": "pass:calibration:a"}
+        self.probe = with_digests([self.record], [row("a") | {
+            "dependency_manifest": "pass:probe:a", "fingerprint": NOW,
+        }])[0]
+        self.measurement_address = "c3" * 32
+        self.probe_address = "d4" * 32
+        self.reviewed = "e5" * 32
+        self.checker = Mock()
+        self.checker.check.return_value = {"current": False}
+        self.checker.pass_index = {
+            "pass:calibration:a": self.measurement_address, "pass:probe:a": self.probe_address,
+        }
+        self.manifests = {
+            self.measurement_address: {
+                "record": measurement_binding(self.record), "nix_build": {"execution": "exact-binary"},
+            },
+            self.probe_address: {
+                "record": probe_binding(self.probe), "nix_build": {"execution": "exact-binary"},
+            },
+        }
+        self.checker.load.side_effect = self.manifests.__getitem__
+        self.checker.prior_receipt.side_effect = self.prior_receipt
+        self.checker.judgment_fingerprint.return_value = self.reviewed
+
+    def prior_receipt(self, binding, address):
+        manifest = self.manifests[address]
+        if manifest["record"] != binding:
+            raise ValueError("prior receipt does not bind this record")
+        return manifest
+
+    def carry(self, attestations):
+        anchored = judgments.new_chain(self.checker, self.record, attestations)
+        start, reviewed = judgments.review(self.checker, self.record, anchored, None, attestations)
+        anchored["chain"].append(dict(zip(judgments.CHAIN_FIELDS,
+            [start, reviewed, "Reviewed the revised implementation.", "reviewer"], strict=True)))
+        return anchored
+
+    def currency(self, attestation):
+        with (
+            patch("evidence_manifests.Checker", return_value=self.checker),
+            patch.object(status, "tree_fingerprinter", return_value=object()),
+            patch.object(status, "_same_platform", return_value=True),
+            patch.object(status, "load_attestations", return_value=attestation),
+        ):
+            now = status.tree_fingerprints([self.record], root=self.root)
+        return status.classify([self.record], attestation, now)["a"]
+
+    def test_judgment_binds_the_measured_receipt_and_remains_rooted(self):
+        with patch("evidence_fingerprint.coverage_fingerprint", return_value=NOW):
+            chain = self.carry([])
+            judgments.write(self.root, {judgments.key(chain): chain})
+            self.assertEqual(self.currency([]), status.Status(status.CURRENT, "judgment", 1))
+        self.assertEqual(judgments.references(self.root), {self.measurement_address})
+        self.checker.judgment_fingerprint.assert_called_with(
+            measurement_binding(self.record), self.measurement_address, context=[self.measurement_address, NOW],
+        )
+        self.checker.judgment_fingerprint.return_value = OLD
+        with patch("evidence_fingerprint.coverage_fingerprint", return_value=NOW):
+            self.assertEqual(self.currency([]).status, status.PROBE_OWED)
+
+    def test_bounded_probe_is_a_connected_previous_carry(self):
+        with (
+            patch("evidence_fingerprint.coverage_fingerprint", return_value=NOW),
+            patch("evidence_platforms.receipt_platform", return_value="platform"),
+        ):
+            chain = self.carry([self.probe])
+            self.assertEqual(chain["probe_receipt"], self.probe_address)
+            self.assertEqual(chain["chain"][0]["from_fingerprint"], self.probe["fingerprint"])
+            judgments.write(self.root, {judgments.key(chain): chain})
+            self.assertEqual(self.currency([self.probe]), status.Status(status.CURRENT, "judgment", 2))
+            mismatch = self.probe | {"result": "mismatch"}
+            self.assertEqual(self.currency([mismatch]).status, status.PROBE_OWED)
+            chain["chain"][0]["from_fingerprint"] = OLD
+            with self.assertRaisesRegex(ValueError, "does not begin"):
+                judgments.review(self.checker, self.record, chain, None, [])
+        self.assertEqual(judgments.references(self.root), {self.measurement_address, self.probe_address})
+
+    def test_disconnected_or_unexecuted_provenance_is_refused(self):
+        self.manifests[self.measurement_address]["nix_build"] = {}
+        with self.assertRaisesRegex(ValueError, "exact binary"):
+            judgments.new_chain(self.checker, self.record, [])
+        self.manifests[self.measurement_address]["nix_build"] = {"execution": "exact-binary"}
+        chain = judgments.new_chain(self.checker, self.record, []) | {"probe_receipt": self.probe_address}
+        self.manifests[self.probe_address]["record"]["measurement_digest"] = OLD
+        with self.assertRaisesRegex(ValueError, "exact measurement"):
+            judgments.source_binding(self.checker, self.record, chain)
+
+    def test_justify_extends_a_saved_chain_and_reports_its_length(self):
+        output = io.StringIO()
+        command = ["justify", "--record", "a", "--reason", "Reviewed.", "--author", "Reviewer"]
+        with (
+            patch.object(status, "ROOT", self.root),
+            patch.object(status, "load_records", return_value=[self.record]),
+            patch.object(status, "load_attestations", return_value=[]),
+            patch.object(status, "current_ids", return_value=[]),
+            patch.object(status, "tree_fingerprinter", return_value=object()),
+            patch("evidence_manifests.Checker", return_value=self.checker),
+            patch("evidence_fingerprint.coverage_fingerprint", return_value=NOW),
+            redirect_stdout(output),
+        ):
+            self.assertEqual(status.main(command), 0)
+            revised = "f6" * 32
+            self.checker.judgment_fingerprint.return_value = revised
+            self.assertEqual(status.main(command), 0)
+        saved, problems = judgments.load(self.root)
+        self.assertEqual(problems, [])
+        (saved_row,) = saved.values()
+        chain = saved_row["chain"]
+        self.assertEqual([item["from_fingerprint"] for item in chain], [OLD, self.reviewed])
+        self.assertEqual([item["to_fingerprint"] for item in chain], [self.reviewed, revised])
+        self.assertIn("(chain 2)", output.getvalue())
 
 
 class CommandTests(unittest.TestCase):
@@ -257,7 +376,7 @@ class UnitIndexRouteTests(unittest.TestCase):
         index = {("capability", "cap"): unit(["cov.boot"])}
         rows = self.rows([{"id": "cov.allocated"}], index)
         self.assertEqual(rows["bootstrap"]["state"], status.NOT_MEASURED)
-        self.assertEqual(rows["bootstrap"]["missing_slots"], [])
+        self.assertEqual(rows["bootstrap"]["missing_slots"], ["cov.boot"])
         records = [{"id": "cov.allocated"}, {"id": "cov.boot"}]
         self.assertEqual(self.rows(records, index)["bootstrap"]["state"], status.CALIBRATED)
         below = [records[0], records[1] | {"boundary": True}]
@@ -284,6 +403,28 @@ class UnitIndexRouteTests(unittest.TestCase):
         (row_,) = status.interval_routes(capability, [])
         self.assertEqual(row_["state"], status.UNMAPPED)
 
+    def test_a_refusal_does_not_inherit_its_capability_measurement(self):
+        capability = [{
+            **self.CAPABILITY[0],
+            "routes": [
+                *self.CAPABILITY[0]["routes"],
+                {"name": "refusal", "status": "supported", "no_interval_reason": "Refuses intervals."},
+            ],
+        }]
+        records = [{"id": "cov.linked", "boundary": True}]
+        index = {("capability", "cap"): unit(["cov.linked"])}
+        rows = {r["route"]: r for r in status.interval_routes(capability, records, index, set())}
+        self.assertEqual(rows["bootstrap"]["state"], status.MEASUREMENT_OWED)
+        self.assertEqual(rows["bootstrap"]["allocated"], 1)
+        self.assertEqual(rows["refusal"]["state"], status.NO_INTERVAL)
+        self.assertEqual(rows["refusal"]["allocated"], 0)
+
+    def test_a_current_measurement_with_a_flagged_link_is_not_calibrated(self):
+        records = [{"id": "cov.linked"}]
+        index = {("capability", "cap"): unit(["cov.linked"]) | {"calibration_current": []}}
+        rows = status.interval_routes(self.CAPABILITY, records, index, {"cov.linked"})
+        self.assertEqual({row["state"] for row in rows}, {status.MEASUREMENT_OWED})
+
     def test_the_header_counts_every_state_including_not_measured_and_unmapped(self):
         capability = [{"id": "c", "inference_claim": "interval", "routes": [{"name": "r", "status": "supported"}]}]
         out = io.StringIO()
@@ -292,6 +433,7 @@ class UnitIndexRouteTests(unittest.TestCase):
             patch.object(status.tomllib, "loads", return_value={"record": capability}),
             patch.object(status, "load_records", return_value=[]),
             patch.object(status, "load_unit_index", return_value=None),
+            patch.object(status, "current_ids", return_value=[]),
             redirect_stdout(out),
         ):
             self.assertEqual(status.main(["intervals"]), 0)
@@ -317,6 +459,10 @@ class IntervalStateTests(unittest.TestCase):
             self.state(["a", "b"], [{"id": "a", "boundary": True}, {"id": "b"}]),
             status.MEASURED_BELOW_NOMINAL,
         )
+
+    def test_a_stale_boundary_does_not_govern_a_current_record(self):
+        records = {"a": {"boundary": True}, "b": {}}
+        self.assertEqual(status.interval_state(["a", "b"], records, {"b"}), status.OUTSIDE_MEASURED_SCOPE)
 
     def test_only_supported_interval_routes_are_annotated(self):
         capability = [

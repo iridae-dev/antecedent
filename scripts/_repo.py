@@ -163,7 +163,8 @@ def scientific_target_feature_args(manifest: Path, args: list[str]) -> list[str]
 
     Unlike Cargo `required-features`, these do not change ordinary test discovery.
     The evidence fingerprint and earning build must use the same selection. Facade
-    targets also build `evidence-trace`, the output digests a run records.
+    targets also build `evidence-trace` and `development` so owed routes can run
+    while recording the refusal a public build would return.
     """
     cargo = load_toml(manifest)
     table = cargo.get("package", {}).get("metadata", {}).get("scientific-test-features", {})
@@ -182,8 +183,8 @@ def scientific_target_feature_args(manifest: Path, args: list[str]) -> list[str]
         raise ValueError(f"{manifest}: scientific target names an unknown feature")
     required = cargo_target_feature_args(manifest, args)
     features = set(selected) | (set(required[1].split(",")) if required else set())
-    if manifest.parent.name == "antecedent" and "evidence-trace" in available:
-        features.add("evidence-trace")
+    if manifest.parent.name == "antecedent":
+        features.update({"development", "evidence-trace"} & available.keys())
     return ["--features", ",".join(sorted(features))] if features else []
 
 

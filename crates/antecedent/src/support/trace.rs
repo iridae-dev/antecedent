@@ -105,21 +105,19 @@ pub(crate) fn interval_reported(unit: &UnitRef, method: &str) {
     let _ = (unit, method);
 }
 
-/// Record the observed values of a result handed to the test, `values` rendered exactly, as a
-/// digest that a bit-identical re-run reproduces (`scripts/scientific_records.py run --carry`).
+/// Record the typed answer of a result, or mark a shape without a complete digest.
 #[cfg(feature = "evidence-trace")]
-pub(crate) fn output_produced(values: &str) {
+pub(crate) fn output_produced(values: impl FnOnce() -> Option<Vec<u8>>) {
     if let Some(path) = std::env::var_os(TRACE_ENV) {
-        write_output(std::path::Path::new(&path), values);
+        write_output(std::path::Path::new(&path), values().as_deref());
     }
 }
 
 #[cfg(feature = "evidence-trace")]
-fn write_output(path: &std::path::Path, values: &str) {
-    let digest = values.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
-    });
-    write_line(path, &format!("output\t{}\t{digest:016x}", origin()));
+fn write_output(path: &std::path::Path, values: Option<&[u8]>) {
+    let digest = values
+        .map_or_else(|| "unsupported".into(), |values| blake3::hash(values).to_hex().to_string());
+    write_line(path, &format!("output-v2\t{}\t{digest}", origin()));
 }
 
 /// Declare, for a test that executes several units, a unit `kind`/`id` its assertions are
@@ -238,17 +236,19 @@ mod tests {
     fn an_output_line_is_a_digest_of_the_exact_values() {
         let path = std::env::temp_dir()
             .join(format!("antecedent-evidence-output-{}.tsv", std::process::id()));
-        write_output(&path, "0.5");
-        write_output(&path, "0.5");
-        write_output(&path, "0.50000000000000011");
+        write_output(&path, Some(b"0.5"));
+        write_output(&path, Some(b"0.5"));
+        write_output(&path, Some(b"0.50000000000000011"));
+        write_output(&path, None);
         let trace = std::fs::read_to_string(&path).expect("the trace was written");
         let _ = std::fs::remove_file(&path);
         let lines: Vec<Vec<&str>> = trace.lines().map(|line| line.split('\t').collect()).collect();
-        assert_eq!(lines[0][0], "output");
+        assert_eq!(lines[0][0], "output-v2");
         assert!(lines[0][2].ends_with("an_output_line_is_a_digest_of_the_exact_values"));
-        assert_eq!(lines[0][3].len(), 16);
+        assert_eq!(lines[0][3].len(), 64);
         assert_eq!(lines[0][3], lines[1][3]);
         assert_ne!(lines[0][3], lines[2][3]);
+        assert_eq!(lines[3][3], "unsupported");
     }
 
     #[test]

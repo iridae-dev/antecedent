@@ -115,6 +115,9 @@ DERIVED_STATUS_FIELDS: dict[str, tuple[str, ...]] = {
         "graphless[].missing_evidence",
         "capabilities[].status",
         "capabilities[].missing_evidence",
+        "constructions[].status",
+        "constructions[].missing_evidence",
+        "calibration",
     ),
     # The coverage registry stores each record's dependency fingerprint.
     "parity/coverage_records.toml": ("record[].fingerprint", "record[].dependency_manifest"),
@@ -125,6 +128,8 @@ DERIVED_STATUS_FIELDS: dict[str, tuple[str, ...]] = {
         "record[].dirty",
         "record[].recorded_at",
         "record[].dependency_manifest",
+        "record[].output_digest",
+        "record[].carry",
     ),
 }
 

@@ -313,29 +313,41 @@ class ExecutionCaptureTests(Fixture):
 class CarryForwardTests(Fixture):
     """Output digests and carry chains (ADR 0031, carrying a pass forward)."""
 
-    TRACE = ("output\tsuite\tm::name\tbbbb\n"
+    TRACE = ("route\tsuite\tm::name\tSomeRoute\tcapability\tsome.unit\n"
+             f"output-v2\tsuite\tm::name\t{'b' * 64}\n"
              "unit\tsuite\tm::name\tx\n"
-             "output\tsuite\tm::other\tcccc\n"
-             "output\tsuite\tm::name\taaaa\n")
+             "route\tsuite\tm::name\tSomeRoute\t-\t-\tcapability\trefused.unit\n"
+             f"output-v2\tsuite\tm::name\t{'a' * 64}\n")
 
-    def test_the_output_digest_is_of_the_tests_own_outputs_in_any_order(self):
+    def test_the_output_digest_preserves_only_the_current_tests_results_in_order(self):
         digest = sr.trace_digest(self.TRACE, "m::name")
-        self.assertEqual(len(digest), 16)
-        reordered = "output\tsuite\tm::name\taaaa\noutput\tsuite\tm::name\tbbbb\n"
-        self.assertEqual(sr.trace_digest(reordered, "m::name"), digest)
-        self.assertNotEqual(sr.trace_digest(self.TRACE, "m::other"), digest)
+        self.assertRegex(digest, sr.OUTPUT_DIGEST)
+        reordered = self.TRACE.replace("b" * 64, "_" * 64).replace("a" * 64, "b" * 64).replace("_" * 64, "a" * 64)
+        self.assertNotEqual(sr.trace_digest(reordered, "m::name"), digest)
+        self.assertIsNone(sr.trace_digest(self.TRACE, "m::other"))
         self.assertIsNone(sr.trace_digest(self.TRACE, "m::absent"))
         self.assertIsNone(sr.trace_digest("", "m::name"))
+
+    def test_incomplete_legacy_or_unsupported_outputs_cannot_carry(self):
+        for value in ("unsupported", "aaaa"):
+            with self.subTest(value=value):
+                self.assertIsNone(sr.trace_digest(self.TRACE.replace("a" * 64, value), "m::name"))
+        self.assertIsNone(sr.trace_digest(self.TRACE.replace("output-v2", "output"), "m::name"))
+        self.assertIsNone(sr.trace_digest(self.TRACE.rsplit("output-v2", 1)[0], "m::name"))
+        self.assertIsNone(sr.trace_digest(self.TRACE + "route\tsuite\t\tSomeRoute\t-\t-\n", "m::name"))
+        self.assertIsNone(sr.trace_digest(self.TRACE.replace("\tcapability\trefused.unit", ""), "m::name"))
+        first_route = self.TRACE.splitlines()[0]
+        self.assertIsNone(sr.trace_digest(first_route + "\n" + self.TRACE, "m::name"))
 
     def test_only_facade_targets_build_and_run_with_the_trace(self):
         import json
         import subprocess
 
         self.write("crates/antecedent/Cargo.toml", '[package]\nname = "antecedent"\nversion = "1.0.0"\n'
-                   '[features]\nevidence-trace = []\n')
+                   '[features]\ndevelopment = []\nevidence-trace = []\n')
         from _repo import scientific_target_feature_args
         facade = scientific_target_feature_args(self.root / "crates/antecedent/Cargo.toml", ["--test", "t"])
-        self.assertEqual(facade[facade.index("--features") + 1], "evidence-trace")
+        self.assertEqual(facade[facade.index("--features") + 1], "development,evidence-trace")
         self.assertEqual(scientific_target_feature_args(self.root / "crates/top/Cargo.toml", ["--test", "t"]), [])
         seen = {}
 
@@ -359,28 +371,50 @@ class CarryForwardTests(Fixture):
         self.assertEqual(sr.output_digest(self.root, info), sr.trace_digest(self.TRACE, "m::name"))
         self.assertIsNone(sr.output_digest(self.root, {**info, "crate": "top"}))
 
-    def earned(self, owed, fingerprint, digest):
-        return [{**owed, "fingerprint": fingerprint, "dependency_manifest": "d" * 64, "output_digest": digest}]
+    def earned(self, row, fingerprint, output, dependency="nix/test-recipe.nix"):
+        import evidence_manifests as em
+        from evidence_earning import binding, declarations
+
+        selector = sr.locate(self.root, row)["selector"]
+        compiler = {"release": "1.85.1", "commit": "abc"}
+        self.write("tools/evidence-analyzer/pin.toml", 'release = "1.85.1"\ncommit = "abc"\n')
+        receipt = {
+            "schema": 1, "normalization": em.NORMALIZATION, "analyzer": em.ANALYZER,
+            "record": binding("scientific", selector, fingerprint), "compiler": compiler,
+            "inputs": [{"kind": "file", "path": dependency, "role": "compile",
+                        "digest": em.Checker(self.root).input_digest("file", dependency)}],
+            "fallbacks": [], "declarations": declarations(row), "output_digest": output,
+        }
+        ref, _, _ = em.store_manifest(self.root, receipt)
+        return [{**row, "selector": selector, "fingerprint": fingerprint, "dependency_manifest": ref,
+                 "output_digest": output}]
 
     def test_an_equal_output_digest_extends_the_chain_and_a_different_one_resets_it(self):
-        owed, _ = sr.classify(self.root, [self.row("leaf")])
+        row = self.row("leaf")
+        owed, _ = sr.classify(self.root, [row])
         selector = owed[0]["selector"]
-        sr.record_passes(self.root, self.earned(owed[0], "f1", "aaaa"))
+        output = "v2:" + "a" * 64
+        f1, f2, f3, f4 = (part * 64 for part in "1234")
+        self.write("nix/test-recipe.nix", "{ value = 1; }\n")
+        sr.record_passes(self.root, self.earned(row, f1, output))
         self.assertNotIn("carry", sr.load_records(self.root)[selector])
-        for fingerprint in ("f2", "f3"):
-            previous = sr.load_records(self.root)
+        for fingerprint in (f2, f3):
+            previous = sr.verified_carry_records(self.root, sr.load_records(self.root), [selector])
             sr.withdraw_records(self.root, owed)
-            sr.record_passes(self.root, self.earned(owed[0], fingerprint, "aaaa"), previous=previous)
+            sr.record_passes(self.root, self.earned(row, fingerprint, output), previous=previous)
         record = sr.load_records(self.root)[selector]
-        self.assertEqual(record["output_digest"], "aaaa")
+        self.assertEqual(record["output_digest"], output)
         self.assertEqual([(e["kind"], e["from_fingerprint"], e["to_fingerprint"]) for e in record["carry"]],
-                         [("output_equivalent", "f1", "f2"), ("output_equivalent", "f2", "f3")])
+                         [("output_equivalent", f1, f2), ("output_equivalent", f2, f3)])
         self.assertEqual(record["carry"][0]["reason"], "output digest unchanged")
-        previous = sr.load_records(self.root)
+        previous = sr.verified_carry_records(self.root, sr.load_records(self.root), [selector])
+        self.assertEqual(list(previous), [selector])
+        self.assertEqual(sr.verified_carry_records(self.root, {selector: {**record, "output_digest":
+                         "v2:" + "b" * 64}}, [selector]), {})
         sr.withdraw_records(self.root, owed)
-        sr.record_passes(self.root, self.earned(owed[0], "f4", "bbbb"), previous=previous)
+        sr.record_passes(self.root, self.earned(row, f4, "v2:" + "b" * 64), previous=previous)
         self.assertNotIn("carry", sr.load_records(self.root)[selector])
-        sr.record_passes(self.root, self.earned(owed[0], "f5", None))
+        sr.record_passes(self.root, self.earned(row, "5" * 64, None))
         self.assertNotIn("output_digest", sr.load_records(self.root)[selector])
 
     def test_a_judgment_is_current_only_while_the_fingerprint_matches(self):
@@ -388,29 +422,41 @@ class CarryForwardTests(Fixture):
         from unittest import mock
 
         rows = [self.row("leaf"), self.row("top")]
-        owed, _ = sr.classify(self.root, rows)
-        sr.record_passes(self.root, self.earned(owed[0], "f1", "aaaa"))
-        args = SimpleNamespace(only=["leaf", "top"], reason="docs only", author="charles")
+        selector = sr.locate(self.root, rows[0])["selector"]
+        f1 = "1" * 64
+        output = "v2:" + "a" * 64
+        self.write("nix/test-recipe.nix", "{ value = 1; }\n")
+        sr.record_passes(self.root, self.earned(rows[0], f1, output))
+        self.assertEqual([c["selector"] for c in sr.classify(self.root, rows)[1]], [selector])
+        self.write("nix/test-recipe.nix", "{ value = 2; }\n")
+        args = SimpleNamespace(only=["leaf", "top"], reason="reviewed recipe change", author="Reviewer")
         def fingerprinter(root):
             return sr.Fingerprinter(root, self.metadata, "", scientific_build=True)
 
         with mock.patch.object(sr, "all_scientific_rows", lambda root: rows), \
                 mock.patch.object(sr, "current_fingerprinter", fingerprinter):
             self.assertEqual(sr.cmd_justify(self.root, args), 1, "top has no pass to carry")
-            self.assertNotIn("carry", sr.load_records(self.root)[owed[0]["selector"]])
+            self.assertNotIn("carry", sr.load_records(self.root)[selector])
             self.assertEqual(sr.cmd_justify(self.root, SimpleNamespace(**{**vars(args), "only": ["leaf"]})), 0)
-            [entry] = sr.load_records(self.root)[owed[0]["selector"]]["carry"]
+            [entry] = sr.load_records(self.root)[selector]["carry"]
             self.assertEqual((entry["kind"], entry["from_fingerprint"], entry["reason"], entry["author"]),
-                             ("judgment", "f1", "docs only", "charles"))
+                             ("judgment", f1, "reviewed recipe change", "Reviewer"))
             _, current = sr.classify(self.root, rows)
-            self.assertEqual([c["selector"] for c in current], [owed[0]["selector"]])
+            self.assertEqual([c["selector"] for c in current], [selector])
             self.assertEqual(current[0]["manifest_reasons"][-1], "justified")
-            self.write("crates/leaf/src/lib.rs", "pub fn leaf() -> u8 { 2 }\n")
+            self.write("nix/test-recipe.nix", "{ value = 3; }\n")
             self.assertEqual(sr.classify(self.root, rows)[1], [])
             self.assertEqual(sr.cmd_justify(self.root, SimpleNamespace(**{**vars(args), "only": ["leaf"]})), 0)
-            chain = sr.load_records(self.root)[owed[0]["selector"]]["carry"]
+            chain = sr.load_records(self.root)[selector]["carry"]
             self.assertEqual(chain[1]["from_fingerprint"], chain[0]["to_fingerprint"])
             self.assertEqual(len(sr.classify(self.root, rows)[1]), 1)
+            previous = sr.verified_carry_records(self.root, sr.load_records(self.root), [selector])
+            sr.record_passes(self.root, self.earned(rows[0], "2" * 64, output), previous=previous)
+            carried = sr.load_records(self.root)[selector]
+            self.assertTrue(sr.valid_carry_chain(carried))
+            self.assertEqual(carried["carry"][-1]["from_fingerprint"], chain[-1]["to_fingerprint"])
+            sr.write_records(self.root, {selector: {**carried, "dependency_manifest": "d" * 64}})
+            self.assertEqual(sr.cmd_justify(self.root, SimpleNamespace(**{**vars(args), "only": ["leaf"]})), 1)
 
     def test_records_round_trip_and_rows_without_carry_render_as_before(self):
         records = {
@@ -446,14 +492,19 @@ class CarryForwardTests(Fixture):
         import contextlib
         import io
 
-        entry = sr.carry_entry("output_equivalent", "a", "b", "output digest unchanged", "s")
-        judged = sr.carry_entry("judgment", "b", "c", "why", "charles")
+        entry = sr.carry_entry("output_equivalent", "a" * 64, "b" * 64, "output digest unchanged", "s")
+        judged = sr.carry_entry("judgment", "b" * 64, "c" * 64, "why", "charles")
+        output = "v2:" + "a" * 64
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            sr.report_carry({"x": {"carry": [entry]}, "y": {"carry": [entry, judged]}, "z": {}})
+            sr.report_carry({"x": {"carry": [entry], "fingerprint": "b" * 64, "output_digest": output},
+                             "y": {"carry": [entry, judged], "fingerprint": "b" * 64, "output_digest": output},
+                             "old": {"carry": [entry], "fingerprint": "b" * 64, "output_digest": "abcd"},
+                             "z": {}}, {"x", "y"})
         self.assertIn("carried passes by chain length: 1: 1, 2: 1", out.getvalue())
         self.assertIn("judged: y (chain 2)", out.getvalue())
         self.assertNotIn("judged: x", out.getvalue())
+        self.assertIn("historical, unverified output equivalence: old (chain 1)", out.getvalue())
 
 
 class OneScientificEntryPoint(unittest.TestCase):
@@ -566,4 +617,5 @@ class ExactTestNameTests(unittest.TestCase):
             return SimpleNamespace(returncode=0, stdout="\nrunning 0 tests\n\ntest result: ok. 0 passed\n", stderr="")
         info = {"selector": "c::lib::m::t", "crate": "c", "libtest": "m::t"}
         with self.assertRaises(sr.SelectorError):
-            sr.capture_one(Path("/tmp"), "/bin/test", info, {}, run)
+            sr.capture_one(Path("/tmp"), "/bin/test", info, {}, run,
+                           llvm_tools={"llvm-profdata": "llvm-profdata", "llvm-cov": "llvm-cov"})

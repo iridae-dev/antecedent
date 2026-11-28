@@ -516,6 +516,8 @@ class CycleGuardTests(_InputCase):
         self.unit = {
             "graphless": [{"id": "g", "status": "unsupported", "missing_evidence": ["x"]}],
             "capabilities": [{"id": "c", "status": "unsupported", "missing_evidence": ["y"]}],
+            "constructions": [{"id": "k", "status": "unsupported", "missing_evidence": ["z"]}],
+            "calibration": {"graphless:g": "calibrated"},
         }
         self.write_json()
         self.write(
@@ -535,9 +537,10 @@ class CycleGuardTests(_InputCase):
         self.coverage["attesting_record_ids"] = []
         self.support["supported"][0]["status"] = "supported"
         self.support["supported"][0]["missing_evidence"] = []
-        for array in ("graphless", "capabilities"):
+        for array in ("graphless", "capabilities", "constructions"):
             self.unit[array][0]["status"] = "supported"
             self.unit[array][0]["missing_evidence"] = []
+        self.unit["calibration"]["graphless:g"] = "flagged"
         self.write_json()
         self.assertEqual(before, self.closure_fp())
 

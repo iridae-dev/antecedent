@@ -10,6 +10,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod bindings;
+#[cfg(feature = "evidence-trace")]
+mod evidence;
 mod missing_data;
 mod structural;
 mod uncertainty;
@@ -1476,24 +1478,20 @@ impl StudyResult {
         if self.support_status.is_none() && self.extras.unit.is_none() {
             self.decide_route_unit(program.route(), ctx)?;
         }
-        let returned =
-            self.extras.unit.as_ref().filter(|_| {
-                self.support_status() != Some(crate::support::CellStatus::NotSupported)
-            });
-        crate::support::trace_route(program.route(), returned);
+        Ok(())
+    }
+
+    /// Record the unit and answer once this execution is ready to return it.
+    pub(crate) fn trace_publication(&self, route: &str) {
+        let returned = self.extras.unit.as_ref();
+        crate::support::trace_route(route, returned);
         #[cfg(feature = "evidence-trace")]
-        crate::support::trace_output(&format!(
-            "{:016x}{:?}{:?}",
-            self.effect().to_bits(),
-            self.estimate.as_effect().map(|estimate| estimate.uncertainty),
-            self.extras.interval,
-        ));
+        crate::support::trace_output(|| self.evidence_output(route));
         if let Some(unit) = returned {
             let method =
                 self.extras.interval.as_ref().map_or("none", |binding| binding.method.as_str());
             crate::support::trace_interval(unit, method);
         }
-        Ok(())
     }
 
     /// Decide the unit of a result whose execution decided none: the capability unit its
