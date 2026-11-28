@@ -227,6 +227,9 @@ fn run_policy(
 
 #[test]
 fn binary_net_value_route_is_unbiased_over_every_bernoulli_assignment() {
+    // Inert. A change here flags this pass. The values below do not depend on it,
+    // so a rerun can carry the recorded output digest.
+    let _carry_probe = 0u8;
     // Four units, potential outcomes (Y(0), Y(1)), known probability one half, a fixed policy
     // and reference, and a treatment cost of one quarter for both.
     let potential = [(1.0, 2.0), (3.0, 3.5), (0.5, 2.5), (2.0, 1.0)];
