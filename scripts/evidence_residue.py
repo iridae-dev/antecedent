@@ -131,7 +131,7 @@ def resolution_problems(resolutions: list[dict], items: dict[tuple[str, str], di
     return problems
 
 
-REACHED = ("executed", "cited", "declared")
+REACHED = ("executed", "returned", "cited", "declared")
 
 
 def reached_units(entry: dict) -> list[tuple[str, str]]:

@@ -40,14 +40,21 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import functools
+import fcntl
 import json
 import os
 import re
 import subprocess
 import sys
 import time
+import tempfile
+from collections import defaultdict
+from contextlib import contextmanager
 import tomllib
 from pathlib import Path
+
+from evidence_trace_receipts import TraceInputs, digest, observations
+from _repo import test_target
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -90,7 +97,7 @@ def crate_targets(crate: str) -> dict[str, str]:
     prefix = "" if crate == FACADE else f"{crate}/"
     out = {f"{prefix}{t['name']}": f"crates/{crate}/" + t.get("path", f"tests/{t['name']}.rs")
            for t in cargo.get("test", [])}
-    if prefix:
+    if (ROOT / "crates" / crate / "src/lib.rs").is_file():
         out[f"{prefix}lib"] = f"crates/{crate}/src"
     return out
 
@@ -115,7 +122,7 @@ def target_features(target: str) -> tuple[str, ...]:
     if crate != FACADE:
         features |= workspace_features(crate)
     # Below the facade a test reaches no support decision; its records declare their units.
-    return tuple(sorted(features | ({TRACE_FEATURE} if crate == FACADE else set())))
+    return tuple(sorted(features | ({TRACE_FEATURE, "development"} if crate == FACADE else set())))
 
 
 @functools.cache
@@ -140,8 +147,7 @@ def workspace_features(crate: str) -> frozenset[str]:
 def below_facade_targets() -> dict[str, str]:
     """Source path -> target, for the crates below the facade that hold a coverage record's test:
     their records name the units they measure, which no trace observes."""
-    coverage = tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))
-    crates = {path.split("/")[1] for r in coverage.get("record", [])
+    crates = {path.split("/")[1] for r in registry("coverage_records")
               if (path := str(r.get("test", ""))).startswith("crates/") and path.split("/")[1] != FACADE}
     out: dict[str, str] = {}
     for crate in sorted(crates):
@@ -159,25 +165,19 @@ def target_of(path: str, below: dict[str, str]) -> str | None:
         return below[path]
     parts = path.split("/")
     if len(parts) > 3 and parts[2] == "src":
-        return below.get("/".join(parts[:3]))
+        return {**below, **facade}.get("/".join(parts[:3]))
+    if len(parts) > 3 and parts[2] == "tests":
+        crate = parts[1]
+        name, _ = test_target(crate, parts[3].removesuffix(".rs"), ROOT)
+        target = name if crate == FACADE else f"{crate}/{name}"
+        if target in crate_targets(crate):
+            return target
     return None
 
 
 def wanted_targets() -> list[str]:
     """The facade targets holding a recorded scientific pass or a coverage record's test."""
-    wanted: set[str] = set()
-    science = tomllib.loads((ROOT / "parity/scientific_records.toml").read_text(encoding="utf-8"))
-    for record in science.get("record", []):
-        crate, binary, _ = str(record["test"]).split("::", 2)
-        if crate == FACADE:
-            wanted.add(binary)
-    coverage = tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))
-    below = below_facade_targets()
-    for record in coverage.get("record", []):
-        name = target_of(str(record.get("test", "")).split("::", 1)[0], below)
-        if name:
-            wanted.add(name)
-    return sorted(wanted)
+    return sorted(selectors_by_target())
 
 
 def batches(targets: list[str], size: int) -> list[tuple[tuple[str, tuple[str, ...]], list[str]]]:
@@ -200,7 +200,7 @@ def build(group: tuple[str, tuple[str, ...]], members: list[str]) -> dict[str, s
         command = ["cargo", "test", "--no-run", "--no-fail-fast", "--message-format=json-render-diagnostics",
                    *PROFILE, "-p", crate, *(["--features", ",".join(features)] if features else []), *selection]
         print(f"evidence links: building {len(members)} {crate} target(s) with {','.join(features)}", flush=True)
-        done = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=False)
+        done = subprocess.run(command, cwd=ROOT, env=clean_env(), capture_output=True, text=True, check=False)
         if done.returncode != 0:
             errors = [line for line in done.stderr.splitlines() if line.startswith("error")]
             print("\n".join(errors[:40]) or done.stderr[-4000:], file=sys.stderr)
@@ -231,12 +231,38 @@ def trace_stem(target: str) -> str:
 
 
 @functools.cache
-def record_leaves() -> frozenset[str]:
-    """The function names of the tests behind recorded passes and coverage records."""
-    science = tomllib.loads((ROOT / "parity/scientific_records.toml").read_text(encoding="utf-8"))
-    coverage = tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))
-    return frozenset({str(r["test"]).rsplit("::", 1)[-1] for r in science.get("record", [])}
-                     | {str(r.get("test", "")).rsplit("::", 1)[-1] for r in coverage.get("record", [])})
+def selectors_by_target() -> dict[str, set[str]]:
+    """Tests whose ignored flag must be overridden, scoped to their Cargo target."""
+    out: dict[str, set[str]] = defaultdict(set)
+    for row in registry("scientific_records"):
+        crate, binary, path = selector_parts(row["test"])
+        if crate == FACADE:
+            out[binary].add(path.rsplit("::", 1)[-1])
+    for row in registry("coverage_records"):
+        target, path = coverage_test(row["test"])
+        if target is not None:
+            out[target].add(path.rsplit("::", 1)[-1])
+    return out
+
+
+def clean_env() -> dict[str, str]:
+    """Run the fixed trace profile independently of a caller's evidence/measurement mode."""
+    from compile_time_environment import noncanonical_compile_environment
+    env = {k: v for k, v in os.environ.items() if not k.startswith("ANTECEDENT_") and k not in ("PYTHONPATH", "PYTHONDONTWRITEBYTECODE")}
+    overrides = noncanonical_compile_environment(ROOT, env)
+    overrides += [name for name in ("RUSTFLAGS", "RUSTC", "CARGO_ENCODED_RUSTFLAGS", "CARGO_BUILD_TARGET", "RUSTC_BOOTSTRAP") if env.get(name)]
+    if overrides:
+        raise ValueError("trace build has noncanonical compiler settings: " + ", ".join(overrides))
+    return {**env, **RUN_ENV}
+
+
+def source_key(target: str, inputs: TraceInputs) -> str:
+    crate = crate_of(target)
+    path = ROOT / crate_targets(crate)[target]
+    if path.is_dir():
+        path = path / "lib.rs"
+    return inputs.target_key(crate, path, target_features(target),
+                             sorted(selectors_by_target().get(target, ())), PROFILE, RUN_ENV)
 
 
 def run_one(target: str, executable: str, timeout: int = TIMEOUT_SECONDS) -> dict:
@@ -254,10 +280,10 @@ def run_one(target: str, executable: str, timeout: int = TIMEOUT_SECONDS) -> dic
     # An ignored test no record names (a regeneration helper, a manual measurement) links
     # nothing and may need setup a trace run does not give it.
     skips = [arg for line in ignored.stdout.splitlines() if line.endswith(": test")
-             for name in [line.rsplit(": ", 1)[0]] if name.rsplit("::", 1)[-1] not in record_leaves()
+             for name in [line.rsplit(": ", 1)[0]] if name.rsplit("::", 1)[-1] not in selectors_by_target().get(target, ())
              for arg in ("--skip", name)]
     listed_names = [name for name in listed_names if name not in skips]
-    env = {**os.environ, "ANTECEDENT_EVIDENCE_TRACE": str(trace), **RUN_ENV}
+    env = {**clean_env(), "ANTECEDENT_EVIDENCE_TRACE": str(trace)}
     started = time.monotonic()
     # A binary that outlives the timeout continues with the tests it did not finish, by exact
     # name, appending to the same trace; it stops once a round finishes none of them.
@@ -269,7 +295,8 @@ def run_one(target: str, executable: str, timeout: int = TIMEOUT_SECONDS) -> dic
             done = subprocess.run([executable, "--include-ignored", "--exact", *filters, *skips],
                                   cwd=ROOT / "crates" / crate_of(target), env=env,
                                   capture_output=True, text=True, timeout=timeout, check=False)
-            status = "ok" if done.returncode == 0 else "failed"
+            passed.update(re.findall(r"^test (\S+) \.\.\. ok$", done.stdout, re.M))
+            status = "ok" if done.returncode == 0 and passed == set(listed_names) else "failed"
             failed_set |= set(FAILED_TEST.findall(done.stdout))
             if status == "failed":
                 trace.with_suffix(".failures.txt").write_text(
@@ -292,102 +319,73 @@ def run_one(target: str, executable: str, timeout: int = TIMEOUT_SECONDS) -> dic
             passed |= finished
             filters = sorted(remaining)
             print(f"  {target}: timeout, continuing with {len(filters)} test(s)", flush=True)
+    if status == "ok":
+        return {"status": status, **observations(trace, binary_of(target), passed)}
     return {"status": status, "seconds": round(time.monotonic() - started, 1), "failed_tests": sorted(failed_set)}
 
 
-def cmd_run(args: argparse.Namespace) -> int:
-    """Build, run and delete one batch at a time, so the run never holds more than one batch
-    of test executables on disk. A target that already ran ok is skipped unless --again."""
+def atomic_json(path: Path, value: dict) -> None:
+    with tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False, encoding="utf-8") as tmp:
+        tmp.write(render(value))
+    os.replace(tmp.name, path)
+
+
+@contextmanager
+def trace_lock():
     TRACES.mkdir(parents=True, exist_ok=True)
-    runs_path = TRACES / "runs.json"
-    runs = json.loads(runs_path.read_text()) if runs_path.is_file() else {}
-    targets = args.only or wanted_targets()
+    with (TRACES / ".capture.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def receipt_path(target: str) -> Path:
+    return TRACES / f"{trace_stem(target)}.receipt.json"
+
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    with trace_lock():
+        return capture(args)
+
+
+def capture(args: argparse.Namespace) -> int:
+    targets = sorted(set(args.only or wanted_targets()))
+    known = set(wanted_targets())
+    if unknown := set(targets) - known:
+        raise ValueError(f"unknown evidence targets: {sorted(unknown)}")
+    inputs = TraceInputs(ROOT)
+    keys = {t: source_key(t, inputs) for t in targets}
     if not args.again:
-        targets = [t for t in targets if runs.get(t, {}).get("status") != "ok"]
+        committed = load_json(OUT).get("receipts", {})
+        targets = [t for t in targets if not current_receipt(
+            load_json(receipt_path(t)) or committed.get(t, {}), keys[t])]
+    failures = 0
     for group, members in batches(targets, args.batch):
         executables = build(group, members)
-        for target in sorted(set(members) - set(executables)):
-            runs[target] = {"status": "build_failed", "seconds": 0}
-            print(f"  {target}: build_failed", flush=True)
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-            futures = {pool.submit(run_one, t, executables[t], args.timeout): t for t in members if t in executables}
+            futures = {pool.submit(run_one, t, binary, args.timeout): t for t, binary in executables.items()}
+            results = {t: {"status": "build_failed"} for t in set(members) - set(executables)}
             for future in concurrent.futures.as_completed(futures):
                 target = futures[future]
-                runs[target] = future.result()
+                results[target] = future.result()
                 Path(executables[target]).unlink(missing_ok=True)
-                print(f"  {target}: {runs[target]['status']} in {runs[target]['seconds']}s", flush=True)
-                write_runs(runs_path, {t: runs[t] for t in targets if t in runs})
-        write_runs(runs_path, {t: runs[t] for t in targets if t in runs})
-    runs = json.loads(runs_path.read_text())
-    failed = sorted(t for t, r in runs.items() if r["status"] != "ok")
-    if failed:
-        print(f"evidence links: {len(failed)} target(s) not ok: {', '.join(failed)}", file=sys.stderr)
-    return 1 if failed else 0
+            inputs.check_unchanged()
+            for target, result in results.items():
+                receipt = {"inputs": keys[target], **result}
+                receipt["digest"] = digest(receipt)
+                atomic_json(receipt_path(target), receipt)
+                failures += result["status"] != "ok"
+                print(f"  {target}: {result['status']}", flush=True)
+    return int(bool(failures))
 
 
-def write_runs(path: Path, mine: dict) -> None:
-    """Merge this run's targets into the file as it is now: a concurrent run owns the rest."""
-    current = json.loads(path.read_text()) if path.is_file() else {}
-    path.write_text(json.dumps({**current, **mine}, sort_keys=True, indent=1) + "\n")
-
-
-def failed_tests() -> set[tuple[str, str]]:
-    """(binary, test) of every test that failed or did not finish: it links nothing."""
-    runs_path = TRACES / "runs.json"
-    runs = json.loads(runs_path.read_text()) if runs_path.is_file() else {}
-    return {(binary_of(target), test)
-            for target, run in runs.items() for test in run.get("failed_tests", [])}
-
-
-def listed_tests() -> dict[str, set[str]]:
-    """Binary -> the tests its executable lists."""
-    return {binary_of(path.stem): set(path.read_text(encoding="utf-8").split())
-            for path in TRACES.glob("*.tests")}
-
-
-def read_traces() -> tuple[dict, dict, dict, dict, dict, dict, list[str]]:
-    """(binary, test) -> {unit: supported?}, record id -> units, (binary, test) -> declared units,
-    compiled route -> the units its results carried or were decided under, and (binary, test) ->
-    the units of the results the test was handed. Lines written by a test that failed are
-    dropped."""
-    executed: dict[tuple[str, str], dict[str, bool]] = {}
-    records: dict[str, set[str]] = {}
-    declared: dict[tuple[str, str], set[str]] = {}
-    routes: dict[str, set[str]] = {}
-    returned: dict[tuple[str, str], set[str]] = {}
-    intervals: dict[str, set[str]] = {}
-    failed = failed_tests()
-    listed = listed_tests()
-    unattributed: dict[str, int] = {}
-    for trace in sorted(TRACES.glob("*.tsv")):
-        for line in trace.read_text(encoding="utf-8", errors="replace").splitlines():
-            fields = line.split("\t")
-            if len(fields) > 2 and (fields[1], fields[2]) in failed:
-                continue
-            if len(fields) > 2 and fields[1] in listed and fields[2] not in listed[fields[1]]:
-                unattributed[fields[1]] = unattributed.get(fields[1], 0) + 1
-                continue
-            if fields[0] == "unit" and len(fields) == 6:
-                _, binary, test, kind, ident, status = fields
-                units = executed.setdefault((binary, test), {})
-                unit = f"{kind}\t{ident}"
-                units[unit] = units.get(unit, False) or status == "supported"
-            elif fields[0] == "record" and len(fields) >= 4:
-                pairs = fields[4:]
-                records.setdefault(fields[3], set()).update(
-                    f"{pairs[i]}\t{pairs[i + 1]}" for i in range(0, len(pairs) - 1, 2))
-            elif fields[0] == "interval" and len(fields) == 6:
-                intervals.setdefault(f"{fields[3]}\t{fields[4]}", set()).add(fields[5])
-            elif fields[0] == "declare" and len(fields) == 5:
-                declared.setdefault((fields[1], fields[2]), set()).add(f"{fields[3]}\t{fields[4]}")
-            elif fields[0] == "route" and len(fields) >= 6 and len(fields) % 2 == 0:
-                pairs = [f"{fields[i]}\t{fields[i + 1]}" for i in range(4, len(fields), 2)]
-                routes.setdefault(fields[3], set()).update(u for u in pairs if u != NO_UNIT)
-                if pairs[0] != NO_UNIT:
-                    returned.setdefault((fields[1], fields[2]), set()).add(pairs[0])
-    problems = [f"{binary}: {n} trace line(s) name no test the binary lists; spawn test threads "
-                "with antecedent::support::caller_thread()" for binary, n in sorted(unattributed.items())]
-    return executed, records, declared, routes, returned, intervals, problems
+def current_receipt(receipt: dict, source: str) -> bool:
+    return (receipt.get("status") == "ok" and receipt.get("inputs") == source
+            and isinstance(receipt.get("tests"), dict) and bool(receipt["tests"])
+            and receipt.get("digest") == digest({k: v for k, v in receipt.items() if k != "digest"}))
 
 
 def test_matches(selector_path: str, test: str) -> bool:
@@ -421,12 +419,6 @@ def cited_units() -> dict[str, set[str]]:
     return cited
 
 
-def check_selector(check: str, selectors: dict[str, list[str]]) -> list[str]:
-    import evidence_baseline as eb
-
-    return eb.recorded_passes(check, selectors)
-
-
 def claimable_units() -> set[str]:
     """`<kind>\t<id>` of every unit a record may name: a claim source that is not an alias."""
     import evidence_residue as er
@@ -435,140 +427,230 @@ def claimable_units() -> set[str]:
             if not er.is_alias((kind, ident), row)}
 
 
-def build_links() -> tuple[dict, list[str]]:
-    executed, record_units, declared, route_units, returned, intervals, problems = read_traces()
-    runs_path = TRACES / "runs.json"
-    runs = json.loads(runs_path.read_text()) if runs_path.is_file() else {}
+@functools.cache
+def registry(name: str) -> list[dict]:
+    return tomllib.loads((ROOT / "parity" / f"{name}.toml").read_text(encoding="utf-8")).get("record", [])
 
-    def tests_of(binary: str, path: str) -> list[tuple[str, str]]:
-        return [key for key in set(executed) | set(declared)
-                if key[0] == binary and test_matches(path, key[1])]
 
-    def linked(keys: list[tuple[str, str]], what: str) -> dict[str, set[str]]:
-        """`executed` and `refused` units, and the `returned` ones the test's results carried."""
-        units: dict[str, bool] = {}
-        for key in keys:
-            for unit, supported in executed.get(key, {}).items():
-                units[unit] = units.get(unit, False) or supported
-        chosen = set().union(*(declared.get(key, set()) for key in keys)) if keys else set()
-        if chosen:
-            for unit in sorted(chosen - set(units)):
-                problems.append(f"{what}: declares {unit.replace(chr(9), ' ')}, which it did not execute")
-            units = {u: s for u, s in units.items() if u in chosen}
-        handed = set().union(*(returned.get(key, set()) for key in keys)) if keys else set()
-        return {"executed": {u for u, s in units.items() if s},
-                "refused": {u for u, s in units.items() if not s},
-                "returned": handed & set(units),
-                "declared": chosen & {u for u, s in units.items() if s}}
+def selector_parts(selector: str) -> tuple[str, str, str]:
+    # Python selectors have no Cargo crate or target.
+    parts = selector.split("::", 2)
+    return tuple(parts) if len(parts) == 3 and not parts[0].endswith(".py") else ("", "", selector)
 
-    science = tomllib.loads((ROOT / "parity/scientific_records.toml").read_text(encoding="utf-8"))
-    by_leaf: dict[str, list[str]] = {}
-    for record in science.get("record", []):
-        by_leaf.setdefault(str(record["test"]).rsplit("::", 1)[-1], []).append(str(record["test"]))
-    cited: dict[str, set[str]] = {}
+
+@functools.cache
+def coverage_test(spec: str) -> tuple[str | None, str]:
+    from evidence_fingerprint import lib_module
+
+    path, _, function = spec.partition("::")
+    target = target_of(path, below_facade_targets())
+    parts = path.split("/")
+    prefix = ""
+    if target is not None and len(parts) > 3:
+        if parts[2] == "src":
+            prefix = lib_module(path)
+        elif path not in facade_paths() and path not in below_facade_targets():
+            _, prefix = test_target(parts[1], parts[3].removesuffix(".rs"), ROOT)
+    return target, prefix + function
+
+
+class TestIndex:
+    """Index by Cargo target and libtest leaf once for the entire registry join."""
+
+    def __init__(self, receipts: dict):
+        self.by_name: dict[tuple[str, str], list[tuple[str, dict]]] = defaultdict(list)
+        for target, receipt in receipts.items():
+            for name, facts in receipt["tests"].items():
+                self.by_name[target, name.rsplit("::", 1)[-1]].append((name, facts))
+
+    def match(self, target: str | None, path: str) -> list[dict]:
+        return [facts for name, facts in self.by_name.get((target, path.rsplit("::", 1)[-1]), [])
+                if test_matches(path, name)]
+
+
+def linked(facts: dict) -> dict[str, set[str]]:
+    executed = set(facts.get("executed", ()))
+    refused = set(facts.get("refused", ())) - executed
+    chosen = set(facts.get("declared", ()))
+    if missing := chosen - (executed | refused):
+        raise ValueError(f"asserts about units it never executed: {sorted(missing)}")
+    return {
+        "executed": executed & chosen if chosen else executed,
+        "refused": refused & chosen if chosen else refused,
+        "declared": chosen & executed,
+        "returned": set(facts.get("returned", ())) & (executed | refused),
+    }
+
+
+def record_link(facts: dict, rid: str, claimable: set[str]) -> tuple[dict, bool]:
+    """A particular tally in a completed test must have emitted this very record."""
+    emissions = facts.get("records", {})
+    if rid not in emissions:
+        return {}, False
+    entry = linked(facts)
+    measured = set(emissions[rid])
+    executed, refused = set(facts.get("executed", ())), set(facts.get("refused", ()))
+    entry["returned"] &= executed
+    if measured:
+        if executed or refused:
+            if missing := measured - (executed | refused):
+                raise ValueError(f"tally names units its test did not execute: {sorted(missing)}")
+            chosen = set(facts.get("declared", ()))
+            if chosen and not measured <= chosen:
+                raise ValueError("the tally's measured unit conflicts with its assertion")
+            # A tally bound directly to an identified result is authoritative for that record.
+            entry = {"executed": measured & executed, "declared": measured & executed,
+                     "refused": measured - executed}
+        else:
+            if unknown := measured - claimable:
+                raise ValueError(f"tally names unknown evidence units: {sorted(unknown)}")
+            entry = {"declared": measured}
+    return entry, not executed and not entry.get("declared") and not facts.get("declared")
+
+
+def project(receipts: dict) -> tuple[dict, list[str]]:
+    """Deterministically join verified target observations to the current ledger selectors."""
+    import evidence_fingerprint as ef
+    tests = TestIndex(receipts)
+    problems = []
+    science = {row["test"] for row in registry("scientific_records") if row.get("passed") is True}
+    cited: dict[str, set[str]] = defaultdict(set)
     for check, units in cited_units().items():
-        for selector in check_selector(check, by_leaf):
-            cited.setdefault(selector, set()).update(units)
+        path, _, name = check.partition("::")
+        try:
+            selector = ef.locate(ROOT, {"evidence_test": path, "evidence_assertion": name})["selector"]
+        except (OSError, ValueError, KeyError):
+            continue
+        if selector in science:
+            cited[selector].update(units)
 
-    passes: dict[str, dict[str, set[str]]] = {}
-    for record in science.get("record", []):
-        selector = str(record["test"])
-        crate, binary, path = selector.split("::", 2)
-        entry: dict[str, set[str]] = {}
-        if crate == FACADE and binary in runs:
-            entry = linked(tests_of(binary_of(binary), path), selector)
-        # A citation stands in for a link only where the test reaches no support decision.
-        if selector in cited and not entry.get("executed") and not entry.get("refused"):
+    passes, records = {}, {}
+    for selector in sorted(science):
+        crate, target, path = selector_parts(selector)
+        matches = tests.match(target, path) if crate == FACADE else []
+        entry = {}
+        if len(matches) > 1:
+            problems.append(f"{selector}: ambiguous libtest selector")
+        elif matches:
+            try:
+                entry = linked(matches[0])
+            except ValueError as exc:
+                problems.append(f"{selector}: {exc}")
+        if (crate != FACADE or len(matches) == 1) and not any(entry.values()) and selector in cited:
             entry["cited"] = cited[selector]
         passes[selector] = entry
 
-    coverage = tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))
-    below = below_facade_targets()
     claimable = claimable_units()
-    records: dict[str, dict[str, set[str]]] = {}
-    for record in coverage.get("record", []):
-        rid = str(record["id"])
-        path, _, function = str(record.get("test", "")).partition("::")
-        name = target_of(path, below)
-        entry: dict[str, set[str]] = {}
-        keys = tests_of(binary_of(name), function) if name is not None and name in runs else []
-        if name is not None and name in runs and not any(executed.get(key) for key in keys):
-            # A test that reaches no support decision (below the facade, or a kernel called
-            # directly) names the units its record measures.
-            named = record_units.get(rid, set())
-            for unit in sorted(named - claimable):
-                problems.append(f"{rid}: declares {unit.replace(chr(9), ' ')}, which names no unit")
-            entry = {"declared": named & claimable}
-        elif name is not None and name in runs:
-            chosen = set().union(*(declared.get(key, set()) for key in keys)) if keys else set()
-            if record_units.get(rid) and (not chosen or record_units[rid] & chosen):
-                ran = {u for key in keys for u in executed.get(key, {})}
-                for unit in sorted((chosen | record_units[rid]) - ran):
-                    problems.append(f"{rid}: declares {unit.replace(chr(9), ' ')}, which it did not execute")
-                reported = record_units[rid] & chosen if chosen else record_units[rid]
-                entry = {"executed": reported & ran, "declared": reported & chosen}
-            else:
-                entry = linked(keys, rid)
+    unadmitted = []
+    for row in registry("coverage_records"):
+        rid = row["id"]
+        target, path = coverage_test(row["test"])
+        matches = tests.match(target, path)
+        entry = {}
+        if len(matches) > 1:
+            problems.append(f"{rid}: ambiguous libtest selector {path}")
+        elif matches:
+            try:
+                entry, witnessed = record_link(matches[0], rid, claimable)
+                if witnessed:
+                    unadmitted.append(rid)
+            except ValueError as exc:
+                problems.append(f"{rid}: {exc}")
         records[rid] = entry
 
-    units = sorted({u for table in (passes, records) for e in table.values() for s in e.values() for u in s})
-    position = {u: i for i, u in enumerate(units)}
+    routes: dict[str, set[str]] = defaultdict(set)
+    intervals: dict[str, set[str]] = defaultdict(set)
+    for receipt in receipts.values():
+        for field, merged in (("routes", routes), ("intervals", intervals)):
+            for key, values in receipt[field].items():
+                merged[key].update(values)
+    units = sorted({u for table in (passes, records) for entry in table.values()
+                    for values in entry.values() for u in values})
+    positions = {u: i for i, u in enumerate(units)}
 
-    def pack(table: dict[str, dict[str, set[str]]]) -> dict:
-        return {key: {k: sorted(position[u] for u in v) for k, v in sorted(e.items()) if v}
-                for key, e in sorted(table.items())}
-
-    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    data = {
+    def pack(table: dict) -> dict:
+        return {key: {field: sorted(positions[u] for u in values) for field, values in entry.items() if values}
+                for key, entry in table.items()}
+    return {
         "about": "ADR 0031 evidence links; generated by scripts/evidence_links.py; never edited",
-        "traced_at": commit,
-        "runs": {t: runs[t]["status"] for t in sorted(runs)},
-        "units": units,
-        "passes": pack(passes),
-        "records": pack(records),
-        "routes": {route: sorted(units) for route, units in sorted(route_units.items())},
-        "unowned_routes": sorted(route for route, units in route_units.items() if not units),
-        "intervals": {unit: sorted(methods) for unit, methods in sorted(intervals.items())},
-    }
-    return data, problems
+        "schema": 2, "receipts": receipts, "units": units,
+        "passes": pack(passes), "records": pack(records),
+        "unadmitted_records": sorted(unadmitted),
+        "routes": {k: sorted(v) for k, v in routes.items()},
+        "unowned_routes": sorted(k for k, v in routes.items() if not v),
+        "intervals": {k: sorted(v) for k, v in intervals.items()},
+    }, problems
 
 
 def render(data: dict) -> str:
     return json.dumps(data, sort_keys=True, separators=(",", ":")) + "\n"
 
 
-def load(root: Path = ROOT) -> dict:
-    """The links with unit positions resolved to `(kind, id)` pairs."""
-    data = json.loads((root / "parity" / "evidence_links.json").read_text(encoding="utf-8"))
+def unpack(packed: dict) -> dict:
+    data = dict(packed)
     units = [tuple(u.split("\t", 1)) for u in data["units"]]
     for table in ("passes", "records"):
-        for entry in data[table].values():
-            for key in entry:
-                entry[key] = [units[i] for i in entry[key]]
+        data[table] = {key: {field: [units[i] for i in values] for field, values in entry.items()}
+                       for key, entry in packed[table].items()}
     return data
 
 
+def load(root: Path = ROOT) -> dict:
+    return unpack(load_json(root / "parity/evidence_links.json"))
+
+
+def verified(receipts: dict) -> tuple[dict, list[str]]:
+    current, problems = {}, []
+    targets = set(wanted_targets())
+    inputs = TraceInputs(ROOT) if receipts else None
+    for target in sorted(targets):
+        receipt = receipts.get(target, {})
+        if receipt and current_receipt(receipt, source_key(target, inputs)):
+            current[target] = receipt
+        else:
+            problems.append(f"{target}: missing, failed or stale evidence trace; run evidence_links.py run --only {target}")
+    return current, problems
+
+
+def verified_projection(links: dict) -> tuple[dict, list[str]]:
+    receipts, debt = verified(links.get("receipts", {}))
+    projection, problems = project(receipts)
+    return unpack(projection), debt + problems
+
+
+def current_link_ids(links: dict) -> tuple[set[str], set[str]]:
+    """Only attach evidence whose committed links equal the current verified projection."""
+    projection, _ = verified_projection(links)
+    return tuple({k for k, entry in projection[table].items() if entry and links[table].get(k) == entry}
+                 for table in ("passes", "records"))
+
+
+def provenance_problems(links: dict) -> list[str]:
+    projection, problems = verified_projection(links)
+    if projection != links:
+        problems.append("parity/evidence_links.json differs from its verified trace receipts")
+    return problems
+
+
 def cmd_link(args: argparse.Namespace) -> int:
-    data, problems = build_links()
-    for problem in problems:
-        print(f"evidence links: {problem}", file=sys.stderr)
-    if problems:
-        return 1
-    if args.check:
-        current = OUT.read_text(encoding="utf-8") if OUT.is_file() else ""
-        stored = json.loads(current) if current else {}
-        data["traced_at"] = stored.get("traced_at", data["traced_at"])
-        if render(data) != current:
-            print("parity/evidence_links.json differs from the traces", file=sys.stderr)
+    with trace_lock():
+        stored = load_json(OUT)
+        receipts = dict(stored.get("receipts", {}))
+        for target in wanted_targets():
+            if local := load_json(receipt_path(target)):
+                receipts[target] = local
+        current, debt = verified(receipts)
+        data, problems = project(current)
+        if args.check and stored != data:
+            problems.append("parity/evidence_links.json differs from the current verified traces")
+        for issue in debt + problems:
+            print(f"evidence links: {issue}", file=sys.stderr)
+        if debt or problems:
             return 1
-        print("evidence links: current")
+        if not args.check:
+            atomic_json(OUT, data)
+        print(f"evidence links: verified {len(current)} target receipts")
         return 0
-    OUT.write_text(render(data), encoding="utf-8")
-    linked = sum(1 for table in ("passes", "records") for e in data[table].values() if e)
-    total = len(data["passes"]) + len(data["records"])
-    print(f"wrote {OUT.relative_to(ROOT)}: {linked}/{total} passes and records linked, "
-          f"{len(data['units'])} units")
-    return 0
 
 
 def cmd_residue(args: argparse.Namespace) -> int:
