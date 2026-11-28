@@ -790,8 +790,9 @@ def compiled_path_problems(root: Path = ROOT) -> list[str]:
     manifest = load_toml(manifest_path)
     rows = manifest.get("row", [])
     python_rows = manifest.get("python", [])
-    verdict_rows = manifest.get("verdict", [])
     problems: list[str] = []
+    if "verdict" in manifest:
+        problems.append(f"{MANIFEST}: [[verdict]] waivers are forbidden")
 
     snaps = Snapshots(root)
     results = result_types(manifest.get("result_types", {}).get("seed", []), snaps)
@@ -861,25 +862,18 @@ def compiled_path_problems(root: Path = ROOT) -> list[str]:
         problems.append(f"{DEPRECATION_MODULE}: missing")
 
     # Verdict literals.
-    literals = verdict_literals(root)
-    verdict_by_key = {row.get("path", ""): row for row in verdict_rows}
-    for key in sorted(literals - set(verdict_by_key)):
+    for key in sorted(verdict_literals(root)):
         problems.append(
             f"{key}: a verdict literal outside the generated tables (units_generated.rs / "
             "_direct_status.py); read the support model instead"
         )
-    for key in sorted(set(verdict_by_key) - literals):
-        problems.append(f"{MANIFEST}: stale verdict row {key!r}")
-    for key, row in verdict_by_key.items():
-        if key in literals:
-            problems += _row_problems(key, row, None, registry, owner_paths, False)
     return problems
 
 
 def candidate_counts(root: Path = ROOT) -> Counter:
     manifest = load_toml(root / MANIFEST)
     counts: Counter = Counter()
-    for section in ("row", "python", "verdict"):
+    for section in ("row", "python"):
         for row in manifest.get(section, []):
             counts[(section, row.get("disposition"))] += 1
     return counts

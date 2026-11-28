@@ -36,6 +36,8 @@ def const_name(unit: str) -> str:
 def load_routes() -> list[dict]:
     """The rows of the source, validated for shape."""
     doc = load_toml(SOURCE)
+    if "unbound" in doc:
+        sys.exit(f"{SOURCE.name}: [[unbound]] waivers are forbidden")
     routes = doc.get("route") or []
     seen: set[str] = set()
     for row in routes:
@@ -49,16 +51,6 @@ def load_routes() -> list[dict]:
         if row["lowering"] in seen:
             sys.exit(f"{SOURCE.name}: {row['lowering']} is bound twice")
         seen.add(row["lowering"])
-    listed: set[str] = set()
-    for row in doc.get("unbound") or []:
-        route = row.get("lowering")
-        if not route or not str(row.get("reason") or "").strip():
-            sys.exit(f"{SOURCE.name}: an [[unbound]] row needs `lowering` and a `reason`: {row}")
-        if route in seen:
-            sys.exit(f"{SOURCE.name}: {route} is bound and listed as unbound")
-        if route in listed:
-            sys.exit(f"{SOURCE.name}: {route} is listed as unbound twice")
-        listed.add(route)
     return routes
 
 
@@ -122,13 +114,15 @@ def render(routes: list[dict]) -> str:
 
 
 def load_direct_statuses() -> list[dict]:
-    """The `[[direct_status]]` rows of the source, validated for shape."""
+    """Fixed labels for direct results that have no support decision."""
     rows = load_toml(SOURCE).get("direct_status") or []
     seen: set[str] = set()
     for row in rows:
         status = row.get("status")
         if not isinstance(status, str) or not _STATUS.match(status):
             sys.exit(f"{SOURCE.name}: a [[direct_status]] row needs an identifier-like `status`: {row}")
+        if status == "supported" or status.startswith("supported_"):
+            sys.exit(f"{SOURCE.name}: fixed direct status {status!r} cannot grant support")
         if status in seen:
             sys.exit(f"{SOURCE.name}: direct status {status!r} is listed twice")
         seen.add(status)

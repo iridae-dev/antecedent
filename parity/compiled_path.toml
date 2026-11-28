@@ -2324,6 +2324,10 @@ disposition = "consumer"
 path = "antecedent_design::design_ranking_artifact::consume_wire"
 disposition = "consumer"
 [[row]]
+path = "antecedent_design::design_ranking_artifact::design_ranking_calibration"
+disposition = "not_scientific"
+reason = "Reads the calibration annotation of a named evidence unit."
+[[row]]
 path = "antecedent_design::failure_routes"
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
@@ -3280,6 +3284,10 @@ disposition = "consumer"
 path = "antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire::consume_within_expecting"
 disposition = "consumer"
 [[row]]
+path = "antecedent_io::array_fit_artifact::array_fit_calibration"
+disposition = "not_scientific"
+reason = "Reads the calibration annotation of a named evidence unit."
+[[row]]
 path = "antecedent_io::array_fit_artifact::inspect_array_fit_header"
 disposition = "consumer"
 [[row]]
@@ -3322,6 +3330,10 @@ reason = "construction, serialization, identity or gating helper; computes no es
 path = "antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact::seal_with"
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+[[row]]
+path = "antecedent_io::categorical_treatment_artifact::categorical_treatment_calibration"
+disposition = "not_scientific"
+reason = "Reads the calibration annotation of a named evidence unit."
 [[row]]
 path = "antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::consume_measured_interval"
 disposition = "consumer"
@@ -3403,9 +3415,17 @@ path = "antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire::seal
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 [[row]]
+path = "antecedent_io::dose_grid_functional_artifact::dose_grid_calibration"
+disposition = "not_scientific"
+reason = "Reads the calibration annotation of a named evidence unit."
+[[row]]
 path = "antecedent_io::dose_grid_functional_artifact::dose_support_table"
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+[[row]]
+path = "antecedent_io::effect_constancy_artifact::effect_constancy_calibration"
+disposition = "not_scientific"
+reason = "Reads the calibration annotation of a named evidence unit."
 [[row]]
 path = "antecedent_io::encode_causal_posterior_bytes"
 disposition = "not_scientific"
@@ -3751,6 +3771,10 @@ path = "antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact::seal_
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 [[row]]
+path = "antecedent_io::vector_treatment_artifact::vector_treatment_calibration"
+disposition = "not_scientific"
+reason = "Reads the calibration annotation of a named evidence unit."
+[[row]]
 path = "antecedent_io::z_transport_artifact::ZTransportArtifactWire::consume"
 disposition = "consumer"
 [[row]]
@@ -3855,6 +3879,10 @@ reason = "serialization or identity helper; computes no estimate"
 [[row]]
 path = "antecedent_io_core::analysis_result_artifact::identified_set_interval_from_wire"
 disposition = "consumer"
+[[row]]
+path = "antecedent_io_core::analysis_result_artifact::posterior_row_calibration"
+disposition = "not_scientific"
+reason = "Reads the calibration annotation of a named evidence unit."
 [[row]]
 path = "antecedent_io_core::analysis_wire::identification_to_wire_with_registry"
 disposition = "not_scientific"
@@ -4296,6 +4324,10 @@ reason = "parses a graph declaration into a graph and its node names; computes n
 path = "antecedent_io_core::graphless_support::classify_graphless"
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+[[row]]
+path = "antecedent_io_core::graphless_support::graphless_missing_evidence"
+disposition = "not_scientific"
+reason = "Reads missing evidence for a graphless support key."
 [[row]]
 path = "antecedent_io_core::interface_contract_artifact::contract_from_wire"
 disposition = "not_scientific"

@@ -12,7 +12,6 @@ use std::collections::BTreeSet;
 use crate::analysis::lowering::PlanRoute as R;
 use crate::planner::lowered::ProgramCell as C;
 use crate::planner::plan_view::RouteFamily as F;
-use crate::support::unit::UnitId;
 use crate::support::units_generated::unit_of;
 
 /// Every program family, in table order: its cell, its plan route, the stable name both
@@ -899,54 +898,19 @@ fn the_named_cells_keep_their_pinned_names_route_and_family() {
     assert_eq!(chain.chain_reading(), Some("spread"));
 }
 
-/// The routes that run under no support unit, each with the reason no record owns it. Every
-/// program family and named route is bound by a `[[route]]` row of
-/// `parity/compiled_units.toml` now, so none is listed; a route added without a unit fails here
-/// until it is bound or listed (with an `[[unbound]]` row) together.
-const UNBOUND: &[&str] = &[];
-
-/// The `lowering` of every `[[unbound]]` row of `parity/compiled_units.toml`.
-fn listed_unbound() -> BTreeSet<&'static str> {
-    let text = include_str!("../../../../../parity/compiled_units.toml");
-    let mut inside = false;
-    let mut listed = BTreeSet::new();
-    for line in text.lines() {
-        if line.starts_with('[') {
-            inside = line.trim() == "[[unbound]]";
-        } else if inside && let Some(rest) = line.strip_prefix("lowering = \"") {
-            listed.extend(rest.split('"').next());
-        }
-    }
-    listed
-}
-
 #[test]
-fn every_program_family_and_named_route_runs_under_a_unit_or_is_listed_unbound() {
+fn every_program_family_and_named_route_runs_under_a_unit() {
     let named = [C::CyclicFamily("system"), C::Planning("cluster"), C::PropagationChain("spread")];
     let families = C::FAMILIES.iter().map(|&(cell, column)| (cell.as_str(), Some(column)));
     let routes = families.chain(named.iter().map(|cell| (cell.as_str(), None)));
-    let mut seen = BTreeSet::new();
     for (route, column) in routes {
-        seen.insert(route);
-        let bound = unit_of(route);
+        let bound = unit_of(route).expect("compiled route has a support unit");
         if let Some(column) = column {
             assert_eq!(
-                bound.map_or("", UnitId::as_str),
+                bound.as_str(),
                 column,
                 "{route}: the unit column and the generated table name the same unit"
             );
         }
-        if UNBOUND.contains(&route) {
-            assert!(bound.is_none(), "{route} is listed unbound but runs under {bound:?}");
-        } else {
-            assert!(
-                bound.is_some(),
-                "{route} runs under no support unit and is not listed unbound"
-            );
-        }
     }
-    let listed: BTreeSet<&str> = UNBOUND.iter().copied().collect();
-    assert_eq!(listed.len(), UNBOUND.len(), "a route is listed unbound twice");
-    assert!(listed.is_subset(&seen), "an unbound entry names no program family or named route");
-    assert_eq!(listed, listed_unbound(), "the unbound list and parity/compiled_units.toml agree");
 }

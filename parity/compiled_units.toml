@@ -8,11 +8,8 @@
 # crates/antecedent/src/support/units_generated.rs is generated from this file by
 # scripts/generate_compiled_units.py.
 #
-# unbound: every program family and every string-carrying route (CyclicFamily,
-# ExperimentPlanning, PropagationChain) is bound by a [[route]] row or listed in an [[unbound]]
-# row. An [[unbound]] row names a route no capability record owns: `reason` states what was
-# found. scripts/gate_support.py fails on a route that is neither bound nor listed, and on a
-# listed route that is bound.
+# Every program family and every string-carrying route (CyclicFamily, ExperimentPlanning,
+# PropagationChain) requires a [[route]] binding checked by scripts/gate_support.py.
 
 schema = 1
 
@@ -53,6 +50,7 @@ unavailable = "The mz identification capability documents the paper and implemen
 # direct_status: the support verdict a direct (uncompiled) Python result reports. A direct result
 # runs no support decision, so its verdict is a fixed label; this table owns every such label and
 # generates python/antecedent/_direct_status.py, so no Python module carries a verdict literal.
+# A fixed label cannot grant support.
 # `status` is the reported string (unchanged for existing results), `meaning` what it states,
 # `results` the result classes that report it.
 

@@ -57,13 +57,6 @@ def overlay(destination: Path) -> None:
             copy = destination / source.relative_to(ROOT)
             copy.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, copy)
-    # The Rust files a verdict row names, so that row is not stale in the copy.
-    for row in load_toml(ROOT / MANIFEST).get("verdict", []):
-        rel = row["path"].split("::")[0]
-        if rel.endswith(".rs"):
-            target = destination / rel
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(ROOT / rel, target)
 
 
 def append(root: Path, rel: str, text: str) -> None:
@@ -471,6 +464,16 @@ def case_rust_capability_literal(root: Path) -> str:
     return "crates/antecedent/src/planted_verdict.rs::PLANTED_CAPABILITY"
 
 
+def case_verdict_waiver(root: Path) -> str:
+    path = case_python_literal_support_status(root)
+    append(
+        root,
+        MANIFEST,
+        f'\n[[verdict]]\npath = "{path}"\ndisposition = "not_scientific"\nreason = "legacy"\n',
+    )
+    return "[[verdict]] waivers are forbidden"
+
+
 def case_stale_row(root: Path) -> str:
     append(
         root,
@@ -583,6 +586,7 @@ CASES: list[tuple[str, Callable[[Path], str]]] = [
     ("an unclassified Python wrapper", case_unclassified_python_wrapper),
     ("a literal support_status", case_python_literal_support_status),
     ("a Rust *_CAPABILITY literal", case_rust_capability_literal),
+    ("an entry trying to waive a verdict literal", case_verdict_waiver),
     ("a stale row", case_stale_row),
 ]
 
