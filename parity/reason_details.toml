@@ -6218,7 +6218,7 @@ meaning = "The declared variable domain is invalid."
 [[detail]]
 id = "graph_selection_imputation.interval_not_measured"
 family = "graph_selection_imputation"
-codes = ["not_supported"]
+codes = ["route_not_supported"]
 meaning = "A combined graph-selection imputation interval is requested without a supported source-bound route."
 
 [[detail]]

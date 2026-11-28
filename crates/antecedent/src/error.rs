@@ -865,6 +865,9 @@ impl From<antecedent_expr::EvalError> for CausalError {
 /// ```
 #[macro_export]
 macro_rules! unsupported_reason {
+    ("not_supported", $($rest:tt)*) => {
+        compile_error!("unit evidence refusals must come from antecedent_core::support_gate")
+    };
     ($code:literal, $message:literal) => {{
         const _: () = assert!(
             $crate::error::is_runtime_refusal_code($code),
@@ -901,6 +904,9 @@ macro_rules! unsupported_reason {
 /// ```
 #[macro_export]
 macro_rules! support_reason {
+    ("not_supported", $($rest:tt)*) => {
+        compile_error!("unit evidence refusals must come from antecedent_core::support_gate")
+    };
     ($code:literal, $message:literal) => {{
         const _: () = assert!(
             $crate::error::is_runtime_refusal_code($code),

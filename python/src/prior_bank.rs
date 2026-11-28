@@ -36,7 +36,7 @@ pub(crate) fn pyvalue<E: std::fmt::Display>(e: E) -> PyErr {
 fn composition_err(e: antecedent::inference::ProbError) -> PyErr {
     match &e {
         antecedent::inference::ProbError::Refused { code, message }
-            if *code == antecedent::reason::reason_code!("not_supported") =>
+            if antecedent::execution::support_gate::NotSupported::from_code(code).is_some() =>
         {
             crate::refusal(code, message)
         }

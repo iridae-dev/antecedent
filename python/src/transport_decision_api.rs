@@ -157,7 +157,7 @@ impl Failure {
     /// support gate's refusal; any other is an invalid declaration.
     fn from_invalid(message: String) -> Self {
         if crate::reason_code_in_message(&message)
-            == Some(antecedent::reason::reason_code!("not_supported"))
+            .and_then(antecedent::execution::support_gate::NotSupported::from_code).is_some()
         {
             Self::NotSupported(message)
         } else {

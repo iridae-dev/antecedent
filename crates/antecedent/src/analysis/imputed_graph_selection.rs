@@ -71,12 +71,13 @@ impl GraphSelectionPerImputation {
     /// Request an interval for the combined imputation and graph-selection procedure.
     ///
     /// # Errors
-    /// Always returns `not_supported`: the combined procedure has no
-    /// source-bound, independently verified and calibrated interval route.
+    /// Returns `route_not_supported`: the pooled point estimator defines no combined interval.
     pub fn interval() -> Result<std::convert::Infallible, CausalError> {
         Err(crate::unsupported_reason!(
-            "not_supported",
-            "graph_selection_imputation.interval_not_measured: an interval for the combined \
+            "route_not_supported",
+            detail =
+                antecedent_core::reason_details::graph_selection_imputation::INTERVAL_NOT_MEASURED,
+            "an interval for the combined \
              imputation, graph-selection and effect procedure is not supported"
         ))
     }

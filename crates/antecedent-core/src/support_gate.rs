@@ -70,6 +70,7 @@ impl fmt::Display for WouldRefuse {
 ///
 /// Each crate's error enum converts from it (`From<NotSupported>`), added where that enum lives.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub struct NotSupported {
     /// What is not supported.
     pub detail: &'static str,
@@ -78,6 +79,12 @@ pub struct NotSupported {
 }
 
 impl NotSupported {
+    /// Recognize the gate's wire code when translating an existing refusal.
+    #[must_use]
+    pub fn from_code(code: &str) -> Option<&'static str> {
+        (code == crate::reason_code!("not_supported")).then_some(crate::reason_code!("not_supported"))
+    }
+
     /// The registered reason code: `not_supported`.
     #[must_use]
     pub const fn code(&self) -> &'static str {

@@ -4968,7 +4968,6 @@ routes = [
   { route = "antecedent.cohort_decision.consume_cohort_decision_source", stage = "consume", status = "supported", claim = "point_only" },
   { route = "antecedent.cohort_decision.evaluate_cohort_decision", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.cohort_decision.cohort_forward_claim", stage = "evaluate", status = "supported", claim = "point_only" },
-  { route = "antecedent.python.cohort_decision.CohortDecisionSource.interval", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
 
 [[record]]
@@ -5000,6 +4999,7 @@ refusals = [
   { code = "joint_law_required", detail = "cohort_decision.joint_law_required" },
 ]
 routes = [
+  { route = "antecedent.python.cohort_decision.CohortDecisionSource.interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.cohort_decision.interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.analysis.compiled_cohort_interval.CompiledCohortInterval.execute", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.python.cohort_decision.CohortDecisionSource.compiled_interval", stage = "uncertainty", status = "supported", claim = "interval" },
@@ -7688,12 +7688,12 @@ refusals = [
   { code = "invalid_argument", detail = "graph_selection_imputation.data" },
   { code = "invalid_argument", detail = "graph_selection_imputation.domain" },
   { code = "invalid_argument", detail = "graph_selection_imputation.result" },
-  { code = "not_supported", detail = "graph_selection_imputation.interval_not_measured" },
+  { code = "route_not_supported", detail = "graph_selection_imputation.interval_not_measured" },
 ]
 routes = [
   { route = "antecedent.missing.multiple_imputation_with_graph_selection", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.missing.declared_policy", stage = "evaluate", status = "supported", claim = "point_only" },
-  { route = "antecedent.missing.GraphSelectionImputationResult.interval", stage = "uncertainty", status = "closed", reason_code = "not_supported", claim = "point_only" },
+  { route = "antecedent.missing.GraphSelectionImputationResult.interval", stage = "uncertainty", status = "closed", reason_code = "route_not_supported", claim = "point_only" },
 ]
 
 [[record]]

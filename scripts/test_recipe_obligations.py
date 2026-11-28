@@ -88,18 +88,14 @@ class RecipeObligationTest(unittest.TestCase):
         self.assertFalse(set(obligations) & set(gate.CALIBRATION))
         self.assertEqual(gate.cross_check([], [], [], [], axes=AXES), [])
 
-    def test_a_closed_cell_stays_closed_when_a_recipe_could_run(self) -> None:
+    def test_a_refusal_explanation_cannot_veto_earned_support_or_applicability(self) -> None:
         cell = route(query="Counterfactual", graph_class="Admg")
-        self.assertEqual(gate.standing(cell, CLOSED, NOT_APPLICABLE, set()), "closed")
-        self.assertNotEqual(gate.standing(cell, CLOSED, NOT_APPLICABLE, set()), "not_applicable")
-        self.assertEqual(gate.cross_check([], [], CLOSED, NOT_APPLICABLE, axes=AXES), [])
+        self.assertEqual(gate.standing(cell, CLOSED, [], set()), "closed")
+        self.assertEqual(gate.standing(cell, CLOSED, NOT_APPLICABLE, set()), "not_applicable")
         supported = supported_row(query="Counterfactual", graph_class="Admg")
         matrix = matrix_cell(query="Counterfactual", graph_class="Admg")
-        problems = gate.cross_check([supported], [matrix], CLOSED, NOT_APPLICABLE)
-        self.assertTrue(
-            any("Counterfactual" in problem and "stays closed" in problem for problem in problems)
-        )
-        self.assertTrue(all("not_applicable" not in problem for problem in problems))
+        self.assertEqual(gate.standing(cell, CLOSED, [], {gate.coordinate(cell)}), "supported")
+        self.assertEqual(gate.cross_check([supported], [matrix], CLOSED, []), [])
 
     def test_exhaustive_independent_standing_probes(self) -> None:
         na = [{"queries": ["PulseEffect"], "graph_classes": ["Dag"]}]
@@ -124,7 +120,7 @@ class RecipeObligationTest(unittest.TestCase):
     def test_rule_matcher_cannot_verify_itself(self) -> None:
         with patch.object(gate, "rule_matches", return_value=False):
             problems = gate.cross_check([], [], CLOSED, NOT_APPLICABLE, axes=AXES)
-        self.assertTrue(any("expected closed" in problem for problem in problems))
+        self.assertTrue(any("expected not_applicable" in problem for problem in problems))
 
     def test_a_support_cannot_override_not_applicable(self) -> None:
         supported = supported_row()

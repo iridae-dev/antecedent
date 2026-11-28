@@ -97,13 +97,9 @@ enum Failure {
 fn binding_refusal(stage: &str, detail: &str, message: &str) -> String {
     // The support gate carries its registered `not_supported` reason in the message of an
     // invalid-state refusal; it keeps that code instead of a binding mismatch.
-    let code = if crate::reason_code_in_message(message)
-        == Some(antecedent::reason::reason_code!("not_supported"))
-    {
-        antecedent::reason::reason_code!("not_supported")
-    } else {
-        antecedent::reason::reason_code!("bridge_binding_mismatch")
-    };
+    let code = crate::reason_code_in_message(message)
+            .and_then(antecedent::execution::support_gate::NotSupported::from_code)
+            .unwrap_or(antecedent::reason::reason_code!("bridge_binding_mismatch"));
     RefusalJson::new(code, stage, detail, message).json()
 }
 
@@ -187,13 +183,9 @@ fn assessment_refusal(
 ) -> PyResult<String> {
     match error {
         BridgeTransportPremiseAssessmentError::Invalid(message) => {
-            let code = if crate::reason_code_in_message(message)
-                == Some(antecedent::reason::reason_code!("not_supported"))
-            {
-                antecedent::reason::reason_code!("not_supported")
-            } else {
-                invalid_code
-            };
+            let code = crate::reason_code_in_message(message)
+            .and_then(antecedent::execution::support_gate::NotSupported::from_code)
+            .unwrap_or(invalid_code);
             Ok(RefusalJson::new(code, ASSESSMENT_STAGE, ASSESSMENT_REFUSED, message).json())
         }
         BridgeTransportPremiseAssessmentError::Io(inner) => io_refusal(inner, ASSESSMENT_STAGE),

@@ -2,9 +2,7 @@
 """Cross-check checked-recipe obligations with the support matrix.
 
 A checked recipe owes a route obligation and a test obligation. Identification
-and calibration stay on the explicit support in ``support_cells.toml``. A
-coordinate that matches ``support_refusal_reasons.toml`` stays closed, including when a
-typed-impossibility rule also matches. Obligations for a supported cell are that
+and calibration stay on the explicit support in ``support_cells.toml``. Refusal reasons describe a coordinate after its applicability and earned standing are known. Obligations for a supported cell are that
 cell's estimators and checked-execution citations. An estimator the support
 matrix does not list is not support. A matrix estimator that is only the
 calibration join is not a recipe obligation.
@@ -63,13 +61,13 @@ def rule_matches(rule: dict, cell: dict) -> bool:
 
 
 def standing(cell: dict, closed_rules: list[dict], na_rules: list[dict], supported: set[str]) -> str:
-    """Closed wins over support and over ``not_applicable``."""
-    if any(rule_matches(rule, cell) for rule in closed_rules):
-        return "closed"
+    """Follow compiler applicability and support before looking up an explanation."""
     if any(rule_matches(rule, cell) for rule in na_rules):
         return "not_applicable"
     if coordinate(cell) in supported:
         return "supported"
+    if any(rule_matches(rule, cell) for rule in closed_rules):
+        return "closed"
     return "unsupported"
 
 
@@ -148,9 +146,6 @@ def cross_check(
         query = str(row.get("query"))
         label = f"{query} ({key})"
         status = standing(row, closed_rules, na_rules, supported_keys)
-        if status == "closed":
-            problems.append(f"{label} stays closed; support does not open it")
-            continue
         if status == "not_applicable":
             problems.append(f"{label} is not_applicable and is not support")
             continue
@@ -230,12 +225,12 @@ def cross_check(
 
         for values in product(*(axes[key] for key in AXIS)):
             cell = dict(zip(AXIS, values, strict=True))
-            if any(applies(rule, cell) for rule in expected_closed):
-                expected = "closed"
-            elif any(applies(rule, cell) for rule in expected_na):
+            if any(applies(rule, cell) for rule in expected_na):
                 expected = "not_applicable"
             elif coordinate(cell) in supported_keys:
                 expected = "supported"
+            elif any(applies(rule, cell) for rule in expected_closed):
+                expected = "closed"
             else:
                 expected = "unsupported"
             actual = standing(cell, closed_rules, na_rules, supported_keys)

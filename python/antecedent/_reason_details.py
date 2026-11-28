@@ -8268,7 +8268,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "graph_selection_imputation.columns": ("invalid_argument",),
     "graph_selection_imputation.data": ("invalid_argument",),
     "graph_selection_imputation.domain": ("invalid_argument",),
-    "graph_selection_imputation.interval_not_measured": ("not_supported",),
+    "graph_selection_imputation.interval_not_measured": ("route_not_supported",),
     "graph_selection_imputation.model": ("invalid_argument",),
     "graph_selection_imputation.result": ("invalid_argument",),
     "graph_selection_imputation.variables": ("invalid_argument",),

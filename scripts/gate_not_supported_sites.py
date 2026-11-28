@@ -1,133 +1,65 @@
 #!/usr/bin/env python3
-"""Fail when a `not_supported` refusal is hand-built outside the one gate.
+"""Check that product code obtains evidence refusals from the compiler support gate.
 
-A route is supported or `not_supported`. The refusal is constructed in one place,
-`antecedent_core::support_gate` (`require_supported`), because a development build
-swallows exactly that refusal and records it as `would_refuse`; a hand-built refusal
-would refuse in a development build too and hide the route from it.
-
-Sites counted in `crates/*/src` and `python/src`:
-
-* `reason_code!("not_supported")`, `unsupported_reason!("not_supported", ...)` and
-  `support_reason!("not_supported", ...)`;
-* every `support_reason!(` use (it builds `CausalError::Support`, whatever its code);
-* a `SupportRefusal::NotSupported` struct field (`id: ...`), which builds or matches
-  `CausalError::Support`.
-
-`scripts/not_supported_sites_allowlist.txt` lists the not-yet-converted sites as
-`<path><TAB><count>`. A path may hold at most its listed count; a new path or a higher count
-fails. Converting a site lowers the count; `--write` rewrites the list from the tree (it
-refuses to raise a count unless `--allow-growth` is given). The list shrinks to empty.
-
-Usage:
-    python3 scripts/gate_not_supported_sites.py            # check
-    python3 scripts/gate_not_supported_sites.py --write    # shrink the allow-list to the tree
-    python3 scripts/gate_not_supported_sites.py --write --allow-growth   # first generation
+Adapters forward an existing NotSupported and can recognize its registered wire code.
+A source-file count cannot distinguish that translation from a new refusal.
 """
-
 from __future__ import annotations
 
 import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-ALLOWLIST = ROOT / "scripts" / "not_supported_sites_allowlist.txt"
-GATE_MODULE = "crates/antecedent-core/src/support_gate.rs"
-GENERATED = {"crates/antecedent-core/src/reason_codes_data.rs"}
+import test_evidence as te
 
-PATTERNS = (
-    re.compile(r'(?:reason_code|unsupported_reason|support_reason)!\(\s*"not_supported"'),
-    re.compile(r"\bsupport_reason!\("),
-    re.compile(r"\bid:\s*(?:[A-Za-z_:]*::)?SupportRefusal::NotSupported\b"),
-)
-
-
-def is_test_path(path: str) -> bool:
-    name = Path(path).name
-    return "/tests/" in path or name == "tests.rs" or name.endswith("_tests.rs")
+ROOT = Path(__file__).resolve().parents[1]
+GATE = "crates/antecedent-core/src/support_gate.rs"
+RAW_CODE = re.compile(r'\b(?:reason_code|unsupported_reason|support_reason)\s*!\s*[({\[]\s*"not_supported"'
+                      r'|\b(?:code|reason_code)\s*:\s*"not_supported"')
+SITE = re.compile(r"\bsupport_reason\s*!|\bid\s*:\s*(?:[\w$]+\s*::\s*)*SupportRefusal\s*::\s*NotSupported\b")
+# A conversion from the typed gate refusal and the public domain-refusal macro are definitions,
+# not independent support decisions. Rust enforces coherence for the From implementation.
+DEFINITION = re.compile(r"\bimpl\s+From\s*<\s*NotSupported\s*>\s+for\s+CausalError\s*\{"
+                        r"|\bmacro_rules\s*!\s*support_reason\s*\{")
 
 
-def rust_sources() -> list[Path]:
-    files = sorted((ROOT / "crates").glob("*/src/**/*.rs")) + sorted(
-        (ROOT / "python" / "src").glob("**/*.rs")
-    )
-    return files
-
-
-def count_sites() -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for path in rust_sources():
-        rel = path.relative_to(ROOT).as_posix()
-        if rel == GATE_MODULE or rel in GENERATED or is_test_path(rel):
-            continue
-        text = path.read_text(encoding="utf-8")
-        found = 0
-        for line in text.splitlines():
-            stripped = line.lstrip()
-            if stripped.startswith("//"):
+def violations(source: str) -> list[int]:
+    if "not_supported" not in source and "SupportRefusal" not in source and "support_reason" not in source:
+        return []
+    parsed = te.mask_rust(source)
+    ranges = [m.body for m in te.module_items(parsed) if te._is_cfg_test(m.attrs)]
+    ranges.extend((m.start(), te._match_bracket(parsed.skeleton, m.end() - 1))
+                  for m in DEFINITION.finditer(parsed.skeleton))
+    found = []
+    for pattern, text in ((RAW_CODE, parsed.code), (SITE, parsed.skeleton)):
+        for match in pattern.finditer(text):
+            if any(a <= match.start() <= b for a, b in ranges):
                 continue
-            # One line is one site, however many patterns it matches.
-            if any(pattern.search(line) for pattern in PATTERNS):
-                found += 1
-        if found:
-            counts[rel] = found
-    return counts
+            if not parsed.skeleton[match.start()].strip():
+                continue
+            if match.group().startswith("id"):
+                # Reading an error's discriminant in a match arm cannot create a refusal.
+                end = parsed.skeleton.find("}", match.end())
+                if end != -1 and parsed.skeleton[end + 1:].lstrip().startswith("=>"):
+                    continue
+            found.append(source.count("\n", 0, match.start()) + 1)
+    return sorted(set(found))
 
 
-def read_allowlist() -> dict[str, int]:
-    allowed: dict[str, int] = {}
-    if not ALLOWLIST.exists():
-        return allowed
-    for raw in ALLOWLIST.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
+def main() -> int:
+    problems = []
+    for path in sorted([*ROOT.glob("crates/*/src/**/*.rs"), *ROOT.glob("python/src/**/*.rs")]):
+        rel = path.relative_to(ROOT).as_posix()
+        if rel == GATE or "/tests/" in rel or path.name == "tests.rs" or path.name.endswith("_tests.rs"):
             continue
-        path, _, count = line.partition("\t")
-        allowed[path] = int(count)
-    return allowed
-
-
-def write_allowlist(counts: dict[str, int]) -> None:
-    header = (
-        "# Not-yet-converted hand-built `not_supported` refusal sites (path<TAB>count).\n"
-        "# Generated by scripts/gate_not_supported_sites.py --write. Only ever shrinks:\n"
-        "# convert a site to antecedent_core::support_gate::require_supported and lower the count.\n"
-    )
-    body = "".join(f"{path}\t{count}\n" for path, count in sorted(counts.items()))
-    ALLOWLIST.write_text(header + body, encoding="utf-8")
-
-
-def main(argv: list[str]) -> int:
-    counts = count_sites()
-    allowed = read_allowlist()
-    if "--write" in argv:
-        grown = {p: c for p, c in counts.items() if c > allowed.get(p, 0)}
-        if grown and "--allow-growth" not in argv:
-            for path, count in sorted(grown.items()):
-                print(f"refusing to raise {path}: {allowed.get(path, 0)} -> {count}")
-            return 1
-        write_allowlist(counts)
-        print(f"allow-list: {len(counts)} files, {sum(counts.values())} sites")
-        return 0
-    failures = [
-        f"{path}: {count} hand-built not_supported site(s), allow-list has {allowed.get(path, 0)}"
-        for path, count in sorted(counts.items())
-        if count > allowed.get(path, 0)
-    ]
-    if failures:
-        print(
-            "not_supported refusals must go through "
-            "antecedent_core::support_gate::require_supported (or the matrix gate):"
-        )
-        for failure in failures:
-            print(f"  {failure}")
-        return 1
-    stale = sum(allowed.get(path, 0) - counts.get(path, 0) for path in allowed)
-    remaining = sum(counts.values())
-    print(f"ok: {remaining} not-yet-converted site(s) allow-listed" + (f"; {stale} converted, run --write to shrink" if stale > 0 else ""))
-    return 0
+        for line in violations(path.read_text(encoding="utf-8")):
+            problems.append(f"{rel}:{line}: obtain the refusal from the unit support gate")
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    if not problems:
+        print("unit support refusals originate at the compiler gate")
+    return int(bool(problems))
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())

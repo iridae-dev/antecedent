@@ -145,7 +145,7 @@ const GATE_NEXT_ATTEMPT: &str = "run the route in a development build, which rec
 /// A cyclic decision route's support-gate refusal: its registered detail and the gate's
 /// `reason=not_supported: …` message, which the route's `Invalid` variant carries and reports
 /// under the `not_supported` code. `None` for any other error, including an invalid request.
-fn gate_refusal(error: &(dyn std::error::Error + 'static)) -> Option<(&'static str, &'static str)> {
+fn gate_refusal(error: &(dyn std::error::Error + 'static)) -> Option<(&'static str, &'static str, &'static str)> {
     use antecedent::analysis::cyclic_action_world_decision::CyclicActionDecisionError as Action;
     use antecedent::analysis::cyclic_component_composition::JointComponentPosteriorError as Joint;
     use antecedent::analysis::cyclic_posterior_action_decision::CyclicPosteriorDecisionError as Posterior;
@@ -164,10 +164,8 @@ fn gate_refusal(error: &(dyn std::error::Error + 'static)) -> Option<(&'static s
         let Joint::Invalid(message) = found else { return None };
         (found.reason_code(), found.detail(), *message)
     };
-    if code != Some(antecedent::reason::reason_code!("not_supported")) {
-        return None;
-    }
-    Some((detail?, message))
+    let code = antecedent::execution::support_gate::NotSupported::from_code(code?)?;
+    Some((code, detail?, message))
 }
 
 /// The Python error of a refused compile, run or replay: cancellation, resource and
@@ -191,9 +189,9 @@ fn classify(
         {
             return crate::not_supported_err(refusal);
         }
-        if let Some((detail, gate)) = gate_refusal(current) {
+        if let Some((code, detail, gate)) = gate_refusal(current) {
             return scientific_refusal(
-                antecedent::reason::reason_code!("not_supported"),
+                code,
                 detail,
                 gate,
                 GATE_NEXT_ATTEMPT,
