@@ -204,12 +204,16 @@ def append_resolutions(resolutions: list[dict]) -> None:
 
 
 def credits(entry: dict, key: tuple[str, str]) -> bool:
-    """Whether a pass or record's link entry credits the unit `key` it reaches: its units are
-    cited, it reaches no other unit of the kind, or the test returned or declared `key`."""
-    reached = set(reached_units(entry))
-    if entry.get("cited") or sum(1 for u in reached if u[0] == key[0]) <= 1:
-        return True
-    return key in {tuple(u) for field in ("returned", "declared") for u in entry.get(field, [])}
+    """A returned result or an assertion selects its own unit across all unit kinds."""
+    chosen = {tuple(u) for u in entry.get("declared", [])}
+    if chosen:
+        return key in chosen
+    witnessed = {tuple(u) for field in ("returned", "cited") for u in entry.get(field, [])}
+    if witnessed:
+        return key in witnessed
+    ran = {tuple(u) for u in entry.get("executed", [])}
+    refused = {tuple(u) for u in entry.get("refused", [])}
+    return ran == {key} and not refused
 
 
 def residue() -> tuple[list[dict], list[str]]:
@@ -245,6 +249,9 @@ def residue() -> tuple[list[dict], list[str]]:
         ):
             if evidence in done:
                 continue
+            if not exists:
+                out.append({"item": f"{kind}:{ident}", "evidence": evidence, "residue": "lost", "links": []})
+                continue
             reached = reached_units(entry)
             matching = ([key] if key in reached else []) + (
                 [u for u in reached if u[0] == "construction" and u[1].split("#", 1)[0] == ident]
@@ -256,9 +263,7 @@ def residue() -> tuple[list[dict], list[str]]:
                     out.append({"item": f"{kind}:{ident}", "evidence": evidence, "residue": "ambiguous",
                                 "links": sorted(f"{k}:{i}" for k, i in set(reached) if k in same)})
                 continue
-            if not exists:
-                label = "lost"
-            elif key in {tuple(u) for u in entry.get("refused", [])}:
+            if key in {tuple(u) for u in entry.get("refused", [])}:
                 label = "refused"
             elif reached:
                 label = "moved"
