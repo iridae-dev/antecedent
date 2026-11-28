@@ -15,6 +15,11 @@
 # fingerprint  sha256 of the assertion's dependency closure when it passed (identity only)
 # recorded_at  UTC time of the pass
 # dependency_manifest  pass:scientific:<selector>, the standing pass file
+# output_digest  digest of the results the assertion's test was handed (facade tests only)
+# carry        how the pass was carried forward since it was earned, oldest first: kind
+#              output_equivalent (a rerun reproduced output_digest) or judgment
+#              (`scientific_records.py justify`), from_fingerprint, to_fingerprint,
+#              reason, author
 
 [[record]]
 test = "antecedent-attribution::anomaly_arrow_reference::fixed_reference_scores_and_exact_shapley_equal_the_definition"
@@ -6685,6 +6690,17 @@ dirty = false
 fingerprint = "2b6cdbfc0fc02abcdaefa9ae17495729e3fa91b7cc32077366dc1bfedb6383a1"
 recorded_at = "2026-11-20T00:15:23Z"
 dependency_manifest = "pass:scientific:antecedent::events::verified_external_events_bind_payload_and_provider_version"
+
+[[record]]
+test = "antecedent::factorial_ipw_known_truth::binary_net_value_route_is_unbiased_over_every_bernoulli_assignment"
+roles = ["scientific"]
+passed = true
+commit = "efdb08308fae95413136afac86413479b1e56d41"
+dirty = false
+fingerprint = "7cd31f7fdcccda8f31e761820205e42bc971ed7937b06b4122c894f4816603ae"
+recorded_at = "2026-11-28T12:43:07Z"
+dependency_manifest = "pass:scientific:antecedent::factorial_ipw_known_truth::binary_net_value_route_is_unbiased_over_every_bernoulli_assignment"
+output_digest = "48b2558609eb66dd"
 
 [[record]]
 test = "antecedent::functional_graph_posterior_mixture_truth::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"
