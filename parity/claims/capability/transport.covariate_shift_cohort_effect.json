@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-learn::lib::transported_effect::overlap_assessment_reports_mass_and_ranges"
-  ],
-  "id": "transport.covariate_shift_cohort_effect",
-  "kind": "capability",
-  "measurements": []
-}

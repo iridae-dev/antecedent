@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::policy_value_reference::finite_class_regret_interval_matches_the_exact_bonferroni_contrasts"
-  ],
-  "id": "policy_value:binary_ipw_regret:fixed_randomized_ipw_finite_class_scores:finite_class_regret_simultaneous_95_normal_interval",
-  "kind": "graphless",
-  "measurements": []
-}

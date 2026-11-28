@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::suite_06::rank_drop_estimate::reduced_estimate_equals_the_hand_built_reduced_design"
-  ],
-  "id": "estimate.preflight_rank_drop",
-  "kind": "capability",
-  "measurements": []
-}

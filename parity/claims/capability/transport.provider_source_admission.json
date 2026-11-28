@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-contract::provider_admission_table::admission_equals_the_specification_conjunction_over_the_full_factorial_table"
-  ],
-  "id": "transport.provider_source_admission",
-  "kind": "capability",
-  "measurements": []
-}

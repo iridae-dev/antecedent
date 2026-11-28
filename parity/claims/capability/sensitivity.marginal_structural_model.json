@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-validate::suite_01::msm_sensitivity::msm_sharp_bounds_at_lambda_two_match_the_hand_derivation"
-  ],
-  "id": "sensitivity.marginal_structural_model",
-  "kind": "capability",
-  "measurements": []
-}

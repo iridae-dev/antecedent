@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-contract::external_probe_enumeration::providers_whose_answers_differ_from_the_enumerated_law_are_refused_at_the_probe_that_sees_it"
-  ],
-  "id": "external.object_verification",
-  "kind": "capability",
-  "measurements": []
-}

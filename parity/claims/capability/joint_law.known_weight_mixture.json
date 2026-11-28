@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-stats::lib::joint_law::tests::known_weight_mixture_matches_the_closed_form"
-  ],
-  "id": "joint_law.known_weight_mixture",
-  "kind": "capability",
-  "measurements": []
-}

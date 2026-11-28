@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::temporal_design_routes::the_misclassification_corrected_two_arm_means_equal_the_inverted_error_algebra"
-  ],
-  "id": "temporal_design:two_arm:bayesian_bootstrap_with_beta_validation_draws:pointwise_95_posterior_quantiles",
-  "kind": "graphless",
-  "measurements": []
-}

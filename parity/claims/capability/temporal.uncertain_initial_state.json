@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::temporal_initial_state::initial_state_sum_equals_the_hand_enumerated_target_sum"
-  ],
-  "id": "temporal.uncertain_initial_state",
-  "kind": "capability",
-  "measurements": []
-}

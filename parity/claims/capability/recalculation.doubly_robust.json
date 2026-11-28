@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::suite_06::recalc_dr::dr_existing_score_sources_match_heterogeneous_structural_truth"
-  ],
-  "id": "recalculation.doubly_robust",
-  "kind": "capability",
-  "measurements": []
-}

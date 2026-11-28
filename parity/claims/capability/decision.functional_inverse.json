@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_01::inverse_query::target_mean_constraint_on_a_finite_law"
-  ],
-  "id": "decision.functional_inverse",
-  "kind": "capability",
-  "measurements": []
-}

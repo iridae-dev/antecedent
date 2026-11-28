@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::class_attribution_known_truth::graph_posterior_anomaly_attribution_refuter_states_known_truth"
-  ],
-  "id": "AnomalyAttribution/Pag/graph_posterior/Frequentist/cheap",
-  "kind": "matrix",
-  "measurements": []
-}

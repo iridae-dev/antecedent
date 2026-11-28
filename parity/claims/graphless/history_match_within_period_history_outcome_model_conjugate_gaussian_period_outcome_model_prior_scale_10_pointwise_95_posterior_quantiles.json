@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::history_outcome_model_reference::the_effect_on_the_treated_matches_the_exact_posterior"
-  ],
-  "id": "history_match:within_period_history_outcome_model:conjugate_gaussian_period_outcome_model_prior_scale_10:pointwise_95_posterior_quantiles",
-  "kind": "graphless",
-  "measurements": []
-}

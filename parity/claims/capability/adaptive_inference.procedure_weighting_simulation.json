@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-stats::adaptive_procedure_uncertainty_oracle::simulation_under_a_stopping_rule_reports_the_stopped_estimator"
-  ],
-  "id": "adaptive_inference.procedure_weighting_simulation",
-  "kind": "capability",
-  "measurements": []
-}

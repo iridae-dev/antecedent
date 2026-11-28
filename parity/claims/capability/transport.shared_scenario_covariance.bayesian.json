@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::scenario_covariance_posterior_exact::scenario_covariance_posterior_equals_the_hand_values_of_the_two_row_enumeration"
-  ],
-  "id": "transport.shared_scenario_covariance.bayesian",
-  "kind": "capability",
-  "measurements": []
-}

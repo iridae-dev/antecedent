@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::study_candidate_exact::the_addressing_table_matches_the_hand_derivation_and_picks_the_cheapest"
-  ],
-  "id": "design.study_candidate",
-  "kind": "capability",
-  "measurements": []
-}

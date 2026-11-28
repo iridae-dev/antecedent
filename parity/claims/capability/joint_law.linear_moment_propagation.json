@@ -1,9 +1,0 @@
-{
-  "assertions": [
-    "antecedent-stats::lib::joint_law::tests::linear_variance_of_a_contrast_is_the_closed_form",
-    "antecedent::suite_05::joint_law_propagation_facade::a_covariance_aware_contrast_agrees_between_moments_and_aligned_draws"
-  ],
-  "id": "joint_law.linear_moment_propagation",
-  "kind": "capability",
-  "measurements": []
-}

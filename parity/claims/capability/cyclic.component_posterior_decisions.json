@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::lib::analysis::cyclic_component_composition::common_training_rows_refit_and_replay_the_connected_action_decision"
-  ],
-  "id": "cyclic.component_posterior_decisions",
-  "kind": "capability",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::class_attribution_known_truth::graph_posterior_attribution_known_truth"
-  ],
-  "id": "AnomalyAttribution/Pag/graph_posterior/Frequentist/none",
-  "kind": "matrix",
-  "measurements": []
-}

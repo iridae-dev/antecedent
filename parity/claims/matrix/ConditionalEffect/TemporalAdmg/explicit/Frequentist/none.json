@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::conditional_effect_admg_validation_truth::conditional_effect_admg_explicit_and_accepted_match_the_stratified_difference"
-  ],
-  "id": "ConditionalEffect/TemporalAdmg/explicit/Frequentist/none",
-  "kind": "matrix",
-  "measurements": []
-}

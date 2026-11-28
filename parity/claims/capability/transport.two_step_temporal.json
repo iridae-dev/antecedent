@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::temporal_transport_execution::the_sequence_is_one_intervention_and_never_per_step_products"
-  ],
-  "id": "transport.two_step_temporal",
-  "kind": "capability",
-  "measurements": []
-}

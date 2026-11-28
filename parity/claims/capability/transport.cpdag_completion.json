@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-identify::suite_01::cpdag_completion::cpdag_enumerated_truth_sets"
-  ],
-  "id": "transport.cpdag_completion",
-  "kind": "capability",
-  "measurements": []
-}

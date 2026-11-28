@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::bayesian_score_route_exact::batch_retarget_posterior_mean_equals_the_hand_update_of_the_retargeted_score_table"
-  ],
-  "id": "estimate.batch_retarget_covariance.bayesian",
-  "kind": "capability",
-  "measurements": []
-}

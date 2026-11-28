@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::iv_bounds_interval_reference::the_row_bootstrap_interval_is_the_imbens_manski_construction_of_its_replicates"
-  ],
-  "id": "iv_bounds:binary_instrument:imbens_manski_row_bootstrap:identified_set_endpoints_95_imbens_manski_interval",
-  "kind": "graphless",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::lib::synthetic_rollout::tests::placebo_interval_is_the_normal_interval_of_the_enumerated_placebo_spread"
-  ],
-  "id": "synthetic_control:staggered_multi_unit:simplex_donor_weights_placebo_variance:post_weighted_average_pointwise_95_normal_interval",
-  "kind": "graphless",
-  "measurements": []
-}

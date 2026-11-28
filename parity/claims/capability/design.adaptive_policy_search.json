@@ -1,9 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_02::adaptive_policy_search::linear_feedback_reaches_the_riccati_optimum_and_beats_the_open_loop_optimum",
-    "antecedent-design::suite_02::adaptive_policy_search::state_dependent_threshold_beats_the_best_fixed_schedule_at_the_closed_form_optimum"
-  ],
-  "id": "design.adaptive_policy_search",
-  "kind": "capability",
-  "measurements": []
-}

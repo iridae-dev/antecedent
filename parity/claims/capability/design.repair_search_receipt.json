@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::repair_search_exact::the_replayed_receipt_holds_exactly_the_hand_derived_sufficient_subsets_and_best"
-  ],
-  "id": "design.repair_search_receipt",
-  "kind": "capability",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_02::transported_evaluation::a_target_native_utility_is_evaluated_against_hand_dynamic_programming"
-  ],
-  "id": "transport.policy_evaluation",
-  "kind": "capability",
-  "measurements": []
-}

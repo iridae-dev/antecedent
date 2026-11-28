@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-validate::suite_01::predictive_assessment::the_variance_of_a_mean_difference_follows_the_declared_dependence"
-  ],
-  "id": "predictive_assessment.score_differences",
-  "kind": "capability",
-  "measurements": []
-}

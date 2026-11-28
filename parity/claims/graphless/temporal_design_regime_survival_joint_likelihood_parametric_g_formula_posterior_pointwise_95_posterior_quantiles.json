@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::bayesian_temporal_regime_survival_reference::bayesian_regime_survival_matches_the_independent_g_formula"
-  ],
-  "id": "temporal_design:regime_survival:joint_likelihood_parametric_g_formula_posterior:pointwise_95_posterior_quantiles",
-  "kind": "graphless",
-  "measurements": []
-}

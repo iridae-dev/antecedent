@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::observational_policy_reference::values_scores_and_comparisons_match_the_recorded_split_reference"
-  ],
-  "id": "estimate.observational_policy_value",
-  "kind": "capability",
-  "measurements": []
-}

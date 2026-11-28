@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::bayesian_panel_did_reference::every_form_matches_the_exact_posterior_under_both_priors"
-  ],
-  "id": "difference_in_differences:panel_2x2:normal_inverse_gamma_change_score_posterior_prior_scale_100:pointwise_95_posterior_quantiles",
-  "kind": "graphless",
-  "measurements": []
-}

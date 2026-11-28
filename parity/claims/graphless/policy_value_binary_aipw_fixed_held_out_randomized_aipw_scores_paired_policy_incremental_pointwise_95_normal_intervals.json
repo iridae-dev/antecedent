@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::policy_value_reference::binary_scores_standard_errors_and_point_values_match_the_exact_scores"
-  ],
-  "id": "policy_value:binary_aipw:fixed_held_out_randomized_aipw_scores:paired_policy_incremental_pointwise_95_normal_intervals",
-  "kind": "graphless",
-  "measurements": []
-}

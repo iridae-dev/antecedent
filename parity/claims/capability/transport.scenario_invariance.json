@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-identify::scenario_invariance_numeric::the_listed_factors_rebuild_the_target_interventional_truth_where_they_exist"
-  ],
-  "id": "transport.scenario_invariance",
-  "kind": "capability",
-  "measurements": []
-}

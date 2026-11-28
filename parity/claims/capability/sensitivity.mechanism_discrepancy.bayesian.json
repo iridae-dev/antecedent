@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::mechanism_ridge_exact::one_parent_mechanism_posterior_is_the_exact_ridge_solution"
-  ],
-  "id": "sensitivity.mechanism_discrepancy.bayesian",
-  "kind": "capability",
-  "measurements": []
-}

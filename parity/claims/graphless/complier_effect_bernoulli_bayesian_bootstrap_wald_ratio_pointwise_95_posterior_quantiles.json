@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::complier_posterior_reference::the_ratio_and_intention_to_treat_laws_match_the_exact_distribution_functions"
-  ],
-  "id": "complier_effect:bernoulli:bayesian_bootstrap_wald_ratio:pointwise_95_posterior_quantiles",
-  "kind": "graphless",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::suite_06::recalc_bayesian::checked_gaussian_matches_analytic_posterior_and_retains_issued_rows"
-  ],
-  "id": "recalculation.bayesian",
-  "kind": "capability",
-  "measurements": []
-}

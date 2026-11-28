@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-stats::synthesis_oracle::inverse_variance_pooling_and_q_match_hand_values"
-  ],
-  "id": "evidence_ledger.statistical_pooling",
-  "kind": "capability",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_01::decision_reliability_intervals::held_out_interval_comes_from_the_independent_stream_and_is_purely_numerical"
-  ],
-  "id": "decision_reliability.selection_corrected_interval",
-  "kind": "capability",
-  "measurements": []
-}

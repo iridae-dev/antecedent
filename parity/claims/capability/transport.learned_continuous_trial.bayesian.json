@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::learned_continuous_posterior_exact::learned_continuous_posterior_mean_equals_the_hand_update_of_the_route_scores"
-  ],
-  "id": "transport.learned_continuous_trial.bayesian",
-  "kind": "capability",
-  "measurements": []
-}

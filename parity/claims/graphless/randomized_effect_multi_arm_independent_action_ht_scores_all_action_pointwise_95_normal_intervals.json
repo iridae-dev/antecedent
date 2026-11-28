@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::randomized_scores_enumeration::three_action_contrast_selects_the_right_columns_and_stays_unbiased"
-  ],
-  "id": "randomized_effect:multi_arm:independent_action_ht_scores:all_action_pointwise_95_normal_intervals",
-  "kind": "graphless",
-  "measurements": []
-}

@@ -1,9 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::scenario_covariance::shared_rows_covariance_exact_matches_closed_form",
-    "antecedent-estimate::shared_scenario_covariance_reference::exact_enumeration_matches_rational_reference_with_joint_dropping"
-  ],
-  "id": "transport.shared_scenario_covariance",
-  "kind": "capability",
-  "measurements": []
-}

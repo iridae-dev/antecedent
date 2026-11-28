@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-contract::ledger_transport_exact::overlapping_transported_claims_pool_with_hand_counted_union_and_two_identities"
-  ],
-  "id": "evidence_ledger.transport_provenance",
-  "kind": "capability",
-  "measurements": []
-}

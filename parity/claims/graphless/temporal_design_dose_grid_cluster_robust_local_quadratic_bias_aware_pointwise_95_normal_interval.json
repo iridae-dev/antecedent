@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::temporal_design_dose_quantile_known_truth::local_quadratic_level_matches_an_independent_weighted_least_squares"
-  ],
-  "id": "temporal_design:dose_grid:cluster_robust_local_quadratic_bias_aware:pointwise_95_normal_interval",
-  "kind": "graphless",
-  "measurements": []
-}

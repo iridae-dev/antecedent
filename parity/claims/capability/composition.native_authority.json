@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::native_authority_exact::requiring_native_leaves_only_the_executed_source_and_its_hand_values_decide"
-  ],
-  "id": "composition.native_authority",
-  "kind": "capability",
-  "measurements": []
-}

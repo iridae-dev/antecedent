@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::neyman_randomization_enumeration::blocked_randomization_matches_the_independent_block_law"
-  ],
-  "id": "randomized_effect:stratified:blocked_neyman_difference_in_means:pointwise_95_normal_interval",
-  "kind": "graphless",
-  "measurements": []
-}

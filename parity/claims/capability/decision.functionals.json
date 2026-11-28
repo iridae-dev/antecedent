@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_01::decision_acceptance::positive_expectation_and_variance_identity_on_the_finite_law"
-  ],
-  "id": "decision.functionals",
-  "kind": "capability",
-  "measurements": []
-}

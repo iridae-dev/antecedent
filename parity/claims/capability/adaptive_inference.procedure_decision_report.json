@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-stats::adaptive_procedure_uncertainty_oracle::thompson_stopping_time_matches_the_enumerated_tree"
-  ],
-  "id": "adaptive_inference.procedure_decision_report",
-  "kind": "capability",
-  "measurements": []
-}

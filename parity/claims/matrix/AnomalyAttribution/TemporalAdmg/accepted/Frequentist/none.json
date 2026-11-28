@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::class_attribution_known_truth::class_anomaly_attribution_known_truth"
-  ],
-  "id": "AnomalyAttribution/TemporalAdmg/accepted/Frequentist/none",
-  "kind": "matrix",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::support_coordinate_ess_exact::labels_follow_the_threshold_applied_to_the_kish_size_in_dose_order"
-  ],
-  "id": "support.coordinate",
-  "kind": "capability",
-  "measurements": []
-}

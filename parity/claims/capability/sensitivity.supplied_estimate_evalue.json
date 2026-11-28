@@ -1,9 +1,0 @@
-{
-  "assertions": [
-    "antecedent::compiled_twins_supplied_sensitivity::posterior_evalues_read_the_median_and_the_counted_retention",
-    "antecedent::compiled_twins_supplied_sensitivity::ratio_evalues_are_the_closed_form_of_vanderweele_and_ding"
-  ],
-  "id": "sensitivity.supplied_estimate_evalue",
-  "kind": "capability",
-  "measurements": []
-}

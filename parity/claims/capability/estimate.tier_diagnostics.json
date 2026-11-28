@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::tier_diagnostics_exact::the_point_evalue_equals_the_hand_derived_value_of_the_exactly_known_effect"
-  ],
-  "id": "estimate.tier_diagnostics",
-  "kind": "capability",
-  "measurements": []
-}

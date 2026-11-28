@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-stats::lib::synthesis_transport::transported_prior_carries_its_extra_variance_once"
-  ],
-  "id": "transport.synthesis_transported_prior",
-  "kind": "capability",
-  "measurements": []
-}

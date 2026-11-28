@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::bayesian_route_exact::vector_treatment_posterior_equals_the_ridge_solution_built_from_the_rows"
-  ],
-  "id": "estimate.vector_treatment.bayesian",
-  "kind": "capability",
-  "measurements": []
-}

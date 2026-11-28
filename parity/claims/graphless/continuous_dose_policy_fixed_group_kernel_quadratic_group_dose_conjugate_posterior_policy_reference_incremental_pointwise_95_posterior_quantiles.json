@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::dose_posterior_reference::inverse_gamma_residual_prior_gives_the_student_t_moments"
-  ],
-  "id": "continuous_dose_policy:fixed_group_kernel:quadratic_group_dose_conjugate_posterior:policy_reference_incremental_pointwise_95_posterior_quantiles",
-  "kind": "graphless",
-  "measurements": []
-}

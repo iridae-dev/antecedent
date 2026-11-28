@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::estimate_association_reference::resampling_summaries_and_posteriors_match_the_references_on_the_library_streams"
-  ],
-  "id": "association:series_linear_slope:bayesian_bootstrap:slope_95_posterior_equal_tailed_interval",
-  "kind": "graphless",
-  "measurements": []
-}

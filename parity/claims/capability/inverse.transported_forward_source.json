@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_01::inverse_forward_source::a_transported_policy_value_is_a_supported_inverse_source_with_its_diagram"
-  ],
-  "id": "inverse.transported_forward_source",
-  "kind": "capability",
-  "measurements": []
-}

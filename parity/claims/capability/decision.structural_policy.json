@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_01::decision_acceptance::positive_maximin_chooses_b_with_worst_cases_zero_against_minus_one"
-  ],
-  "id": "decision.structural_policy",
-  "kind": "capability",
-  "measurements": []
-}

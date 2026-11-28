@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::sequential_contrast_reference::the_wald_interval_matches_the_exact_standard_error_and_normal_quantile"
-  ],
-  "id": "sequential_contrast:two_decision_always_versus_never:crossfit_augmented_scores_wald:pointwise_95_normal_interval",
-  "kind": "graphless",
-  "measurements": []
-}

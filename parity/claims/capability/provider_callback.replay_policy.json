@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-contract::suite_01::callback_protocol::reuse_follows_the_replay_contract_and_every_identity"
-  ],
-  "id": "provider_callback.replay_policy",
-  "kind": "capability",
-  "measurements": []
-}

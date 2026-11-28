@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::cross_world_class_truth::class_cross_world_cheap_and_full_validation_refutes_the_exact_functionals"
-  ],
-  "id": "Counterfactual/Admg/explicit/Frequentist/full",
-  "kind": "matrix",
-  "measurements": []
-}

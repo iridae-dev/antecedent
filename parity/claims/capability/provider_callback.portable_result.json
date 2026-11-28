@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::callback_downstream_exact::a_portable_result_is_scored_by_the_hand_crps_of_its_stored_draws"
-  ],
-  "id": "provider_callback.portable_result",
-  "kind": "capability",
-  "measurements": []
-}

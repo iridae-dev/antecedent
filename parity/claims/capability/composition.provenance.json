@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-contract::composition_provenance_exact::a_changed_link_changes_exactly_itself_and_its_descendants"
-  ],
-  "id": "composition.provenance",
-  "kind": "capability",
-  "measurements": []
-}

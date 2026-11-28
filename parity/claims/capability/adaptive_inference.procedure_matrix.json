@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-contract::suite_01::adaptive_design::the_registry_table_and_the_executable_matrix_agree_cell_by_cell"
-  ],
-  "id": "adaptive_inference.procedure_matrix",
-  "kind": "capability",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::composition_exact::the_support_policy_decides_which_hand_utilities_are_compared"
-  ],
-  "id": "composition.boundary",
-  "kind": "capability",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::transported_decision_artifact_exact::the_exported_decision_replays_the_hand_pooled_target_value"
-  ],
-  "id": "decision.transported_decision_artifact",
-  "kind": "capability",
-  "measurements": []
-}

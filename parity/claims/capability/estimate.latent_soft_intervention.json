@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::latent_soft_intervention::equal_downstream_means_preserve_distinct_pathways_and_replay"
-  ],
-  "id": "estimate.latent_soft_intervention",
-  "kind": "capability",
-  "measurements": []
-}

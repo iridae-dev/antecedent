@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::cross_world_class_truth::a_cpdag_counterfactual_publishes_the_exact_set_of_completion_values_and_no_interval"
-  ],
-  "id": "Counterfactual/Cpdag/accepted/Frequentist/none",
-  "kind": "matrix",
-  "measurements": []
-}

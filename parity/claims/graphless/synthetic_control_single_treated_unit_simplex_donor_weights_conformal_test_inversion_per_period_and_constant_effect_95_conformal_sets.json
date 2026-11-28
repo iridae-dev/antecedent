@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::lib::synthetic_rollout::tests::conformal_p_value_and_set_match_the_two_donor_closed_form"
-  ],
-  "id": "synthetic_control:single_treated_unit:simplex_donor_weights_conformal_test_inversion:per_period_and_constant_effect_95_conformal_sets",
-  "kind": "graphless",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::compiled_twins_transport_supplied::the_compiled_response_grid_equals_the_hand_worked_augmented_means"
-  ],
-  "id": "transport.augmented_response_grid",
-  "kind": "capability",
-  "measurements": []
-}

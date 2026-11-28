@@ -1,9 +1,0 @@
-{
-  "assertions": [
-    "antecedent-contract::suite_01::interface_contract::provider_capabilities_disclose_operations_one_to_one",
-    "antecedent-contract::suite_01::interface_contract::support_containment_is_decided_by_declared_domains"
-  ],
-  "id": "interface_contract.scientific_interface",
-  "kind": "capability",
-  "measurements": []
-}

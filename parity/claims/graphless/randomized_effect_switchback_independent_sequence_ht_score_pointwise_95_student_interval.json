@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::graphless_published_intervals_known_truth::switchback_student_interval_matches_the_hand_computation"
-  ],
-  "id": "randomized_effect:switchback:independent_sequence_ht_score:pointwise_95_student_interval",
-  "kind": "graphless",
-  "measurements": []
-}

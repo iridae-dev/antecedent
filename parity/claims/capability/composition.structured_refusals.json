@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::structured_refusals_exact::a_mixed_composition_scores_exactly_the_valid_actions_and_reports_the_predicted_refusal_set"
-  ],
-  "id": "composition.structured_refusals",
-  "kind": "capability",
-  "measurements": []
-}

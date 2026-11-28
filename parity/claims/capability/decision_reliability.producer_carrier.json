@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_01::decision_reliability_producers::structurally_shared_rollout_noise_supports_ranking_to_the_carrier"
-  ],
-  "id": "decision_reliability.producer_carrier",
-  "kind": "capability",
-  "measurements": []
-}

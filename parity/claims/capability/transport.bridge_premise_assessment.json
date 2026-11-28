@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::lib::analysis::bridge_transport_decision::the_premise_assessment_bands_equal_the_hand_written_wald_construction"
-  ],
-  "id": "transport.bridge_premise_assessment",
-  "kind": "capability",
-  "measurements": []
-}

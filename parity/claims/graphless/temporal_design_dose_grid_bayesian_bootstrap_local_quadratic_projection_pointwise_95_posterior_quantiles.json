@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::temporal_design_dose_quantile_known_truth::local_quadratic_posterior_is_uniform_between_the_two_unit_curves"
-  ],
-  "id": "temporal_design:dose_grid:bayesian_bootstrap_local_quadratic_projection:pointwise_95_posterior_quantiles",
-  "kind": "graphless",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::suite_07::source_projection::source_projection_original_native_mean_and_affine_utility_match_independent_truth"
-  ],
-  "id": "composition.source_projection",
-  "kind": "capability",
-  "measurements": []
-}

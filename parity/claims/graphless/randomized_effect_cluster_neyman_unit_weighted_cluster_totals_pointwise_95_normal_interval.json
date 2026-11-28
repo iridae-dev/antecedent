@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::neyman_randomization_enumeration::cluster_totals_estimate_the_per_row_effect_with_the_cluster_neyman_variance"
-  ],
-  "id": "randomized_effect:cluster:neyman_unit_weighted_cluster_totals:pointwise_95_normal_interval",
-  "kind": "graphless",
-  "measurements": []
-}

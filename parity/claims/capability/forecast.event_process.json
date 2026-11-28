@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::events::conditional_likelihood_matches_poisson_and_direct_asymmetric_reference"
-  ],
-  "id": "forecast.event_process",
-  "kind": "capability",
-  "measurements": []
-}

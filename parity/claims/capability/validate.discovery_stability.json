@@ -1,9 +1,0 @@
-{
-  "assertions": [
-    "antecedent-validate::lib::discovery_stability_reference_tests::discovery_stability_block_bootstrap_matches_reference",
-    "antecedent::compiled_twins_discovery_validation::pcmci_checks_match_their_direct_validators"
-  ],
-  "id": "validate.discovery_stability",
-  "kind": "capability",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::dose_grid_functional::level_recovers_closed_form_exactly_without_noise"
-  ],
-  "id": "estimate.dose_grid_functional",
-  "kind": "capability",
-  "measurements": []
-}

@@ -1,9 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_02::transported_synthesis::distinct_transports_add_independent_errors",
-    "antecedent-design::suite_02::transported_synthesis::one_transport_serving_two_claims_shares_its_error"
-  ],
-  "id": "transport.synthesis_pooling",
-  "kind": "capability",
-  "measurements": []
-}

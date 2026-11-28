@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::marginal_structural_model_reference::coefficients_variances_and_weights_match_the_exact_reference"
-  ],
-  "id": "longitudinal_regime:known_sequential_randomized_additive_msm:stabilized_ipw_cr1_scores:intercept_and_period_effects_pointwise_95_normal_intervals",
-  "kind": "graphless",
-  "measurements": []
-}

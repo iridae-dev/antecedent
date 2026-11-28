@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::design_ranking_exact::net_value_ranking_matches_the_enumerated_evsi_and_cost"
-  ],
-  "id": "design.ranking_artifact",
-  "kind": "capability",
-  "measurements": []
-}

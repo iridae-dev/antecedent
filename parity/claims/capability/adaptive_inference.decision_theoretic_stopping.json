@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-stats::adaptive_inference_oracle::expected_loss_matches_the_uniform_integrals_and_scipy"
-  ],
-  "id": "adaptive_inference.decision_theoretic_stopping",
-  "kind": "capability",
-  "measurements": []
-}

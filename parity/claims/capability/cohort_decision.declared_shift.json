@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-io-core::lib::cohort_decision::tests::a_cohort_from_another_population_needs_a_declared_shift_and_support_overlap"
-  ],
-  "id": "cohort_decision.declared_shift",
-  "kind": "capability",
-  "measurements": []
-}

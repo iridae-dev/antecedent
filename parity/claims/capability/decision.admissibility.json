@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::decision_exact::a_probability_constraint_excludes_an_action_exactly_when_its_hand_probability_falls_short"
-  ],
-  "id": "decision.admissibility",
-  "kind": "capability",
-  "measurements": []
-}

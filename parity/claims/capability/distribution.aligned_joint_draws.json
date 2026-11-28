@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-io::suite_01::distribution_artifact::fresh_process_consumer_recomputes_enumerated_joint_truth"
-  ],
-  "id": "distribution.aligned_joint_draws",
-  "kind": "capability",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_02::transported_evaluation::the_weighting_uses_the_recorded_probabilities_not_the_arm_counts"
-  ],
-  "id": "transport.adaptive_trial_source",
-  "kind": "capability",
-  "measurements": []
-}

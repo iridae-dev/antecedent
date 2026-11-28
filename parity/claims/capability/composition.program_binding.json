@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-contract::program_binding_exact::the_requested_coordinates_are_the_hand_derived_g_format_regimes_in_grid_order"
-  ],
-  "id": "composition.program_binding",
-  "kind": "capability",
-  "measurements": []
-}

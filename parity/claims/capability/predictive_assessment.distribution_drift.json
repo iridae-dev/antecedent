@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-validate::suite_01::predictive_assessment::drift_compares_the_pit_of_two_windows"
-  ],
-  "id": "predictive_assessment.distribution_drift",
-  "kind": "capability",
-  "measurements": []
-}

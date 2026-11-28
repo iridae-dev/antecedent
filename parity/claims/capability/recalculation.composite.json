@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::recalc_composite_hand_utilities::composite_decision_equals_the_hand_utilities_of_the_analytic_front_door_response"
-  ],
-  "id": "recalculation.composite",
-  "kind": "capability",
-  "measurements": []
-}

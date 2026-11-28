@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::multi_source_posterior_exact::multi_source_formula_on_dirichlet_updated_laws_equals_the_target_interventional_truth"
-  ],
-  "id": "transport.multi_source_limited_experiment.bayesian",
-  "kind": "capability",
-  "measurements": []
-}

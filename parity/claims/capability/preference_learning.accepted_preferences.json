@@ -1,9 +1,0 @@
-{
-  "assertions": [],
-  "groups": [
-    "preference_choice_model_calibration: choice_model_trade_off_one_parameter_l95"
-  ],
-  "id": "preference_learning.accepted_preferences",
-  "kind": "capability",
-  "measurements": []
-}

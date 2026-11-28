@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::recovery_chain_posterior_exact::chain_recovery_of_the_dirichlet_updated_pattern_law_equals_the_enumerated_truth"
-  ],
-  "id": "recovery.chain_observation.bayesian",
-  "kind": "capability",
-  "measurements": []
-}

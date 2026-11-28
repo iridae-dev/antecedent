@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::graphless_published_intervals_known_truth::multi_action_cate_group_intervals_match_the_hand_computation"
-  ],
-  "id": "policy_value:multi_action_ipw_cate:fixed_randomized_multi_action_ipw_fixed_group_scores:paired_policy_incremental_and_all_cate_pointwise_95_normal_intervals",
-  "kind": "graphless",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::ordered_response_recovery_chain_truth::chain_formula_equals_the_enumerated_truth_for_every_chain_shape"
-  ],
-  "id": "recovery.chain_observation",
-  "kind": "capability",
-  "measurements": []
-}

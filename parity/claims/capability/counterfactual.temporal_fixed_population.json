@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-counterfactual::suite_01::temporal_cross_world::temporal_shared_scm_matches_hand_abduction_and_replay"
-  ],
-  "id": "counterfactual.temporal_fixed_population",
-  "kind": "capability",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::graphless_local_polynomial_ratio_known_truth::regression_kink_estimate_standard_error_and_interval_match_an_independent_fit"
-  ],
-  "id": "local_polynomial_ratio:regression_kink:local_quartic_slope_rbc_hc0_delta_mse_optimal_bandwidth:pointwise_95_normal_interval",
-  "kind": "graphless",
-  "measurements": []
-}

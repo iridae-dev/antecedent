@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::propagation_chain_known_truth::a_nonlinear_utility_is_the_normal_moment_generating_function_not_the_utility_of_the_mean"
-  ],
-  "id": "composition.propagation_chain",
-  "kind": "capability",
-  "measurements": []
-}

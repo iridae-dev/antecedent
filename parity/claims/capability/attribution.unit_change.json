@@ -1,9 +1,0 @@
-{
-  "assertions": [
-    "antecedent-attribution::unit_change_reference::interacting_parents_receive_the_permutation_average_marginal_contribution",
-    "antecedent-attribution::unit_change_reference::linear_mechanism_unit_contributions_are_slope_times_deviation_from_the_mean"
-  ],
-  "id": "attribution.unit_change",
-  "kind": "capability",
-  "measurements": []
-}

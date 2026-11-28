@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::compiled_twins_dose_feedback::the_compiled_smoothed_dose_with_caller_learners_matches_the_multiprecision_reference"
-  ],
-  "id": "transport.smoothed_dose_caller_learners",
-  "kind": "capability",
-  "measurements": []
-}

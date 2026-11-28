@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::graphless_did_known_truth::staggered_event_study_matches_the_analytic_event_time_effects_and_intervals"
-  ],
-  "id": "difference_in_differences:staggered_event_study:never_treated_event_study_cluster_cr1:post_adoption_event_time_pointwise_95_normal_intervals",
-  "kind": "graphless",
-  "measurements": []
-}

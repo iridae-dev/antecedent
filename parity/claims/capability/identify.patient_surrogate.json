@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-identify::lib::principal_surrogate::independent_exhaustive_monotone_surrogate_couplings"
-  ],
-  "id": "identify.patient_surrogate",
-  "kind": "capability",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::class_attribution_known_truth::class_anomaly_attribution_refuter_states_known_truth"
-  ],
-  "id": "AnomalyAttribution/TemporalPag/explicit/Frequentist/cheap",
-  "kind": "matrix",
-  "measurements": []
-}

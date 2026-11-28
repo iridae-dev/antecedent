@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::policy_value_reference::multi_action_scores_point_values_and_stratum_effects_match_the_exact_scores"
-  ],
-  "id": "policy_value:multi_action_ipw:fixed_randomized_multi_action_ipw_scores:paired_policy_incremental_pointwise_95_normal_intervals",
-  "kind": "graphless",
-  "measurements": []
-}

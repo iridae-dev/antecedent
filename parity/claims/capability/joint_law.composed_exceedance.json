@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-stats::lib::joint_law::tests::exceedance_decisions_report_the_monte_carlo_band"
-  ],
-  "id": "joint_law.composed_exceedance",
-  "kind": "capability",
-  "measurements": []
-}

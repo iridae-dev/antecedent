@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::suite_05::mapped_posterior_transfer::named_gaussian_transfer_matches_independent_dense_precision_grid"
-  ],
-  "id": "distribution.mapped_posterior_transfer",
-  "kind": "capability",
-  "measurements": []
-}

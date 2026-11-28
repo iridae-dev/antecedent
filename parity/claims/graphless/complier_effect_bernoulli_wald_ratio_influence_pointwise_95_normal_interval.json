@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::graphless_published_intervals_known_truth::wald_ratio_with_control_arm_receipt_matches_the_delta_method_over_every_assignment"
-  ],
-  "id": "complier_effect:bernoulli:wald_ratio_influence:pointwise_95_normal_interval",
-  "kind": "graphless",
-  "measurements": []
-}

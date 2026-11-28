@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::temporal_design_dose_quantile_known_truth::weighted_median_and_its_unit_bootstrap_match_the_exact_two_unit_law"
-  ],
-  "id": "temporal_design:quantile:whole_procedure_cluster_bootstrap_percentile:pointwise_95_percentile_interval",
-  "kind": "graphless",
-  "measurements": []
-}

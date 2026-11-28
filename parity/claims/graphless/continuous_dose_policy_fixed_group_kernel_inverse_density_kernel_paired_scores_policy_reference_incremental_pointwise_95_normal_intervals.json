@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::estimate_policy_continuous_dose_reference::the_dose_response_and_fixed_policy_match_the_exact_rational_reference"
-  ],
-  "id": "continuous_dose_policy:fixed_group_kernel:inverse_density_kernel_paired_scores:policy_reference_incremental_pointwise_95_normal_intervals",
-  "kind": "graphless",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::graphless_local_polynomial_ratio_known_truth::fuzzy_jump_estimate_standard_error_and_interval_match_an_independent_fit"
-  ],
-  "id": "local_polynomial_ratio:fuzzy_jump:local_quadratic_cubic_rbc_hc0_delta:pointwise_95_normal_interval",
-  "kind": "graphless",
-  "measurements": []
-}

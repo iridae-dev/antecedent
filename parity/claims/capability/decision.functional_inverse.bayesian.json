@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::dirichlet_update_exact::functional_inverse_boundary_is_the_conjugate_posterior_mean"
-  ],
-  "id": "decision.functional_inverse.bayesian",
-  "kind": "capability",
-  "measurements": []
-}

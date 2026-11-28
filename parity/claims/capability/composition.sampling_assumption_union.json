@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::sampling_assumption_union_known_truth::the_union_is_the_basic_bootstrap_endpoint_formula_over_the_replicate_endpoints"
-  ],
-  "id": "composition.sampling_assumption_union",
-  "kind": "capability",
-  "measurements": []
-}

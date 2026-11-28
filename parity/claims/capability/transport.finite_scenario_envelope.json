@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::suite_08::transport_scenarios_conditional::each_identified_scenario_matches_its_own_enumerated_truth"
-  ],
-  "id": "transport.finite_scenario_envelope",
-  "kind": "capability",
-  "measurements": []
-}

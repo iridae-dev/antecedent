@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::graphless_did_known_truth::repeated_cross_section_matches_the_analytic_effect_cluster_sandwich_and_interval"
-  ],
-  "id": "difference_in_differences:repeated_cross_section_2x2:four_cell_cluster_scores_cr1:pointwise_95_normal_interval",
-  "kind": "graphless",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-stats::adaptive_procedure_uncertainty_oracle::anytime_bound_holds_at_the_stopping_time_of_an_adaptive_procedure"
-  ],
-  "id": "adaptive_inference.procedure_anytime_exclusion",
-  "kind": "capability",
-  "measurements": []
-}

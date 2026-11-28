@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::suite_05::native_claims::native_aligned_law_functionals_match_finite_arithmetic"
-  ],
-  "id": "composition.source_lineage",
-  "kind": "capability",
-  "measurements": []
-}

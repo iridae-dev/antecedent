@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-io::lib::measured_inference::mnar_candidate::execution_matches_hand_calculated_shifted_interval"
-  ],
-  "id": "inference.measured_scalar",
-  "kind": "capability",
-  "measurements": []
-}

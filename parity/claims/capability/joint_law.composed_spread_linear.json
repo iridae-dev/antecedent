@@ -1,9 +1,0 @@
-{
-  "assertions": [
-    "antecedent-stats::lib::joint_law::tests::composed_linear_draws_have_the_closed_form_spread",
-    "antecedent::suite_03::composed_uncertainty_facade::a_linear_moments_spread_agrees_with_the_aligned_rows"
-  ],
-  "id": "joint_law.composed_spread_linear",
-  "kind": "capability",
-  "measurements": []
-}

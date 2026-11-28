@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-model::graph_falsification_reference::counts_p_values_equivalence_and_verdicts_match_the_definition"
-  ],
-  "id": "gcm.model.graph_falsification",
-  "kind": "capability",
-  "measurements": []
-}

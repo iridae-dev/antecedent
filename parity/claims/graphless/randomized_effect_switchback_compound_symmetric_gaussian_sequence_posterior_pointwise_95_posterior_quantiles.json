@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::switchback_posterior_reference::every_effect_matches_the_exact_posterior"
-  ],
-  "id": "randomized_effect:switchback:compound_symmetric_gaussian_sequence_posterior:pointwise_95_posterior_quantiles",
-  "kind": "graphless",
-  "measurements": []
-}

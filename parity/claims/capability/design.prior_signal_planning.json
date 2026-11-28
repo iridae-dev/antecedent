@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_02::prior_signal::equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal"
-  ],
-  "id": "design.prior_signal_planning",
-  "kind": "capability",
-  "measurements": []
-}

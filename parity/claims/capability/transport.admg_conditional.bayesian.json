@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::admg_conditional_posterior_exact::conditional_transport_on_dirichlet_updated_laws_equals_the_enumerated_truth"
-  ],
-  "id": "transport.admg_conditional.bayesian",
-  "kind": "capability",
-  "measurements": []
-}

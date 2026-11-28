@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::temporal_regime_survival_reference::regime_survival_matches_the_multiprecision_reference"
-  ],
-  "id": "temporal_design:regime_survival:whole_procedure_subject_bootstrap_refitting_hazard_and_confounder_transition_models:pointwise_95_percentile_interval",
-  "kind": "graphless",
-  "measurements": []
-}

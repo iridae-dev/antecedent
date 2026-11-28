@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::quasi_rollout_routes::fuzzy_rd_with_a_selected_bandwidth_and_diagnostics_recovers_the_effect"
-  ],
-  "id": "local_polynomial_ratio:fuzzy_jump:local_quadratic_cubic_rbc_hc0_delta_mse_optimal_bandwidth:pointwise_95_normal_interval",
-  "kind": "graphless",
-  "measurements": []
-}

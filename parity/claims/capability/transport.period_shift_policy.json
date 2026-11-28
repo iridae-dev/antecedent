@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::suite_02::transported_evaluation::a_period_shift_under_time_invariant_mechanisms_has_the_hand_value"
-  ],
-  "id": "transport.period_shift_policy",
-  "kind": "capability",
-  "measurements": []
-}

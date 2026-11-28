@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::cross_world_class_truth::a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval"
-  ],
-  "id": "Counterfactual/Pag/accepted/Frequentist/none",
-  "kind": "matrix",
-  "measurements": []
-}

@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-contract::adaptive_design_exact::three_delayed_looks_analyse_the_hand_derived_nested_sets"
-  ],
-  "id": "adaptive_inference.analysis_contract",
-  "kind": "capability",
-  "measurements": []
-}

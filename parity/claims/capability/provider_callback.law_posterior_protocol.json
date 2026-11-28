@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::suite_06::provider_callbacks::a_posterior_update_matches_the_conjugate_normal_posterior"
-  ],
-  "id": "provider_callback.law_posterior_protocol",
-  "kind": "capability",
-  "measurements": []
-}

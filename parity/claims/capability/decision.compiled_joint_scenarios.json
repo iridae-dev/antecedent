@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::compiled_robust_decisions::joint_dependence_and_maximin_match_independent_finite_enumeration"
-  ],
-  "id": "decision.compiled_joint_scenarios",
-  "kind": "capability",
-  "measurements": []
-}

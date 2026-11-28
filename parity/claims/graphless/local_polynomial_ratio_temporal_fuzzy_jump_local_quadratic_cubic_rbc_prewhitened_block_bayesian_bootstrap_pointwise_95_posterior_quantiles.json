@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::quasi_rollout_routes::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"
-  ],
-  "id": "local_polynomial_ratio:temporal_fuzzy_jump:local_quadratic_cubic_rbc_prewhitened_block_bayesian_bootstrap:pointwise_95_posterior_quantiles",
-  "kind": "graphless",
-  "measurements": []
-}

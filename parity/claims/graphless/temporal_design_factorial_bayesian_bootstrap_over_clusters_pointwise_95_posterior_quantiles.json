@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-estimate::temporal_design_excursion_bayesian_bootstrap_reference::the_posterior_of_the_ratio_matches_the_exact_dirichlet_integrals"
-  ],
-  "id": "temporal_design:factorial:bayesian_bootstrap_over_clusters:pointwise_95_posterior_quantiles",
-  "kind": "graphless",
-  "measurements": []
-}

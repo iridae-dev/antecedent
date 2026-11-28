@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::compiled_twins_trial_joint_learners::the_compiled_joint_cells_with_the_library_learners_recover_the_known_cell_means"
-  ],
-  "id": "estimate.joint_cells_caller_learners",
-  "kind": "capability",
-  "measurements": []
-}

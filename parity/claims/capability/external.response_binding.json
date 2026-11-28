@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent-design::external_provider_exact::a_bound_response_grid_gives_the_hand_derived_decision"
-  ],
-  "id": "external.response_binding",
-  "kind": "capability",
-  "measurements": []
-}

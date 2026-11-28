@@ -1,8 +1,0 @@
-{
-  "assertions": [
-    "antecedent::cross_world_dag_validation_truth::nested_dag_validation_refutes_the_structural_direct_effect"
-  ],
-  "id": "NestedCounterfactualEffect/Dag/accepted/Bayesian/none",
-  "kind": "matrix",
-  "measurements": []
-}
