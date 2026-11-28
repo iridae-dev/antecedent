@@ -16,7 +16,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import scientific_target_feature_args
-from evidence_platforms import PLATFORMS, earning_platform
+from evidence_platforms import PLATFORMS, earning_platform, require_sandbox
 from nix_artifact_identity import (
     RECIPE_FILES,
     _file_hash,
@@ -173,8 +173,10 @@ def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
     maps each target to its own build record: shared source and tools, its own
     artifact identity, executable and compile-time unit graph."""
     root = root.resolve()
-    # The policy of the host this runs on; a host that cannot earn refuses here.
+    # The policy of the host this runs on; a host that cannot earn refuses here,
+    # including a daemon sandbox that the later build audit would only see afterwards.
     platform = earning_platform(root, prepare=True)
+    require_sandbox(platform)
     # Such a platform also checks, unasked, that a new recipe or lock reproduces.
     check_reproducible = check_reproducible or platform.prepares
     wanted = sorted(set(targets))

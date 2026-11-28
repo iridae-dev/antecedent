@@ -114,6 +114,7 @@ class BuildOnlyTest(unittest.TestCase):
         artifact = {"source_nar_hash": "nar", "sandbox_verified": False}
         with patch.object(build, "_target_features", return_value=[]), \
              patch.object(build, "earning_platform", return_value=build.PLATFORMS["aarch64-apple-darwin"]), \
+             patch.object(build, "require_sandbox"), \
              patch.object(build, "materialize_committed_source", return_value={"commit": "abc"}), \
              patch.object(build, "import_committed_snapshot", return_value=source), \
              patch.object(build, "verify_committed_snapshot") as verify, \
@@ -143,6 +144,7 @@ class BuildOnlyTest(unittest.TestCase):
             return {"source_nar_hash": "nar", "sandbox_verified": False, "crate": crate}
         with patch.object(build, "_target_features", return_value=[]), \
              patch.object(build, "earning_platform", return_value=build.PLATFORMS["aarch64-apple-darwin"]), \
+             patch.object(build, "require_sandbox"), \
              patch.object(build, "materialize_committed_source", return_value={"commit": "abc"}), \
              patch.object(build, "import_committed_snapshot", return_value=source), \
              patch.object(build, "verify_committed_snapshot"), \
@@ -159,6 +161,14 @@ class BuildOnlyTest(unittest.TestCase):
         derivation.assert_called_once()
         self.assertEqual(sorted(result), [("a", "lib", ""), ("b", "test", "t")])
         self.assertEqual(result[("b", "test", "t")]["artifact"]["crate"], "b")
+
+    def test_a_weak_sandbox_refuses_before_the_derivation(self):
+        with patch.object(build, "earning_platform", return_value=build.PLATFORMS["aarch64-apple-darwin"]), \
+             patch.object(build, "require_sandbox", side_effect=ValueError("sandbox")), \
+             patch.object(build, "materialize_committed_source") as source:
+            with self.assertRaisesRegex(ValueError, "sandbox"):
+                build.build_committed_targets(Path("/repo"), [("a", "lib", "")])
+        source.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -380,8 +380,10 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     root = root.resolve()
     previous = load_records(root) if previous is None else previous
     # Refuse before any work on a host that cannot earn; a platform that prepares
-    # itself realises its build inputs here on first use.
-    earning_platform(root, prepare=True)
+    # itself realises its build inputs here on first use. The sandbox rule is
+    # checked here, before the boundary fixture or the derivation.
+    from evidence_platforms import require_sandbox
+    require_sandbox(earning_platform(root, prepare=True))
     require_compile_environment(root)
     allowed: dict[str, str] = {}
     _clean_head(root, allowed)  # Run outputs may be allowed only after starting clean.

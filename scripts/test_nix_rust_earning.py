@@ -72,6 +72,7 @@ class NixRustEarning(unittest.TestCase):
                  patch.object(scientific, "all_scientific_rows", return_value=rows), \
                  patch.object(nix_evidence_capture, "capture_built_target", side_effect=capture), \
                  patch.object(evidence_platforms, "earning_platform"), \
+                 patch.object(evidence_platforms, "require_sandbox"), \
                  patch.object(evidence_platforms, "validate_build"), \
                  patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")):
                 self.assertEqual(scientific.earn_rust(root, rows), 0)
@@ -97,6 +98,7 @@ class NixRustEarning(unittest.TestCase):
             patch.object(scientific, "all_scientific_rows", return_value=[{}]),
             patch.object(nix_evidence_capture, "capture_built_target") as capture,
             patch.object(evidence_platforms, "earning_platform"),
+            patch.object(evidence_platforms, "require_sandbox"),
             patch.object(evidence_platforms, "validate_build", side_effect=RuntimeError("unreviewed")),
             patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")),
             self.assertRaisesRegex(RuntimeError, "unreviewed"),
@@ -104,6 +106,25 @@ class NixRustEarning(unittest.TestCase):
             scientific.earn_rust(Path("/tmp"), [{}])
         withdraw.assert_not_called()
         capture.assert_not_called()
+
+    def test_a_weak_sandbox_refuses_before_the_preflight_or_the_build(self):
+        info = {"lang": "rust", "crate": "a", "target": ["--lib"], "selector": "a::lib::test"}
+        with (
+            patch.object(scientific, "locate", return_value=info),
+            patch.object(scientific, "exact_test_name", return_value="test"),
+            patch.object(nix_evidence_engineering_fixture, "run_fixture") as preflight,
+            patch.object(evidence_earning, "require_compile_environment"),
+            patch.object(nix_evidence_build, "build_committed_targets") as built,
+            patch.object(scientific, "all_scientific_rows", return_value=[{}]),
+            patch.object(evidence_platforms, "earning_platform", return_value=evidence_platforms.DARWIN),
+            patch.object(evidence_platforms, "require_sandbox",
+                         side_effect=evidence_platforms.UnreviewedPlatform("sandbox")),
+            patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")),
+            self.assertRaisesRegex(evidence_platforms.UnreviewedPlatform, "sandbox"),
+        ):
+            scientific.earn_rust(Path("/tmp"), [{}])
+        preflight.assert_not_called()
+        built.assert_not_called()
 
 
 if __name__ == "__main__":

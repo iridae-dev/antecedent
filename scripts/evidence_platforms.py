@@ -227,6 +227,14 @@ def verify_sandbox(platform: Platform) -> None:
         _verify_sandbox(platform)
 
 
+def require_sandbox(platform: Platform) -> None:
+    """Refuse before any build when the daemon does not meet this platform's sandbox rule."""
+    try:
+        verify_sandbox(platform)
+    except ValueError as error:
+        raise UnreviewedPlatform(sandbox_refusal(platform, error)) from error
+
+
 def sandbox_refusal(platform: Platform, error: ValueError) -> str:
     """Why this host's daemon cannot earn, and what resolves it."""
     cause = f" ({error.__cause__})" if error.__cause__ else ""
